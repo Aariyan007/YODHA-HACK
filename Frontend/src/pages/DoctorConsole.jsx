@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { gsap } from "gsap";
 import {
   approveConsultation,
   finalizeConsultation,
@@ -14,54 +15,108 @@ import { ReviewPanel } from "../components/console/ReviewPanel.jsx";
 import { ApprovedPanel } from "../components/console/ApprovedPanel.jsx";
 import { useT } from "../i18n.js";
 
-/**
- * Doctor console. Routed at /console/:token.
- *
- * Not behind the patient login guard — the share token in the URL is the only
- * credential the backend needs for the consultation endpoints.
- *
- * State machine: history → recording → review → approved. The in-progress
- * consultationId and transcript live in React state only (no localStorage).
- * If the page refreshes mid-visit, we offer a Restore button that calls
- * getConsultation to rehydrate from the server.
- */
+const PHASE_LABELS = {
+  recording: "Recording",
+  review:    "Review & edit",
+  approved:  "Approved",
+};
+
+// ── Phase progress bar ────────────────────────────────────────
+function PhaseBar({ phase }) {
+  const phases = ["history", "recording", "review", "approved"];
+  const idx    = phases.indexOf(phase);
+  return (
+    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      {phases.filter((p) => p !== "history").map((p, i) => (
+        <div
+          key={p}
+          title={p}
+          style={{
+            width:  32,
+            height: 4,
+            borderRadius: 9999,
+            background: i < idx
+              ? "var(--good)"
+              : i === idx - 1
+                ? "var(--accent)"
+                : "var(--border-strong)",
+            transition: "background 0.3s ease",
+          }}
+        />
+      ))}
+      {phase !== "history" && (
+        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-3)", marginLeft: 6 }}>
+          {PHASE_LABELS[phase]}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Console header ────────────────────────────────────────────
+function ConsoleHeader({ patientName, phase }) {
+  return (
+    <header className="console-top" role="banner">
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
+        <span className="brand" aria-label="MediThread Doctor Console">MediThread</span>
+        <span style={{
+          fontSize: "var(--font-size-xs)",
+          background: "var(--accent-subtle)",
+          color: "var(--accent-text)",
+          border: "1px solid var(--accent-border)",
+          borderRadius: "var(--r-full)",
+          padding: "2px 8px",
+          fontWeight: 600,
+          letterSpacing: "0.04em",
+        }}>
+          Doctor Console
+        </span>
+        {patientName && (
+          <span style={{ color: "var(--text-3)", fontSize: "var(--font-size-sm)" }}>
+            · {patientName}
+          </span>
+        )}
+      </div>
+      <PhaseBar phase={phase || "history"} />
+    </header>
+  );
+}
+
 export default function DoctorConsole() {
-  const { token } = useParams();
-  const navigate = useNavigate();
+  const { token }    = useParams();
+  const navigate     = useNavigate();
+  const mainRef      = useRef(null);
 
-  // Patient history (shared snapshot).
-  const [snapshot, setSnapshot] = useState(null);
-  const [snapshotError, setSnapshotError] = useState(null);
-
-  // Doctor identity.
-  const [doctorName, setDoctorName] = useState("Dr. Suresh Menon");
-
-  // State machine.
-  const [phase, setPhase] = useState("history"); // history | recording | review | approved
-  const [busy, setBusy] = useState(false);
-  const [startError, setStartError] = useState(null);
-
-  // Consultation state (populated once /start succeeds).
-  const [consultationId, setConsultationId] = useState(null);
+  const [snapshot,     setSnapshot]     = useState(null);
+  const [snapshotError,setSnapshotError]= useState(null);
+  const [doctorName,   setDoctorName]   = useState("Dr. Suresh Menon");
+  const [phase,        setPhase]        = useState("history");
+  const [busy,         setBusy]         = useState(false);
+  const [startError,   setStartError]   = useState(null);
+  const [consultationId,setConsultationId] = useState(null);
   const [consultState, setConsultState] = useState({
-    transcript: [],
-    flags: [],
-    suggestions: [],
+    transcript: [], flags: [], suggestions: [],
     partial_note: { subjective: null, objective: null, assessment: null, plan: null },
   });
   const [autoFeedScript, setAutoFeedScript] = useState(null);
   const [approvedResult, setApprovedResult] = useState(null);
 
-  // Load the share snapshot once.
   useEffect(() => {
     let alive = true;
     getShareSnapshot(token, "Doctor Console")
       .then((d) => alive && setSnapshot(d))
       .catch((e) => alive && setSnapshotError(e.message));
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [token]);
+
+  // Animate phase transitions
+  useEffect(() => {
+    if (!mainRef.current) return;
+    gsap.fromTo(mainRef.current,
+      { opacity: 0, y: 12 },
+      { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }
+    );
+  }, [phase]);
 
   const begin = async () => {
     setStartError(null);
@@ -84,8 +139,6 @@ export default function DoctorConsole() {
     try {
       const { consultationId: id } = await startConsultation(token, doctorName);
       setConsultationId(id);
-      // RecordingPanel enqueues this script line-by-line through the same
-      // queue the mic uses — same retry, same ordering guarantees.
       setAutoFeedScript(consultationScript);
       setPhase("recording");
     } catch (e) {
@@ -95,26 +148,27 @@ export default function DoctorConsole() {
     }
   };
 
-  // ---- rendering ----
-
   if (snapshotError) {
     return (
       <div className="console-shell">
         <ConsoleHeader />
-        <div className="card error" style={{ margin: 16 }}>
-          Could not load patient history: {snapshotError}
-          <div style={{ marginTop: 8 }}>
-            <button onClick={() => navigate("/")}>Back</button>
+        <div className="page-shell">
+          <div className="card-alert" style={{ borderRadius: "var(--r-lg)", padding: "var(--sp-5)" }}>
+            <p className="text-alert font-medium">Could not load patient history: {snapshotError}</p>
+            <button style={{ marginTop: "var(--sp-3)" }} onClick={() => navigate("/")}>
+              Back
+            </button>
           </div>
         </div>
       </div>
     );
   }
+
   if (!snapshot) {
     return (
       <div className="console-shell">
         <ConsoleHeader />
-        <div style={{ padding: 16 }}><Loading /></div>
+        <div className="page-shell"><Loading /></div>
       </div>
     );
   }
@@ -122,8 +176,12 @@ export default function DoctorConsole() {
   return (
     <div className="console-shell">
       <ConsoleHeader patientName={snapshot.patient?.name} phase={phase} />
-      <main className="console-main">
-        {startError && <div className="card error" style={{ marginBottom: 12 }}>{startError}</div>}
+      <main className="page-shell" ref={mainRef}>
+        {startError && (
+          <div className="card-alert" style={{ borderRadius: "var(--r-lg)", padding: "var(--sp-4)", marginBottom: "var(--sp-4)" }}>
+            {startError}
+          </div>
+        )}
 
         {phase === "history" && (
           <HistoryPanel
@@ -184,22 +242,3 @@ export default function DoctorConsole() {
     </div>
   );
 }
-
-function ConsoleHeader({ patientName, phase }) {
-  return (
-    <header className="console-top">
-      <div>
-        <span className="brand">MediThread · Doctor console</span>
-        {patientName && <span className="muted" style={{ marginLeft: 8 }}>· {patientName}</span>}
-      </div>
-      {phase && phase !== "history" && (
-        <span className="muted small" aria-live="polite">
-          {phase === "recording" && "Recording"}
-          {phase === "review" && "Review & edit"}
-          {phase === "approved" && "Approved"}
-        </span>
-      )}
-    </header>
-  );
-}
-
