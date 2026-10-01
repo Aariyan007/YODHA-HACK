@@ -6,7 +6,8 @@
 
 Steps: login, upload the prescription test image, check the clash / duplicate
 alerts, play the demo consultation, approve it, check the new timeline record,
-import the FHIR sample (twice, to prove dedupe), then POST /api/demo/reset.
+import the FHIR sample (twice, to prove dedupe), upload the lab report to trigger
+the HbA1c trend alert, then POST /api/demo/reset.
 Needs DEMO_MODE=true on the server for the first and last steps. It starts and
 ends by resetting the demo patient, so it WIPES Ammini's uploads, imports and visits.
 Exit code 0 only if every step passes.
@@ -65,6 +66,26 @@ def post(path, expect=200, **kw):
     return r.json()
 
 
+def upload_and_wait(path: Path) -> tuple[dict, list[str], bool]:
+    """POST the file, follow the SSE stream, return (result, stages, from_cache)."""
+    up = post("/api/documents", files={"file": (path.name, path.read_bytes(), "image/png")}, headers=auth())
+    stages, result = [], None
+    with http.stream("GET", f"/api/jobs/{up['jobId']}/events") as s:
+        for line in s.iter_lines():
+            if not line.startswith("data: "):
+                continue
+            ev = json.loads(line[6:])
+            if "stage" in ev:
+                stages.append(ev["stage"])
+            elif "error" in ev:
+                raise AssertionError(f"pipeline error: {ev['error']}")
+            elif ev.get("done"):
+                result = ev["result"]
+                break
+    assert result, "stream ended without a result"
+    return result, stages, up["cached"]
+
+
 T0 = time.time()
 print(f"Smoke test against {BASE}\n")
 
@@ -98,24 +119,10 @@ def _():
     assert RX.exists(), f"missing {RX}"
     before = len(get("/api/patients/me/timeline", headers=auth()))
     ctx["tl_before_upload"] = before
-    up = post("/api/documents", files={"file": (RX.name, RX.read_bytes(), "image/png")}, headers=auth())
-    stages, result = [], None
-    with http.stream("GET", f"/api/jobs/{up['jobId']}/events") as s:
-        for line in s.iter_lines():
-            if not line.startswith("data: "):
-                continue
-            ev = json.loads(line[6:])
-            if "stage" in ev:
-                stages.append(ev["stage"])
-            elif "error" in ev:
-                raise AssertionError(f"pipeline error: {ev['error']}")
-            elif ev.get("done"):
-                result = ev["result"]
-                break
-    assert result, "stream ended without a result"
+    result, stages, cached = upload_and_wait(RX)
     assert stages[:1] == ["read"] and "check" in stages, stages
     ctx["upload"] = result
-    return f"{len(stages)} stages, cached={up['cached']}"
+    return f"{len(stages)} stages, cached={cached}"
 
 
 @step("2+ clash/duplicate alerts raised, and saved")
@@ -181,6 +188,18 @@ def _():
     assert r["alreadyImported"] and r["total"] == 0, r["message"]
     assert len(get("/api/patients/me/timeline", headers=auth())) == before
     return r["message"]
+
+
+@step("lab upload after the import raises the HbA1c trend alert")
+def _():
+    lab = ROOT / "test_docs" / "lab_report.png"
+    result, _, _ = upload_and_wait(lab)
+    trend = [a for a in result["alerts"] if a["kind"] == "trend"]
+    assert len(trend) == 1, [a["kind"] for a in result["alerts"]]
+    saved = [a for a in get("/api/patients/me/alerts", headers=auth()) if a["kind"] == "trend"]
+    assert len(saved) == 1
+    assert "7.2, 7.6, 8.2" in saved[0]["message"], saved[0]["message"]
+    return saved[0]["message"]
 
 
 @step("bad FHIR input is refused in plain language")
