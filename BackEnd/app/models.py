@@ -54,6 +54,10 @@ class Document(Base):
     source_lines: Mapped[list] = mapped_column(JSON, default=list)
     source_highlight: Mapped[list] = mapped_column(JSON, default=list)
     file_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    # Phase 6: where the record came from ("fhir" for hospital imports) and its
+    # stable id in the source system, used to dedupe repeat imports.
+    origin: Mapped[str | None] = mapped_column(String(20))
+    external_id: Mapped[str | None] = mapped_column(String(120), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -88,6 +92,9 @@ class Observation(Base):
     name: Mapped[str] = mapped_column(String(120))
     value: Mapped[float] = mapped_column(Float)
     unit: Mapped[str | None] = mapped_column(String(30))
+    # Phase 6: LOINC code and source tag (None = own upload, "fhir" = hospital import).
+    loinc: Mapped[str | None] = mapped_column(String(20))
+    source: Mapped[str | None] = mapped_column(String(20))
 
 
 class Alert(Base):

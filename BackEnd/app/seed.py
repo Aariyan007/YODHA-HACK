@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .labs import loinc_for
+from .trends import check_trends
 from .models import AccessLog, Alert, Document, Medicine, Observation, Patient, ReminderSettings
 
 DEMO_PHONE = "9876543210"
@@ -119,7 +121,7 @@ def seed_if_empty(db: Session) -> bool:
                         summary=summary, summary_ml=summary_ml, tags=tags, items=items))
         db.flush()
         for c, n, v, u in obs:
-            db.add(Observation(patient_id=DEMO_ID, document_id=doc_id, date=date, code=c, name=n, value=v, unit=u))
+            db.add(Observation(patient_id=DEMO_ID, document_id=doc_id, date=date, code=c, name=n, value=v, unit=u, loinc=loinc_for(c)))
     for m in MEDICINES:
         db.add(Medicine(patient_id=DEMO_ID, **m))
     base = datetime(2026, 9, 24, 10, 30, tzinfo=timezone.utc)
@@ -129,6 +131,8 @@ def seed_if_empty(db: Session) -> bool:
     for who, role, action, via, days in ACCESS_LOG:
         db.add(AccessLog(patient_id=DEMO_ID, who=who, role=role, action=action, via=via, at=now - timedelta(days=days)))
 
+    db.flush()
+    check_trends(db, DEMO_ID)  # Ammini's HbA1c is falling, so this adds nothing today
     ensure_demo_reminder_settings(db)
     db.commit()
     return True

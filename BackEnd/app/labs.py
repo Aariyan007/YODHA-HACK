@@ -36,3 +36,23 @@ def lab_status(code: str, value: float) -> str:
 def lab_range(code: str) -> str | None:
     rule = RULES.get(code)
     return rule["range"] if rule else None
+
+
+# Primary LOINC code per lab code (stored on Observation.loinc).
+LOINC_BY_CODE: dict[str, str] = {
+    "hba1c": "4548-4", "fbs": "1558-6", "ppbs": "1521-4", "ldl": "13457-7", "hdl": "2085-9",
+    "tg": "2571-8", "total_chol": "2093-3", "creatinine": "2160-0", "hb": "718-7",
+    "tsh": "3016-3", "sbp": "8480-6", "dbp": "8462-4",
+}
+
+# Every LOINC we accept on import -> our lab code (a few tests have several LOINC ids).
+CODE_BY_LOINC: dict[str, str] = {
+    **{v: k for k, v in LOINC_BY_CODE.items()},
+    "17856-6": "hba1c", "59261-8": "hba1c", "41995-2": "hba1c",
+    "1556-0": "fbs", "76629-5": "fbs", "2345-7": "ppbs",
+    "2089-1": "ldl", "18262-6": "ldl",
+}
+
+
+def loinc_for(code: str | None) -> str | None:
+    return LOINC_BY_CODE.get(code or "")

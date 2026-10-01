@@ -23,6 +23,8 @@ from sqlalchemy.orm import Session
 
 from app import store
 from app.database import SessionLocal
+from app.labs import loinc_for
+from app.trends import check_trends
 from app.models import AccessLog, Alert, Document, Medicine, Observation, Patient, new_id, now as utcnow
 from . import reminders as reminders_mod
 from . import telegram
@@ -176,7 +178,7 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
             db.add(Observation(
                 patient_id=patient_id, document_id=doc_id, date=rec.get("date"),
                 code=ob.get("code") or "unknown", name=ob.get("name") or "value",
-                value=val, unit=ob.get("unit"),
+                value=val, unit=ob.get("unit"), loinc=loinc_for(ob.get("code")),
             ))
 
         for m in rec.get("medications", []):
@@ -193,6 +195,8 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
         # Save alerts (new ids each time; drop the cached ids).
         saved_alerts = []
         for a in alerts:
+            if a.get("kind") == "trend":
+                continue  # recomputed below from stored Observations
             row = Alert(
                 patient_id=patient_id, severity=a["severity"], kind=a["kind"],
                 title=a["title"], message=a["message"], message_ml=a.get("messageMl"),
@@ -205,6 +209,8 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
                 "resolved": False, "createdAt": datetime.now(timezone.utc).isoformat(),
             })
 
+        db.flush()
+        saved_alerts += check_trends(db, patient_id)
         db.add(AccessLog(
             patient_id=patient_id, who=patient.name, role="Patient",
             action=f"Added {rec.get('type') or 'record'}", via="Upload",
@@ -299,7 +305,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -
             db.add(Observation(
                 patient_id=patient_id, document_id=doc_id, date=date_s,
                 code=ob.get("code") or "unknown", name=ob.get("name") or "value",
-                value=val, unit=ob.get("unit"),
+                value=val, unit=ob.get("unit"), loinc=loinc_for(ob.get("code")),
             ))
 
         # Save new medicines (duplicates still save; alert warns the user).
@@ -331,6 +337,8 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -
                 "resolved": False, "createdAt": now_iso,
             })
 
+        db.flush()
+        saved_alerts += check_trends(db, patient_id)
         db.add(AccessLog(
             patient_id=patient_id, who=patient.name, role="Patient",
             action=f"Added {doc.get('type') or 'record'}", via="Upload",
