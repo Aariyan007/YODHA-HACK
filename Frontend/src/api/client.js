@@ -7,6 +7,9 @@ const BASE = import.meta.env.VITE_API_URL || ""; // empty = same origin, Vite pr
 
 const TOKEN_KEY = "medithread_token";
 
+// Pipeline stages in order. Shared with the Upload page UI.
+export const STAGES = ["read", "understand", "code", "explain", "check"];
+
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY));
 
@@ -71,3 +74,79 @@ export const getShareSnapshot = (token, viewer) =>
     : request(`/api/shares/${encodeURIComponent(token)}/snapshot${viewer ? `?viewer=${encodeURIComponent(viewer)}` : ""}`, {
         auth: false,
       });
+
+// ---------- document upload (SSE pipeline) ----------
+
+// Upload one file + listen to stage events over Server-Sent Events.
+// callbacks: { onStage(stage), onDone(result), onError(message) }
+export function uploadDocument(file, callbacks = {}) {
+  const { onStage = () => {}, onDone = () => {}, onError = () => {} } = callbacks;
+
+  if (USE_MOCK) {
+    let i = 0;
+    const timer = setInterval(() => {
+      if (i < STAGES.length) {
+        onStage(STAGES[i++]);
+      } else {
+        clearInterval(timer);
+        onDone(structuredClone(mock.demoUpload));
+      }
+    }, 350);
+    return { cancel: () => clearInterval(timer) };
+  }
+
+  const form = new FormData();
+  form.append("file", file);
+  const headers = {};
+  if (getToken()) headers.Authorization = `Bearer ${getToken()}`;
+
+  let source;
+  fetch(`${BASE}/api/documents`, { method: "POST", body: form, headers })
+    .then(async (r) => {
+      if (!r.ok) {
+        let msg = r.statusText;
+        try {
+          msg = (await r.json()).detail ?? msg;
+        } catch {}
+        throw new Error(typeof msg === "string" ? msg : "Upload failed");
+      }
+      return r.json();
+    })
+    .then(({ jobId }) => {
+      // EventSource cannot send Authorization headers; the unguessable jobId is the key.
+      source = new EventSource(`${BASE}/api/jobs/${encodeURIComponent(jobId)}/events`);
+      source.onmessage = (ev) => {
+        let data;
+        try {
+          data = JSON.parse(ev.data);
+        } catch {
+          return;
+        }
+        if (data.stage) onStage(data.stage);
+        else if (data.error) {
+          source.close();
+          onError(data.error);
+        } else if (data.done) {
+          source.close();
+          onDone(data.result);
+        }
+      };
+      source.onerror = () => {
+        source.close();
+        onError("Lost connection to the server. Please try again.");
+      };
+    })
+    .catch((e) => onError(e.message));
+
+  return {
+    cancel: () => {
+      if (source) source.close();
+    },
+  };
+}
+
+// -> { urgent, specialist, why }
+export const triage = (text) =>
+  USE_MOCK
+    ? delay(mock.mockTriage(text))
+    : request("/api/triage", { method: "POST", body: { text }, auth: false });

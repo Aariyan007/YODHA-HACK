@@ -106,3 +106,20 @@ label { display: block; margin-bottom: 12px; font-size: 0.9rem; color: var(--mut
   .tl-item { grid-template-columns: 1fr; }
   .tl-date { padding-top: 0; }
 }
+
+/* Phase 2: Upload page + Triage */
+.preview { display: block; max-width: 100%; max-height: 240px; border-radius: 8px; margin-top: 10px; }
+.stages { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 10px; }
+.stage { display: flex; gap: 10px; align-items: center; color: var(--muted); }
+.stage .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: inline-block; }
+.stage.done { color: var(--good); }
+.stage.done .dot { background: var(--good); }
+.stage.now { color: var(--accent); font-weight: 600; }
+.stage.now .dot { background: var(--accent); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.6); opacity: 0.5; } }
+.result h4 { font-size: 0.9rem; color: var(--muted); margin: 12px 0 4px; }
+.source { background: var(--bg); padding: 10px; border-radius: 8px; white-space: pre-wrap; font-size: 0.85rem; max-height: 240px; overflow: auto; margin: 8px 0; }
+.source .hl { background: var(--watch-bg); }
+textarea { font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; width: 100%; resize: vertical; }
+.card.urgent { border-color: var(--alert); background: #fff5f5; }
+.emergency { background: var(--alert); color: #fff; padding: 8px 12px; border-radius: 8px; font-weight: 700; margin-bottom: 10px; }

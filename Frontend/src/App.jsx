@@ -9,6 +9,8 @@ import Medicines from "./pages/Medicines.jsx";
 import Insights from "./pages/Insights.jsx";
 import Sharing from "./pages/Sharing.jsx";
 import Snapshot from "./pages/Snapshot.jsx";
+import Triage from "./pages/Triage.jsx";
+import Upload from "./pages/Upload.jsx";
 
 const PROFILE_KEY = "medithread_profile";
 const LANG_KEY = "medithread_lang";
@@ -46,9 +48,11 @@ function Layout() {
   };
   const tabs = [
     ["/", t("home")],
+    ["/upload", t("upload")],
     ["/timeline", t("timeline")],
     ["/medicines", t("medicines")],
     ["/insights", t("insights")],
+    ["/triage", t("triage")],
     ["/sharing", t("sharing")],
   ];
   return (
@@ -89,9 +93,11 @@ export default function App() {
         <Route path="/share/:token" element={<Snapshot toggle={<LangToggle />} />} />
         <Route element={<Layout />}>
           <Route index element={<Home />} />
+          <Route path="upload" element={<Upload />} />
           <Route path="timeline" element={<Timeline />} />
           <Route path="medicines" element={<Medicines />} />
           <Route path="insights" element={<Insights />} />
+          <Route path="triage" element={<Triage />} />
           <Route path="sharing" element={<Sharing />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

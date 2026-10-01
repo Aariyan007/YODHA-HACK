@@ -4,9 +4,11 @@ const STRINGS = {
   en: {
     appName: "MediThread",
     home: "Home",
+    upload: "Add",
     timeline: "Timeline",
     medicines: "Medicines",
     insights: "Health",
+    triage: "Which doctor?",
     sharing: "Sharing",
     logout: "Log out",
     loginTitle: "Your health records, in one thread",
@@ -49,9 +51,11 @@ const STRINGS = {
   ml: {
     appName: "മെഡിത്രെഡ്",
     home: "ഹോം",
+    upload: "ചേർക്കുക",
     timeline: "ടൈംലൈൻ",
     medicines: "മരുന്നുകൾ",
     insights: "ആരോഗ്യം",
+    triage: "ഡോക്ടർ?",
     sharing: "പങ്കിടൽ",
     logout: "ലോഗ് ഔട്ട്",
     loginTitle: "നിങ്ങളുടെ ആരോഗ്യ രേഖകൾ ഒരിടത്ത്",

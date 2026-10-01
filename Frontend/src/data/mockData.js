@@ -1057,3 +1057,104 @@ export const snapshot = {
     ]
   }
 };
+
+// ---------- Phase 2: upload pipeline + triage mocks ----------
+
+export const demoUpload = {
+  record: {
+    id: "doc_demo_upload",
+    date: "2026-09-28",
+    type: "prescription",
+    status: "good",
+    title: "Cough and fever",
+    provider: "Sunrise Clinic, Kottayam",
+    doctor: "Dr Rahul Das",
+    summary: {
+      en: "You visited Dr Rahul Das at Sunrise Clinic for cough and fever. Take Clarithromycin 500 mg twice a day after food for 7 days, continue Glycomet 500 mg twice a day, Ascoril syrup 10 ml three times a day for 5 days, and Dolo 650 mg only when fever rises. Come back after 5 days if the fever is still there.",
+      ml: "ഡോ. രാഹുൽ ദാസ്, സൺറൈസ് ക്ലിനിക്, കോട്ടയം എന്നിവിടങ്ങളിൽ ചുമയും ജ്വരവും പരിശോധിച്ചു. Clarithromycin 500 mg ദിവസം രണ്ടുതവണ ഭക്ഷണത്തിന് ശേഷം 7 ദിവസം, Glycomet 500 mg ദിവസം രണ്ടുതവണ തുടരുക, Ascoril സിറപ്പ് 10 ml ദിവസം മൂന്നുതവണ 5 ദിവസം, ജ്വരം വന്നാൽ മാത്രം Dolo 650 mg എടുക്കുക. 5 ദിവസം കഴിഞ്ഞും ജ്വരം തുടർന്നാൽ വീണ്ടും വരിക."
+    },
+    observations: [],
+    medications: [
+      { name: "Tab Clarithromycin 500 mg", generic: "clarithromycin", dose: "500 mg", schedule: "BD", times: ["08:00", "20:00"], duration: "7 days", purpose: "cough and fever" },
+      { name: "Tab Glycomet 500 mg", generic: "metformin", dose: "500 mg", schedule: "BD", times: ["08:00", "20:00"], duration: "continue", purpose: "diabetes" },
+      { name: "Syp Ascoril 10 ml", generic: "cough-syrup", dose: "10 ml", schedule: "TDS", times: ["08:00", "14:00", "20:00"], duration: "5 days", purpose: "cough" },
+      { name: "Tab Dolo 650 mg", generic: "paracetamol", dose: "650 mg", schedule: "SOS", times: [], duration: null, purpose: "fever" }
+    ],
+    followUp: "Review after 5 days if fever persists.",
+    source: {
+      kind: "image",
+      lines: [
+        "Sunrise Clinic, Kottayam",
+        "Dr Rahul Das, MBBS",
+        "Date: 28/09/2026",
+        "C/O: Cough and fever x 4 days",
+        "Tab Clarithromycin 500 mg - BD x 7 days",
+        "Tab Glycomet 500 mg - BD (continue)",
+        "Syp Ascoril 10 ml - TDS x 5 days",
+        "Review after 5 days if fever persists."
+      ],
+      highlight: [0, 1, 4, 5, 6, 7]
+    },
+    isNew: true
+  },
+  alerts: [
+    {
+      id: "alert_demo_dup",
+      severity: "high",
+      kind: "duplicate",
+      title: "Tab Glycomet duplicates Glycomet 500",
+      message: "Tab Glycomet is the same medicine as Glycomet 500 you are already taking (both are metformin). Taking both doubles the dose. Ask your doctor which one to continue.",
+      messageMl: null,
+      resolved: false,
+      createdAt: "2026-09-28T10:00:00Z"
+    },
+    {
+      id: "alert_demo_clash",
+      severity: "high",
+      kind: "clash",
+      title: "Tab Clarithromycin + Atorva 20",
+      message: "Clarithromycin raises atorvastatin levels in blood, which can cause serious muscle damage. Doctor should pause atorvastatin while on clarithromycin.",
+      messageMl: null,
+      resolved: false,
+      createdAt: "2026-09-28T10:00:00Z"
+    }
+  ],
+  reminders: [
+    { id: "rem1", title: "Tab Clarithromycin 500 mg", when: "2026-09-29T08:00:00+05:30", until: "2026-10-05", time: "08:00" },
+    { id: "rem2", title: "Tab Glycomet 500 mg",       when: "2026-09-29T08:00:00+05:30", until: null,          time: "08:00" },
+    { id: "rem3", title: "Syp Ascoril 10 ml",         when: "2026-09-29T08:00:00+05:30", until: "2026-10-03", time: "08:00" },
+    { id: "rem4", title: "Syp Ascoril 10 ml",         when: "2026-09-29T14:00:00+05:30", until: "2026-10-03", time: "14:00" },
+    { id: "rem5", title: "Tab Clarithromycin 500 mg", when: "2026-09-29T20:00:00+05:30", until: "2026-10-05", time: "20:00" },
+    { id: "rem6", title: "Tab Glycomet 500 mg",       when: "2026-09-29T20:00:00+05:30", until: null,          time: "20:00" },
+    { id: "rem7", title: "Syp Ascoril 10 ml",         when: "2026-09-29T20:00:00+05:30", until: "2026-10-03", time: "20:00" },
+    { id: "rem8", title: "Follow-up: Review after 5 days if fever persists.", when: "2026-10-05T10:00:00+05:30", until: "2026-10-05", time: "10:00" }
+  ]
+};
+
+// Keyword-based triage, mirrors BackEnd/app/routers/documents.py SYMPTOM_RULES.
+export const symptomRules = [
+  { patterns: /chest\s+pain|heart\s+attack/i,   specialist: "Emergency / 108",            why: "Possible chest pain. Call 108 immediately or go to the nearest emergency room.", urgent: true },
+  { patterns: /can'?t\s+breathe|short(ness)?\s+of\s+breath|breathless/i, specialist: "Emergency / 108", why: "Possible trouble breathing. Call 108 immediately.", urgent: true },
+  { patterns: /face\s+droop|slurred\s+speech|weak(ness)?\s+(on\s+)?one\s+side|stroke/i, specialist: "Emergency / 108", why: "Possible signs of stroke. Call 108 immediately.", urgent: true },
+  { patterns: /faint|unconscious|passed\s+out/i, specialist: "Emergency / 108",           why: "Possible fainting. Seek urgent care.", urgent: true },
+  { patterns: /chest|breath|palpit|heart/i,     specialist: "Cardiologist",                why: "Heart-related symptoms" },
+  { patterns: /sugar|diabetes|thirst|hba1c/i,   specialist: "Diabetologist / Endocrinologist", why: "Possible diabetes-related issue" },
+  { patterns: /blood pressure|bp|dizzy|headache/i, specialist: "General Physician",       why: "Blood-pressure or general assessment" },
+  { patterns: /tooth|gum|dental/i,              specialist: "Dentist",                     why: "Dental issue" },
+  { patterns: /eye|vision|blurry|cataract/i,    specialist: "Ophthalmologist",             why: "Eye-related issue" },
+  { patterns: /ear|hearing|vertigo/i,           specialist: "ENT specialist",              why: "Ear or balance issue" },
+  { patterns: /skin|rash|itch|eczema/i,         specialist: "Dermatologist",               why: "Skin issue" },
+  { patterns: /joint|knee|back pain|arthritis/i,specialist: "Orthopaedician",              why: "Joint or muscle issue" },
+  { patterns: /period|pregnan|menstrual|pcos/i, specialist: "Gynaecologist",               why: "Women's health" },
+  { patterns: /child|baby|infant/i,             specialist: "Paediatrician",               why: "Child health" },
+  { patterns: /anxiety|depress|sad|stress/i,    specialist: "Psychiatrist / Psychologist", why: "Mental health concern" },
+  { patterns: /stomach|vomit|diarrhoea|acid/i,  specialist: "Gastroenterologist / Physician", why: "Digestive issue" },
+  { patterns: /urine|kidney|urinary/i,          specialist: "Nephrologist / Urologist",    why: "Kidney or urinary issue" },
+  { patterns: /fever|cold|cough|throat|flu/i,   specialist: "General Physician",           why: "Common infection" }
+];
+
+export function mockTriage(text) {
+  const match = symptomRules.find((r) => r.patterns.test(text));
+  if (match) return { urgent: Boolean(match.urgent), specialist: match.specialist, why: match.why };
+  return { urgent: false, specialist: "General Physician", why: "A general check-up is a good starting point." };
+}
