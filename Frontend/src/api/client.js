@@ -274,3 +274,54 @@ export async function runDemoConversation(consultationId, shareToken, onLine) {
   }
   return last;
 }
+
+// ---------- reminders (Phase 5) ----------
+
+let MOCK_REMINDER_SETTINGS = {
+  remindersEnabled: false,
+  channels: { phone: false, telegram: true, family: false },
+  telegramChatId: "123456789",
+  familyChatId: null,
+  familyName: "Joseph",
+  missedAfterMinutes: 60,
+  telegramReady: true,
+  demoMode: true,
+};
+
+// -> { remindersEnabled, channels:{phone,telegram,family}, telegramChatId, familyChatId,
+//      familyName, missedAfterMinutes, telegramReady, demoMode }
+// Real: GET /api/reminders/settings
+export const getReminderSettings = () =>
+  USE_MOCK ? delay(MOCK_REMINDER_SETTINGS) : request("/api/reminders/settings");
+
+// Real: PUT /api/reminders/settings (same body shape as the GET response)
+export const saveReminderSettings = (settings) => {
+  if (USE_MOCK) {
+    MOCK_REMINDER_SETTINGS = { ...MOCK_REMINDER_SETTINGS, ...settings };
+    return delay(MOCK_REMINDER_SETTINGS);
+  }
+  const { remindersEnabled, channels, telegramChatId, familyChatId, familyName, missedAfterMinutes } = settings;
+  return request("/api/reminders/settings", {
+    method: "PUT",
+    body: { remindersEnabled, channels, telegramChatId, familyChatId, familyName, missedAfterMinutes },
+  });
+};
+
+// -> { ok: true }. On failure the server answers 400 with a plain-language detail,
+// which `request` throws as Error(message).
+// Real: POST /api/reminders/telegram/test
+export const testTelegram = () =>
+  USE_MOCK ? delay({ ok: true }) : request("/api/reminders/telegram/test", { method: "POST" });
+
+// -> { sent, kind, medicine, clock, message } or { sent:false, error }
+// Real: POST /api/demo/fire-reminder (404 unless the server has DEMO_MODE=true)
+export const fireDemoReminder = () =>
+  USE_MOCK
+    ? delay({ sent: true, kind: "dose", medicine: "Glycomet 500", clock: "08:00", message: "Time for Glycomet 500. Take it after food. Open MediThread and tap Taken." })
+    : request("/api/demo/fire-reminder", { method: "POST" });
+
+// Real: POST /api/demo/fire-missed (404 unless DEMO_MODE=true)
+export const fireDemoMissed = () =>
+  USE_MOCK
+    ? delay({ sent: true, kind: "missed", medicine: "Glycomet 500", clock: "08:00", message: "Joseph, Ammini has not marked Glycomet 500 as taken since 8:00 AM." })
+    : request("/api/demo/fire-missed", { method: "POST" });

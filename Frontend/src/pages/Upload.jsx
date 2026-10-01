@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { STAGES, uploadDocument } from "../api/client.js";
+import { STAGES, getReminderSettings, saveReminderSettings, testTelegram, uploadDocument } from "../api/client.js";
 import { AlertCard, Status, formatDate } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 
@@ -102,6 +102,24 @@ function UploadResult({ result, onReset }) {
   const { t, pick, lang } = useT();
   const { record, alerts, reminders } = result;
   const [showSource, setShowSource] = useState(false);
+  const [remBusy, setRemBusy] = useState(false);
+  const [remNote, setRemNote] = useState(null); // { kind: "ok" | "error", text }
+
+  // Saves "reminders on" + Telegram channel, then sends a test message so the phone buzzes right away.
+  const turnOnReminders = async () => {
+    setRemBusy(true);
+    setRemNote(null);
+    try {
+      const cur = await getReminderSettings();
+      await saveReminderSettings({ ...cur, remindersEnabled: true, channels: { ...cur.channels, telegram: true } });
+      await testTelegram();
+      setRemNote({ kind: "ok", text: lang === "ml" ? "നിങ്ങളുടെ ടെലിഗ്രാമിലേക്ക് അയച്ചു" : "Sent to your Telegram" });
+    } catch (e) {
+      setRemNote({ kind: "error", text: e.message });
+    } finally {
+      setRemBusy(false);
+    }
+  };
 
   return (
     <>
@@ -203,6 +221,16 @@ function UploadResult({ result, onReset }) {
               </div>
             ))}
           </div>
+          <div className="row" style={{ marginTop: 10 }}>
+            <button className="primary" onClick={turnOnReminders} disabled={remBusy}>
+              {remBusy ? "…" : lang === "ml" ? "ഈ ഓർമ്മപ്പെടുത്തലുകൾ ഓണാക്കുക" : "Turn on these reminders"}
+            </button>
+          </div>
+          {remNote && (
+            <p className={remNote.kind === "error" ? "error" : "muted"} role={remNote.kind === "error" ? "alert" : "status"}>
+              {remNote.text}
+            </p>
+          )}
         </section>
       )}
 

@@ -11,6 +11,7 @@ import Sharing from "./pages/Sharing.jsx";
 import Snapshot from "./pages/Snapshot.jsx";
 import Triage from "./pages/Triage.jsx";
 import Upload from "./pages/Upload.jsx";
+import Reminders from "./pages/Reminders.jsx";
 import DoctorConsole from "./pages/DoctorConsole.jsx";
 
 const PROFILE_KEY = "medithread_profile";
@@ -52,6 +53,7 @@ function Layout() {
     ["/upload", t("upload")],
     ["/timeline", t("timeline")],
     ["/medicines", t("medicines")],
+    ["/reminders", t("reminders")],
     ["/insights", t("insights")],
     ["/triage", t("triage")],
     ["/sharing", t("sharing")],
@@ -98,6 +100,7 @@ export default function App() {
           <Route path="upload" element={<Upload />} />
           <Route path="timeline" element={<Timeline />} />
           <Route path="medicines" element={<Medicines />} />
+          <Route path="reminders" element={<Reminders />} />
           <Route path="insights" element={<Insights />} />
           <Route path="triage" element={<Triage />} />
           <Route path="sharing" element={<Sharing />} />
