@@ -27,11 +27,13 @@ from sqlalchemy.orm import Session
 
 from ai import consultation as consult_ai
 from ai import reminders as reminders_mod
-from ai import telegram
 from ai.jev_client import allergy_hit, check_pair, to_generic
 
 from ..database import get_db
-from ..models import AccessLog, Alert, Consultation, Document, Medicine, Patient, ShareLink, new_id
+from ..health_hooks import after_new_data, notify_patient
+from ..labs import lab_range, lab_status, loinc_for
+from ..models import AccessLog, Alert, Consultation, Document, Medicine, Observation, Patient, ShareLink, new_id
+from ..vitals import from_text as vitals_from_text
 
 router = APIRouter(prefix="/api/consultations", tags=["consultations"])
 
@@ -473,6 +475,13 @@ def approve(
         "name": m["name"], "generic": m["generic"], "dose": m.get("dose"),
         "frequency": m.get("schedule"), "duration": m.get("duration"), "purpose": m.get("purpose"),
     } for m in meds]
+    # Readings the doctor said out loud ("BP is 150 by 95") or wrote in the Objective field.
+    objective_text = (final.get("objective") or {}).get("text") or ""
+    said = vitals_from_text("\n".join(ln["text"] for ln in lines if ln.get("speaker") == "doctor") + "\n" + objective_text)
+    for v in said:
+        v["status"] = lab_status(v["code"], v["value"])
+        v["range"] = lab_range(v["code"])
+    items = [{k: v[k] for k in ("name", "code", "value", "unit", "range", "status")} for v in said] + items
 
     db.add(Document(
         id=doc_id, patient_id=c.patient_id, date=date_s, type="visit",
@@ -485,6 +494,10 @@ def approve(
         source_lines=[f"{ln['speaker']}: {ln['text']}" for ln in lines],
         source_highlight=list(range(min(len(lines), 20))),
     ))
+
+    for v in said:
+        db.add(Observation(patient_id=c.patient_id, document_id=doc_id, date=date_s, code=v["code"],
+                           name=v["name"], value=v["value"], unit=v["unit"], loinc=loinc_for(v["code"]), source="visit"))
 
     # Save medicines + build reminders
     for m in meds:
@@ -526,6 +539,8 @@ def approve(
     c.status = "approved"
     c.document_id = doc_id
 
+    db.flush()
+    saved_alerts += after_new_data(db, c.patient_id)
     db.add(AccessLog(
         patient_id=c.patient_id, who=c.doctor_name, role="Doctor",
         action=f"{c.doctor_name} approved consultation note", via="Doctor console",
@@ -541,7 +556,7 @@ def approve(
         "provider": None,
         "doctor": c.doctor_name,
         "summary": summary,
-        "observations": [],
+        "observations": [{k: v[k] for k in ("name", "code", "value", "unit", "range", "status")} for v in said],
         "medications": [
             {"name": m["name"], "generic": m["generic"], "dose": m.get("dose"),
              "schedule": m.get("schedule"), "times": reminders_mod.parse_schedule(m.get("schedule")),
@@ -558,7 +573,7 @@ def approve(
     }
 
     try:
-        telegram.notify(f"{c.doctor_name} added a visit note. Open MediThread.")
+        notify_patient(db, c.patient_id, f"{c.doctor_name} added a visit note. Open MediThread.")
     except Exception:
         pass
 

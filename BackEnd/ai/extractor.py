@@ -32,7 +32,7 @@ Return STRICTLY a single JSON object with these keys. Use null when a value is n
   "observations": [
     {"name": "HbA1c", "plain": "3-month sugar average", "loinc": null, "value": 8.2, "unit": "%", "range": "<5.7 normal"}
   ],
-  "vitals": {"bp": "132/84", "pulse": 78, "weight_kg": null, "spo2": null},
+  "vitals": {"bp": "132/84", "pulse": 78, "weight_kg": null, "spo2": null, "temp_f": null},
   "follow_up": "come back in 7 days if fever persists" | null,
   "source_lines": ["raw text line 1", "raw text line 2", ...]
 }
@@ -52,7 +52,7 @@ class ExtractError(Exception):
 def _client() -> genai.Client:
     key = os.getenv("GEMINI_API_KEY")
     if not key:
-        raise ExtractError("GEMINI_API_KEY is not set.")
+        raise ExtractError("Reading documents is not set up on this server yet (the Gemini key is missing). Ask the person running MediThread to add it.")
     return genai.Client(api_key=key)
 
 

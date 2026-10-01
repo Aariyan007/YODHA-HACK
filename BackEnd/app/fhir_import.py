@@ -23,10 +23,10 @@ from ai import reminders as reminders_mod
 from ai.jev_client import analyse
 from ai.translator import summarise
 from .database import SessionLocal
-from .labs import CODE_BY_LOINC, RULES, loinc_for
+from .labs import CODE_BY_LOINC, RULES, code_for_name, loinc_for, slug
 from .models import AccessLog, Alert, Document, Medicine, Observation, Patient
 from .schemas import alert_out, document_out
-from .trends import check_trends
+from .health_hooks import after_new_data
 
 MAX_BYTES = 2 * 1024 * 1024
 MAX_SUMMARIES = 12  # Groq calls are slow; later cards get the plain fallback text
@@ -129,9 +129,10 @@ def _observations_from(res: dict) -> list[dict]:
         if not isinstance(q, dict) or not isinstance(q.get("value"), (int, float)):
             continue
         loinc = (_coding(p.get("code"), LOINC_SYS) or {}).get("code")
-        code = CODE_BY_LOINC.get(loinc or "")
-        name = RULES[code]["name"] if code else (_text(p.get("code")) or "Result")
-        out.append({"code": code or "unknown", "loinc": loinc or loinc_for(code), "name": name,
+        text_name = _text(p.get("code"))
+        code = CODE_BY_LOINC.get(loinc or "") or code_for_name(text_name)
+        name = RULES[code]["name"] if code else (text_name or "Result")
+        out.append({"code": code or slug(name), "loinc": loinc or loinc_for(code), "name": name,
                     "value": float(q["value"]), "unit": q.get("unit") or q.get("code") or (RULES[code]["unit"] if code else ""),
                     "date": date})
     return out
@@ -365,7 +366,7 @@ def import_bundle(patient_id: str, raw: bytes) -> dict:
             db.flush()
             alerts.append(alert_out(row))
         db.flush()
-        alerts += check_trends(db, patient_id)
+        alerts += after_new_data(db, patient_id)
 
         n_cards = len(new_cards)
         if n_cards or added_conditions:

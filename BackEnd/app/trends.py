@@ -61,15 +61,20 @@ def check_trends(db: Session, patient_id: str) -> list[dict]:
         groups.setdefault(test_key(o), []).append(o)
 
     touched: list[dict] = []
-    for key, rows in groups.items():
-        if key not in HIGHER_IS_WORSE:
-            continue
-        run = rising_run(_series(rows))
-        if len(run) < MIN_RESULTS:
+    runs = {key: rising_run(_series(rows)) for key, rows in groups.items() if key in HIGHER_IS_WORSE}
+    # Systolic and diastolic rising together are one story: report blood pressure once, as pairs.
+    bp_pair = len(runs.get("sbp", [])) >= MIN_RESULTS and len(runs.get("dbp", [])) >= MIN_RESULTS
+    for key, run in runs.items():
+        if len(run) < MIN_RESULTS or (bp_pair and key == "dbp"):
             continue
         name = RULES[key]["name"]
         numbers = ", ".join(_fmt(v) for v in run)
-        title = f"{name} is rising"
+        if bp_pair and key == "sbp":
+            n = min(len(run), len(runs["dbp"]))
+            name = "blood pressure"
+            numbers = ", ".join(f"{_fmt(s)}/{_fmt(d)}" for s, d in zip(run[-n:], runs["dbp"][-n:]))
+            run = run[-n:]
+        title = f"{name[0].upper() + name[1:]} is rising"
         message = f"Your {name} has risen in each of your last {len(run)} tests: {numbers}. Show this to your doctor."
         message_ml = (f"നിങ്ങളുടെ {name} അവസാന {len(run)} പരിശോധനകളിലും ഓരോ തവണയും കൂടിയിട്ടുണ്ട്: {numbers}. "
                       "ഇത് ഡോക്ടറെ കാണിക്കുക.")

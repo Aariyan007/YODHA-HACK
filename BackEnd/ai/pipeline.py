@@ -23,8 +23,9 @@ from sqlalchemy.orm import Session
 
 from app import store
 from app.database import SessionLocal
-from app.labs import loinc_for
-from app.trends import check_trends
+from app.labs import code_for_name, loinc_for, slug
+from app.vitals import from_extracted as vitals_from_extracted
+from app.health_hooks import after_new_data, notify_patient
 from app.models import AccessLog, Alert, Document, Medicine, Observation, Patient, new_id, now as utcnow
 from . import reminders as reminders_mod
 from . import telegram
@@ -107,23 +108,7 @@ def _patient_context(db: Session, patient_id: str) -> tuple[Patient, list[dict]]
 
 
 def _lab_code_from_name(name: str) -> str | None:
-    key = (name or "").lower()
-    table = {
-        "hba1c": "hba1c", "a1c": "hba1c",
-        "fasting glucose": "fbs", "fasting blood sugar": "fbs", "fbs": "fbs",
-        "post meal": "ppbs", "ppbs": "ppbs",
-        "ldl": "ldl",
-        "hdl": "hdl",
-        "triglycerides": "tg", "tg": "tg",
-        "total cholesterol": "total_chol",
-        "creatinine": "creatinine",
-        "haemoglobin": "hb", "hemoglobin": "hb",
-        "tsh": "tsh",
-    }
-    for k, v in table.items():
-        if k in key:
-            return v
-    return None
+    return code_for_name(name)
 
 
 def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
@@ -177,8 +162,9 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
                 continue
             db.add(Observation(
                 patient_id=patient_id, document_id=doc_id, date=rec.get("date"),
-                code=ob.get("code") or "unknown", name=ob.get("name") or "value",
+                code=ob.get("code") or slug(ob.get("name")), name=ob.get("name") or "value",
                 value=val, unit=ob.get("unit"), loinc=loinc_for(ob.get("code")),
+                ref_range=(ob.get("range") or None) and str(ob.get("range"))[:60],
             ))
 
         for m in rec.get("medications", []):
@@ -210,7 +196,7 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
             })
 
         db.flush()
-        saved_alerts += check_trends(db, patient_id)
+        saved_alerts += after_new_data(db, patient_id)
         db.add(AccessLog(
             patient_id=patient_id, who=patient.name, role="Patient",
             action=f"Added {rec.get('type') or 'record'}", via="Upload",
@@ -241,8 +227,11 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -
         for o in doc.get("observations", []):
             o = dict(o)
             if not o.get("code"):
-                o["code"] = _lab_code_from_name(o.get("name"))
+                o["code"] = _lab_code_from_name(o.get("name")) or slug(o.get("name"))
             obs.append(o)
+        # Vitals written on the page (BP, pulse, SpO2, weight) are readings too.
+        have = {o["code"] for o in obs}
+        obs += [v for v in vitals_from_extracted(doc.get("vitals")) if v["code"] not in have]
 
         analysis = analyse(
             patient_name=patient.name,
@@ -304,8 +293,9 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -
                 continue
             db.add(Observation(
                 patient_id=patient_id, document_id=doc_id, date=date_s,
-                code=ob.get("code") or "unknown", name=ob.get("name") or "value",
+                code=ob.get("code") or slug(ob.get("name")), name=ob.get("name") or "value",
                 value=val, unit=ob.get("unit"), loinc=loinc_for(ob.get("code")),
+                ref_range=(ob.get("range") or None) and str(ob.get("range"))[:60],
             ))
 
         # Save new medicines (duplicates still save; alert warns the user).
@@ -338,7 +328,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -
             })
 
         db.flush()
-        saved_alerts += check_trends(db, patient_id)
+        saved_alerts += after_new_data(db, patient_id)
         db.add(AccessLog(
             patient_id=patient_id, who=patient.name, role="Patient",
             action=f"Added {doc.get('type') or 'record'}", via="Upload",
@@ -369,9 +359,10 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -
         "isNew": True,
     }
 
-    # Telegram (fire-and-forget).
+    # Telegram to this patient's own chat (fire-and-forget).
     try:
-        telegram.notify(f"New {record['type']} added. {len(saved_alerts)} warnings. Open MediThread.")
+        with SessionLocal() as db:
+            notify_patient(db, patient_id, f"New {record['type']} added. {len(saved_alerts)} warnings. Open MediThread.")
     except Exception:
         pass
 
