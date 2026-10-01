@@ -35,3 +35,16 @@ def current_patient(
     if patient is None:
         raise HTTPException(401, "Patient not found")
     return patient
+
+
+def require_login(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+) -> dict:
+    """Any valid JWT. Used by doctor-side endpoints which don't need a Patient row."""
+    if creds is None:
+        raise HTTPException(401, "Missing token")
+    try:
+        payload = jwt.decode(creds.credentials, SECRET, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(401, "Invalid or expired token")
+    return payload

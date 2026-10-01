@@ -104,11 +104,17 @@ class Consultation(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
     doctor_name: Mapped[str] = mapped_column(String(120))
+    # transcript_lines is the structured list [{speaker,text}]; transcript keeps
+    # the plain-text join for display/backwards compat.
     transcript: Mapped[str | None] = mapped_column(Text)
-    soap: Mapped[dict] = mapped_column(JSON, default=dict)
+    transcript_lines: Mapped[list] = mapped_column(JSON, default=list)
+    soap: Mapped[dict] = mapped_column(JSON, default=dict)      # live/partial, then draft
+    final_note: Mapped[dict] = mapped_column(JSON, default=dict)  # post-approve
+    edited_fields: Mapped[list] = mapped_column(JSON, default=list)
     flags: Mapped[list] = mapped_column(JSON, default=list)
     questions: Mapped[list] = mapped_column(JSON, default=list)
-    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft | approved
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | draft | approved
+    share_token: Mapped[str | None] = mapped_column(String(64), index=True)
     document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
