@@ -43,18 +43,24 @@ Voice SOAP note and reminders are built. Not built: browser push for the phone c
 - `scripts/smoke.py` and `POST /api/demo/reset` act on the DB the server points at (Supabase when `DATABASE_URL` is set) and wipe Ammini's uploads, imports and visits.
 - Gemini rejects client deadlines under 10 s (`HttpOptions(timeout=...)` is in milliseconds).
 - `.env` was committed once in git history (commits `c22276f`..`22c0e01`) but was empty; no key, token or password appears anywhere in history (checked in Phase 6). `uploads/` and `demo_cache/` fictional test files are also in early history.
+- `main.jsx` renders under `<StrictMode>`, so every effect mounts twice in dev. Effects that start timers must keep progress in a ref and re-arm after cleanup (the demo auto-feed in `RecordingPanel.jsx` was broken by a `fedRef` guard).
+- `Alert.kind` values in use: `interaction`, `duplicate`, `clash`, `allergy`, `lab`, `trend`. `severity` is `high | medium | low`; `resolved=false` means open.
+- `Document.type` values: `lab`, `prescription`, `consultation`, `visit` (console approve and FHIR encounters), `scan`. Add new types to `i18n.js` or the card shows the raw key.
+- The offline build (`build:single`) is mock-only and uses hash routes. In code, build links with `appPath()` / `appUrl()` / `goLogin()` from `src/routing.js`, never a bare `/path` or `window.location.assign`.
+- Claude-in-Chrome cannot open `file://`. To test the offline file, serve `dist-single` with `python3 -m http.server`, and use headless Chrome (`--dump-dom file://...`) for the `file://` check. To audit layouts at 390/1024 px, load routes in fixed-width same-origin iframes and set `documentElement.dataset.theme` to `light` or `dark` (OS dark mode is otherwise what you get).
+- A dev backend started with `uvicorn --reload` picks up code edits but not env changes; restart it to change `DEMO_MODE` or `CORS_ORIGINS`.
 
 - `DATABASE_URL` must be the Supabase session pooler URL (`*.pooler.supabase.com`). The direct host is IPv6-only and fails on this network. If Postgres is unreachable the backend falls back to `BackEnd/medithread.db` (SQLite).
 - Redis is optional; without it OTP and reminder-taken state live in memory and reset on restart. Dose dedup does not depend on Redis: it is also written to `sent_doses`.
 - `add_missing_columns()` (app/database.py) runs at startup and ALTERs new nullable model columns onto existing tables, so upgrading a Postgres DB no longer needs `RESET_DB=1`. It only adds columns; it never changes or drops them.
 - Run exactly one backend process with the scheduler against a given DB. Two processes (for example a `--reload` server plus a second `uvicorn`) each run a scheduler and can both send the same dose in the same second. `uvicorn --reload` hot-restarts on any edit under `BackEnd/`, so it also picks up new code and re-runs the startup migration.
 - Telegram: the bot token and chat ids are never logged. Errors returned to the UI are plain-language (`ai/telegram.py::send_to`). With `TELEGRAM_BOT_TOKEN` blank the server still starts, the scheduler sends nothing, and `GET /api/reminders/settings` returns `telegramReady: false` (camelCase, like the rest of the API). A chat ID must be numeric (`^-?\d{5,20}$`); the user gets it by messaging the bot first.
-- `DEMO_MODE=true` (env, not set by default) enables the two `/api/demo/*` endpoints and makes the settings response return `demoMode: true`, which shows the "Demo controls" card on the Reminders page.
+- `DEMO_MODE=true` (env, not set by default) enables `/api/demo/fire-reminder`, `/api/demo/fire-missed`, `/api/demo/reset` and `/api/health/deep` (all need a login, 404 otherwise) and makes the settings response return `demoMode: true`, which shows the "Demo controls" card on the Reminders page.
 - Models in SPEC were retired. Gemini: cascade `gemini-flash-latest` → `gemini-3.5-flash` → `gemini-3.7-flash` → `gemini-3.8-flash` (free tier quota exhausts the latest; cascade falls through). Groq: `openai/gpt-oss-120b` with `reasoning_effort=low` and `max_tokens=1500` (gpt-oss burns tokens on hidden reasoning; low budget truncates visible output).
 - `BackEnd/uploads/` and `BackEnd/demo_cache/` are gitignored. Cache keys are the file SHA-256; the cached result is replayed instantly on re-upload. Resetting the DB with the cache intact still produces a saved Document on re-upload via `_persist_result`.
 - SSE endpoint `/api/jobs/{id}/events` is intentionally unauthenticated — the unguessable `jobId` (uuid4) is the key, because `EventSource` cannot send `Authorization`.
 - Consultation endpoints are **not** behind the patient JWT. `/start` is unauthenticated (the share token in the body is the credential); every other call must send `X-Share-Token: <token>` matching `Consultation.share_token`, and the share link's expiry is re-checked on each call. The doctor console lives at `/console/:token` *outside* the patient login guard.
-- The frontend has no `AppShell.jsx`, `DoctorView.jsx`, `Profile.jsx`, `index.css`, Atkinson Hyperlegible font, — the Phase 4 brief referred to a different codebase variant. Entry points to the console are instead on `Sharing.jsx` (owner's QR screen) and `Snapshot.jsx` (doctor's read-only snapshot).
+- The frontend has no `AppShell.jsx`, `DoctorView.jsx`, `Profile.jsx`, `index.css`, Atkinson Hyperlegible font — the Phase 4 brief referred to a different codebase variant. Entry points to the console are instead on `Sharing.jsx` (owner's QR screen) and `Snapshot.jsx` (doctor's read-only snapshot).
 - Doctor-console in-progress state lives in React state only (no localStorage). A browser refresh loses the consultationId, so a mid-visit refresh starts a new visit; `getConsultation(id, token)` is available in the API client if deep-link restore is ever needed.
 
 ## Layout
@@ -69,7 +75,7 @@ Names only. Never print or commit the values.
 - Backend: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `DEMO_MODE`, `OPENFDA_ENABLE`, `RESET_DB`, `CORS_ORIGINS` (comma-separated allowed browser origins; default is the two local dev URLs)
 - Frontend (Vite, so the `VITE_` prefix): `VITE_USE_MOCK` (toggles mock data instead of the real API), `VITE_API_URL`
 
-This implies a Vite frontend, a backend backed by a database and Redis with JWT auth, Gemini and Groq as LLM providers, and Telegram notifications. Confirm against the real code once it exists.
+See `README.md` for start-up steps, the demo click path and known limits.
 
 ## Phase 4 end-to-end
 
