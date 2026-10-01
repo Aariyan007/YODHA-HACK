@@ -49,3 +49,14 @@ def delete(key: str) -> None:
         _redis.delete(key)
     else:
         _memory.pop(key, None)
+
+
+def delete_prefix(prefix: str) -> int:
+    """Delete every key that starts with `prefix`. Returns how many were removed."""
+    if _redis is not None:
+        keys = list(_redis.scan_iter(match=f"{prefix}*", count=500))
+        return _redis.delete(*keys) if keys else 0
+    gone = [k for k in _memory if k.startswith(prefix)]
+    for k in gone:
+        _memory.pop(k, None)
+    return len(gone)

@@ -1,4 +1,5 @@
 """Demo data: Ammini Varghese. Loaded on startup when the DB is empty."""
+import copy
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -109,10 +110,18 @@ ACCESS_LOG = [
 ]
 
 
-def seed_if_empty(db: Session) -> bool:
-    if db.scalar(select(Patient.id).limit(1)) is not None:
-        return False
-    db.add(Patient(**PATIENT))
+def load_demo(db: Session) -> None:
+    """Insert (or restore) Ammini and her clean demo data: 8 records, 3 medicines, 3 alerts.
+
+    Callers make sure her old rows are gone first; the patient row itself is
+    updated in place so share links that point at her keep working.
+    """
+    patient = db.get(Patient, DEMO_ID)
+    if patient is None:
+        db.add(Patient(**copy.deepcopy(PATIENT)))
+    else:
+        for k, v in copy.deepcopy(PATIENT).items():
+            setattr(patient, k, v)
     db.flush()
     for (doc_id, date, typ, title, source, summary, summary_ml, tags, items, obs) in DOCUMENTS:
         if obs:
@@ -130,15 +139,20 @@ def seed_if_empty(db: Session) -> bool:
     now = datetime.now(timezone.utc)
     for who, role, action, via, days in ACCESS_LOG:
         db.add(AccessLog(patient_id=DEMO_ID, who=who, role=role, action=action, via=via, at=now - timedelta(days=days)))
-
     db.flush()
     check_trends(db, DEMO_ID)  # Ammini's HbA1c is falling, so this adds nothing today
-    ensure_demo_reminder_settings(db)
+    ensure_demo_reminder_settings(db, commit=False)
+
+
+def seed_if_empty(db: Session) -> bool:
+    if db.scalar(select(Patient.id).limit(1)) is not None:
+        return False
+    load_demo(db)
     db.commit()
     return True
 
 
-def ensure_demo_reminder_settings(db: Session) -> None:
+def ensure_demo_reminder_settings(db: Session, commit: bool = True) -> None:
     """Phase 5: create Ammini's reminder settings if missing, pre-filling the
     Telegram chat id from the env so the demo works out of the box. Reminders
     stay off until the patient turns them on in the UI."""
@@ -151,4 +165,5 @@ def ensure_demo_reminder_settings(db: Session) -> None:
         telegram_chat_id=chat, family_chat_id=None, family_name="Joseph",
         missed_after_minutes=60,
     ))
-    db.commit()
+    if commit:
+        db.commit()

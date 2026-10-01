@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { fireDemoMissed, fireDemoReminder, getReminderSettings, saveReminderSettings, testTelegram } from "../api/client.js";
+import {
+  fireDemoMissed,
+  fireDemoReminder,
+  getDeepHealth,
+  getReminderSettings,
+  resetDemo,
+  saveReminderSettings,
+  testTelegram,
+} from "../api/client.js";
 import { Loading } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 
@@ -11,6 +19,30 @@ async function ensureNotificationPermission() {
   return Notification.requestPermission();
 }
 
+const HEALTH_LABELS = [
+  ["database", "Database"],
+  ["redis", "Redis"],
+  ["gemini", "Gemini"],
+  ["groq", "Groq"],
+  ["telegram", "Telegram"],
+  ["scheduler", "Scheduler"],
+];
+const HEALTH_WORDS = {
+  ok: { telegram: "ready", scheduler: "running", _: "ok" },
+  fallback: { _: "fallback" },
+  down: { _: "down" },
+};
+
+function healthLine(h, err) {
+  if (err) return `Status check failed: ${err}`;
+  if (!h) return "Checking services…";
+  return HEALTH_LABELS.map(([k, label]) => {
+    const st = h[k]?.status || "down";
+    const words = HEALTH_WORDS[st] || HEALTH_WORDS.down;
+    return `${label} ${words[k] || words._}`;
+  }).join(" · ");
+}
+
 export default function Reminders() {
   const { lang } = useT();
   const ml = lang === "ml";
@@ -20,14 +52,29 @@ export default function Reminders() {
   const [busy, setBusy] = useState(null); // "save" | "test" | "fire" | "missed"
   const [notice, setNotice] = useState(null); // { kind: "ok" | "error", text }
   const [demoOut, setDemoOut] = useState(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [health, setHealth] = useState(null);
+  const [healthError, setHealthError] = useState(null);
+  const [healthBusy, setHealthBusy] = useState(false);
+
+  const loadHealth = () => {
+    setHealthBusy(true);
+    setHealthError(null);
+    return getDeepHealth()
+      .then(setHealth)
+      .catch((e) => setHealthError(e.message))
+      .finally(() => setHealthBusy(false));
+  };
 
   useEffect(() => {
     getReminderSettings()
       .then((s) => {
         setForm(s);
         setMeta({ telegramReady: s.telegramReady, demoMode: s.demoMode });
+        if (s.demoMode) loadHealth();
       })
       .catch((e) => setLoadError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!form) return <Loading error={loadError} />;
@@ -84,6 +131,22 @@ export default function Reminders() {
     try {
       const out = await fn();
       setDemoOut(out.sent ? out.message : out.error || "Nothing was sent.");
+    } catch (e) {
+      setDemoOut(e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onReset = async () => {
+    setBusy("reset");
+    setDemoOut(null);
+    try {
+      const out = await resetDemo();
+      const r = out.restored;
+      setDemoOut(`Demo reset: ${r.documents} records, ${r.medicines} medicines, ${r.alerts} alerts. Telegram reminders are on.`);
+      setForm(await getReminderSettings());
+      setConfirmReset(false);
     } catch (e) {
       setDemoOut(e.message);
     } finally {
@@ -193,8 +256,28 @@ export default function Reminders() {
             <button onClick={() => demo("missed", fireDemoMissed)} disabled={busy !== null}>
               Fire missed dose alert now
             </button>
+            <button onClick={() => setConfirmReset(true)} disabled={busy !== null || confirmReset}>
+              Reset demo
+            </button>
           </div>
-          {demoOut && <p className="muted small">{demoOut}</p>}
+          {confirmReset && (
+            <div className="row" role="alertdialog" aria-label="Confirm demo reset">
+              <span className="small">Reset Ammini to the clean demo state? Uploads, imports and visits are deleted.</span>
+              <button className="primary" onClick={onReset} disabled={busy !== null}>
+                {busy === "reset" ? "…" : "Yes, reset"}
+              </button>
+              <button onClick={() => setConfirmReset(false)} disabled={busy !== null}>
+                Cancel
+              </button>
+            </div>
+          )}
+          {demoOut && <p className="muted small" role="status">{demoOut}</p>}
+          <p className={health && !health.allOk ? "error small" : "muted small"} role="status">
+            {healthLine(health, healthError)}{" "}
+            <button className="link small" onClick={loadHealth} disabled={healthBusy}>
+              {healthBusy ? "Checking…" : "Check again"}
+            </button>
+          </p>
         </section>
       )}
       </div>

@@ -52,3 +52,18 @@ def notify(message: str) -> bool:
     """Fire-and-forget message to the default TELEGRAM_CHAT_ID."""
     ok, _ = send_to(os.getenv("TELEGRAM_CHAT_ID"), message)
     return ok
+
+
+def check() -> tuple[bool, str]:
+    """One tiny read-only call (getMe, sends nothing). Returns (ok, plain detail). Never leaks the token."""
+    token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    if not token:
+        return False, "Bot token is not set."
+    try:
+        with httpx.Client(timeout=TIMEOUT_S) as cx:
+            r = cx.get(f"https://api.telegram.org/bot{token}/getMe")
+    except Exception as e:
+        return False, f"Could not reach Telegram ({type(e).__name__})."
+    if r.status_code == 200:
+        return True, "Bot is ready."
+    return False, f"Telegram rejected the bot (HTTP {r.status_code})."

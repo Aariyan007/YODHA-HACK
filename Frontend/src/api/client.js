@@ -366,3 +366,32 @@ export const fireDemoMissed = () =>
   USE_MOCK
     ? delay({ sent: true, kind: "missed", medicine: "Glycomet 500", clock: "08:00", message: "Joseph, Ammini has not marked Glycomet 500 as taken since 8:00 AM." })
     : request("/api/demo/fire-missed", { method: "POST" });
+
+// ---------- demo reset + deep health (Phase 6, DEMO_MODE=true only) ----------
+
+// -> { ok, deleted:{...counts}, restored:{documents,medicines,alerts}, telegramReminders:{on,chatIdSet,botReady} }
+// Real: POST /api/demo/reset (404 unless the server has DEMO_MODE=true)
+export const resetDemo = () =>
+  USE_MOCK
+    ? delay({
+        ok: true,
+        deleted: { uploadedDocuments: 1, importedRecords: 2, visitNotes: 1, consultations: 1 },
+        restored: { documents: 8, medicines: 3, alerts: 3 },
+        telegramReminders: { on: true, chatIdSet: true, botReady: true },
+      })
+    : request("/api/demo/reset", { method: "POST" });
+
+// -> { allOk, database, redis, gemini, groq, telegram, scheduler } each { status: ok|fallback|down, detail }
+// Real: GET /api/health/deep
+export const getDeepHealth = () =>
+  USE_MOCK
+    ? delay({
+        allOk: true,
+        database: { status: "ok", detail: "Mock data" },
+        redis: { status: "fallback", detail: "In-memory store" },
+        gemini: { status: "ok", detail: "mock" },
+        groq: { status: "ok", detail: "mock" },
+        telegram: { status: "ok", detail: "mock" },
+        scheduler: { status: "ok", detail: "mock" },
+      })
+    : request("/api/health/deep");
