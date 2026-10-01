@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
-import { getInsights } from "../api/client.js";
-import { Empty, Loading, Status, formatDate } from "../components/ui.jsx";
+import { getHealthCheck, getInsights } from "../api/client.js";
+import { useReveal } from "../anim.js";
+import { HealthCheckPanel, TrendChart, VitalsForm, useChartSeries } from "../components/health.jsx";
+import { Loading, Status, formatDate } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 import { useApi } from "../useApi.js";
 
@@ -167,11 +169,13 @@ function ConditionCard({ c }) {
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: "var(--fw-medium)" }}>{c.name}</div>
-        <div className="text-dim" style={{ fontSize: "var(--font-xs)", marginTop: 2 }}>
-          {t("since")} {c.since}
-        </div>
+        {c.since && (
+          <div className="text-dim" style={{ fontSize: "var(--font-xs)", marginTop: 2 }}>
+            {t("since")} {c.since}
+          </div>
+        )}
       </div>
-      <Status value={c.status} />
+      {c.status && <Status value={c.status} />}
     </div>
   );
 }
@@ -179,6 +183,9 @@ function ConditionCard({ c }) {
 // ── InsightsView (shared with Snapshot) ──────────────────────
 export function InsightsView({ data }) {
   const { t, pick } = useT();
+  const charts = useChartSeries(data);
+  const gridRef = useReveal([charts.length], { selector: ".trend-card", stagger: 0.07 });
+  const conditions = (data.conditions || []).map((c) => (typeof c === "string" ? { name: c } : c));
   return (
     <div className="stack-lg">
       {data.summary && (
@@ -186,55 +193,82 @@ export function InsightsView({ data }) {
       )}
 
       {/* HbA1c chart */}
-      <div className="section" style={{ marginTop: 0, marginBottom: 0 }}>
-        <h3>{t("sugarTrend")}</h3>
-        <div className="card" style={{ padding: "var(--sp-5) var(--sp-4) var(--sp-3)" }}>
-          {data.hba1c?.length
-            ? <HbA1cChart points={data.hba1c} />
-            : <p className="text-dim text-sm" style={{ padding: "var(--sp-4) 0" }}>No HbA1c results yet.</p>
-          }
+      {data.hba1c?.length > 0 && (
+        <div className="section" style={{ marginTop: 0, marginBottom: 0 }}>
+          <h3>{t("sugarTrend")}</h3>
+          <div className="card" style={{ padding: "var(--sp-5) var(--sp-4) var(--sp-3)" }}>
+            <HbA1cChart points={data.hba1c} />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Every other test with 2+ results */}
+      {charts.length > 0 && (
+        <div className="section" style={{ marginTop: 0, marginBottom: 0 }}>
+          <h3>Trends</h3>
+          <div ref={gridRef} className="trend-grid">
+            {charts.map((s) => (
+              <TrendChart key={s.code} series={s} status={data.labs?.find((l) => l.code === s.code)?.status} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Labs table */}
-      <div className="section" style={{ marginTop: 0, marginBottom: 0 }}>
-        <h3>{t("latestLabs")}</h3>
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <table className="labs">
-            <thead>
-              <tr>
-                <th>Test</th>
-                <th>Value</th>
-                <th>Range</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.labs?.map((l) => <LabRow key={l.code} l={l} />)}
-            </tbody>
-          </table>
+      {data.labs?.length > 0 && (
+        <div className="section" style={{ marginTop: 0, marginBottom: 0 }}>
+          <h3>{t("latestLabs")}</h3>
+          <div className="card table-wrap" style={{ padding: 0, overflow: "auto" }}>
+            <table className="labs">
+              <thead>
+                <tr>
+                  <th>Test</th>
+                  <th>Value</th>
+                  <th>Range</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.labs.map((l) => <LabRow key={l.code} l={l} />)}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Conditions */}
-      <div className="section" style={{ marginTop: 0, marginBottom: 0 }}>
-        <h3>{t("conditions")}</h3>
-        <div className="list">
-          {data.conditions?.map((c) => <ConditionCard key={c.name} c={c} />)}
+      {conditions.length > 0 && (
+        <div className="section" style={{ marginTop: 0, marginBottom: 0 }}>
+          <h3>{t("conditions")}</h3>
+          <div className="list">
+            {conditions.map((c) => <ConditionCard key={c.name} c={c} />)}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 export default function Insights() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const ml = lang === "ml";
   const { data, loading, error, reload } = useApi(getInsights);
+  const health = useApi(getHealthCheck);
   if (loading || error) return <Loading error={error} onRetry={reload} />;
   return (
     <>
       <div className="page-header"><h2>{t("insights")}</h2></div>
+      <div className="insights-top">
+        <section className="section" style={{ marginTop: 0 }}>
+          <h3>{t("healthCheck")}</h3>
+          {health.loading || health.error ? <Loading error={health.error} onRetry={health.reload} /> : <HealthCheckPanel data={health.data} />}
+        </section>
+        <section className="section" style={{ marginTop: 0 }}>
+          <h3>{ml ? "വീട്ടിലെ റീഡിംഗ് ചേർക്കുക" : "Add a home reading"}</h3>
+          <VitalsForm onSaved={() => { reload(); health.reload(); }} />
+        </section>
+      </div>
       <InsightsView data={data} />
     </>
   );
