@@ -170,9 +170,40 @@ textarea { font: inherit; padding: 10px; border: 1px solid var(--line); border-r
 .console-flag-body { flex: 1; }
 .console-flag-body p { margin: 2px 0 0; }
 
-/* State 2 — recording placeholder transcript */
-.console-transcript-preview { list-style: none; padding: 0; margin: 10px 0 14px; display: grid; gap: 6px; }
-.console-transcript-preview li { padding: 6px 8px; background: var(--bg); border-radius: 8px; font-size: 0.9rem; }
+/* State 2 — recording */
+.console-record { display: grid; gap: 12px; }
+.console-record-top {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+  padding: 10px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+}
+.rec-dot {
+  width: 12px; height: 12px; border-radius: 50%; background: var(--muted); display: inline-block;
+}
+.rec-dot.live { background: var(--alert); animation: rec-pulse 1.2s infinite; }
+@keyframes rec-pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .rec-dot.live { animation: none; } }
+
+.console-record-grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 820px) { .console-record-grid { grid-template-columns: 1.4fr 1fr; } }
+
+.speaker-toggle { display: flex; gap: 6px; }
+
+.console-transcript { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; max-height: 420px; overflow-y: auto; }
+.t-line { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; max-width: 85%; }
+.t-stamp { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.t-doctor { background: var(--accent-soft); margin-left: auto; text-align: right; }
+.t-doctor .t-stamp { color: var(--accent); font-weight: 700; }
+.t-patient { background: var(--bg); border: 1px solid var(--line); }
+.t-interim { opacity: 0.65; font-style: italic; }
+
+.soap-field { padding: 10px 0; border-top: 1px solid var(--line); }
+.soap-field:first-of-type { border-top: none; }
+.soap-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+.soap-value { margin-top: 2px; }
+.soap-value.empty { color: var(--muted); font-style: italic; }
+
+.console-suggestions { margin: 6px 0 0; padding-left: 20px; }
+.console-suggestions li { padding: 4px 0; }
 
 /* Keyboard focus — visible for accessibility */
 .console-shell button:focus-visible,

@@ -4,12 +4,12 @@ import {
   approveConsultation,
   finalizeConsultation,
   getShareSnapshot,
-  runDemoConversation,
-  sendLine,
   startConsultation,
 } from "../api/client.js";
+import { consultationScript } from "../data/mockData.js";
 import { Loading } from "../components/ui.jsx";
 import { HistoryPanel } from "../components/console/HistoryPanel.jsx";
+import { RecordingPanel } from "../components/console/RecordingPanel.jsx";
 import { useT } from "../i18n.js";
 
 /**
@@ -47,6 +47,7 @@ export default function DoctorConsole() {
     suggestions: [],
     partial_note: { subjective: null, objective: null, assessment: null, plan: null },
   });
+  const [autoFeedScript, setAutoFeedScript] = useState(null);
 
   // Load the share snapshot once.
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function DoctorConsole() {
     try {
       const { consultationId: id } = await startConsultation(token, doctorName);
       setConsultationId(id);
+      setAutoFeedScript(null);
       setPhase("recording");
     } catch (e) {
       setStartError(e.message);
@@ -79,11 +81,10 @@ export default function DoctorConsole() {
     try {
       const { consultationId: id } = await startConsultation(token, doctorName);
       setConsultationId(id);
+      // RecordingPanel enqueues this script line-by-line through the same
+      // queue the mic uses — same retry, same ordering guarantees.
+      setAutoFeedScript(consultationScript);
       setPhase("recording");
-      await runDemoConversation(id, token, (state) => {
-        if (state?.error) return;
-        setConsultState(state);
-      });
     } catch (e) {
       setStartError(e.message);
     } finally {
@@ -133,9 +134,15 @@ export default function DoctorConsole() {
         )}
 
         {phase === "recording" && (
-          <RecordingPlaceholder
-            consultState={consultState}
-            onStop={() => setPhase("review")}
+          <RecordingPanel
+            consultationId={consultationId}
+            shareToken={token}
+            initialState={consultState}
+            autoFeed={autoFeedScript}
+            onStop={(finalState) => {
+              setConsultState(finalState);
+              setPhase("review");
+            }}
           />
         )}
 
@@ -173,21 +180,3 @@ function ConsoleHeader({ patientName, phase }) {
   );
 }
 
-// Temporary placeholder for Phase 4 state-2. Replaced in the next commit by a
-// real recording UI (speech recognition, speaker toggle, live SOAP, etc).
-function RecordingPlaceholder({ consultState, onStop }) {
-  return (
-    <div className="card">
-      <h3 style={{ marginTop: 0 }}>Recording — demo preview</h3>
-      <p className="muted small">The scripted conversation runs below. The full recording UI arrives in the next commit.</p>
-      <ul className="console-transcript-preview">
-        {consultState.transcript.map((ln, i) => (
-          <li key={i}><strong>{ln.speaker}:</strong> {ln.text}</li>
-        ))}
-      </ul>
-      <div className="row">
-        <button className="primary" onClick={onStop}>Stop and review</button>
-      </div>
-    </div>
-  );
-}
