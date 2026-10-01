@@ -18,7 +18,7 @@ Phase 1 of SPEC.md is done: FastAPI backend with seeded demo patient, and a Vite
 
 ## Gotchas
 
-- Supabase direct host is IPv6-only and fails on this network. Backend then falls back to `BackEnd/medithread.db` (SQLite). Use the Supabase session pooler URL to fix.
+- `DATABASE_URL` must be the Supabase session pooler URL (`*.pooler.supabase.com`). The direct host is IPv6-only and fails on this network. If Postgres is unreachable the backend falls back to `BackEnd/medithread.db` (SQLite).
 - Redis is optional; without it OTP and reminder-taken state live in memory and reset on restart.
 - Models in SPEC were retired: use Gemini `gemini-3.8-flash` (retry on 503) and Groq `openai/gpt-oss-120b`.
 
