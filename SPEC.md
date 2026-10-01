@@ -14,7 +14,7 @@ AI never diagnoses. Doctor approves everything. No paid services.
 ## Folders
 
 - /BackEnd: empty, to build
-- /Frontend: done, do not edit
+- /Frontend: Vite + React patient app (built by Claude, since the folder was empty). src/api/client.js + src/data/mockData.js define the API contract
 - .env in project root: do not print, do not commit
 
 Keys in .env: GEMINI_API_KEY, GROQ_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DATABASE_URL (Supabase Postgres), REDIS_URL, JWT_SECRET.
@@ -22,8 +22,8 @@ Keys in .env: GEMINI_API_KEY, GROQ_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 ## Tech
 
 - FastAPI + SQLAlchemy + python-dotenv, venv in /BackEnd/venv
-- Images: Gemini via google-genai package, model gemini-2.5-flash
-- Text (summaries, Malayalam, SOAP): Groq, model llama-3.3-70b-versatile
+- Images: Gemini via google-genai package, model gemini-3.8-flash (2.5-flash retired for new users; retry on 503)
+- Text (summaries, Malayalam, SOAP): Groq, model openai/gpt-oss-120b (llama-3.3-70b-versatile no longer on Groq)
 - No paid APIs. Drug clashes = hardcoded dangerous-pairs dict (~30 pairs, e.g. clarithromycin+atorvastatin, warfarin+aspirin), OpenFDA optional backup. Brand duplicates (Glycomet = metformin) via small brand-to-generic dict.
 - Lab status (good/watch/alert) = plain Python threshold rules, no AI.
 - Redis optional: if unreachable, fall back to in-memory dicts.
