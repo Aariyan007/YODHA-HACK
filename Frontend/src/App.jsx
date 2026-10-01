@@ -11,6 +11,7 @@ import Sharing from "./pages/Sharing.jsx";
 import Snapshot from "./pages/Snapshot.jsx";
 import Triage from "./pages/Triage.jsx";
 import Upload from "./pages/Upload.jsx";
+import DoctorConsole from "./pages/DoctorConsole.jsx";
 
 const PROFILE_KEY = "medithread_profile";
 const LANG_KEY = "medithread_lang";
@@ -91,6 +92,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login toggle={<LangToggle />} />} />
         <Route path="/share/:token" element={<Snapshot toggle={<LangToggle />} />} />
+        <Route path="/console/:token" element={<DoctorConsole />} />
         <Route element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="upload" element={<Upload />} />

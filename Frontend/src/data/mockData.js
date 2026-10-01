@@ -1158,3 +1158,146 @@ export function mockTriage(text) {
   if (match) return { urgent: Boolean(match.urgent), specialist: match.specialist, why: match.why };
   return { urgent: false, specialist: "General Physician", why: "A general check-up is a good starting point." };
 }
+
+// ---------- Consultation mocks (Phase 4) ----------
+// 14-line scripted conversation mirrors BackEnd/app/routers/consultations.py DEMO_SCRIPT.
+export const consultationScript = [
+  ["doctor",  "Hello, how are you feeling today?"],
+  ["patient", "Doctor, I have been coughing for 4 days."],
+  ["doctor",  "Any fever or breathlessness along with the cough?"],
+  ["patient", "Yes, I feel breathless when I climb stairs for the last 3 weeks."],
+  ["doctor",  "Are you taking any medicines regularly?"],
+  ["patient", "I take Metformin 500 mg twice a day and Atorvastatin 10 mg at night."],
+  ["doctor",  "Any known allergies to medicines or food?"],
+  ["patient", "No allergies that I know of."],
+  ["doctor",  "Let me listen to your chest. Breathing sounds have mild crackles."],
+  ["doctor",  "I will start you on Tab Clarithromycin 500 mg BD for 7 days for the chest infection."],
+  ["doctor",  "I will also add Tab Glycomet 500 mg BD to support sugar control."],
+  ["patient", "Okay doctor."],
+  ["doctor",  "Please come back for a follow-up review in 7 days with a repeat chest check."],
+  ["patient", "Thank you, doctor."],
+];
+
+// Simulated per-line output. Mirrors what the real backend returns on each
+// /line call: cumulative transcript, flags, suggestions, partial SOAP note.
+const MOCK_FLAGS_AT = {
+  5: [
+    { kind: "duplicate", severity: "high", title: "Metformin duplicates Glycomet 500",
+      reason: "Metformin and Glycomet 500 are both metformin. Doubling the dose can be unsafe.", lineIndex: 5 },
+    { kind: "duplicate", severity: "high", title: "Atorvastatin duplicates Atorva 20",
+      reason: "Atorvastatin and Atorva 20 are both atorvastatin. Doubling the dose can be unsafe.", lineIndex: 5 },
+    { kind: "missing", severity: "medium", title: "Allergy history not mentioned",
+      reason: "The patient's allergy history has not been discussed in this visit.", lineIndex: 5 },
+    { kind: "missing", severity: "low", title: "No follow-up set",
+      reason: "A follow-up plan has not been stated.", lineIndex: 5 },
+  ],
+  9: [
+    { kind: "clash", severity: "high", title: "Clarithromycin + Atorva 20",
+      reason: "Clarithromycin (clarithromycin) with Atorva 20 (atorvastatin): clarithromycin raises atorvastatin levels in blood, which can cause serious muscle damage. Doctor should pause atorvastatin while on clarithromycin.", lineIndex: 9 },
+  ],
+  10: [
+    { kind: "duplicate", severity: "high", title: "Glycomet duplicates Glycomet 500",
+      reason: "Glycomet and Glycomet 500 are both metformin. Doubling the dose can be unsafe.", lineIndex: 10 },
+  ],
+};
+
+const MOCK_SUGGESTIONS_AT = {
+  3: ["Any fever along with the cough?", "Have you had this problem before?", "Do you have any medicine allergies?"],
+  6: ["Any chest pain with the cough?", "Have you lost weight recently?", "Are you taking medicines as prescribed?"],
+  9: ["Any chest pain or tightness?", "Any recent weight loss or appetite change?", "Any trouble sleeping because of the cough?"],
+  12: [
+    "Do you have any chest pain or tightness associated with the cough?",
+    "Have you noticed any recent weight loss or loss of appetite?",
+    "Are you able to take your diabetes and blood pressure medications without missing doses?",
+  ],
+};
+
+const MOCK_PARTIAL_AT = {
+  3: {
+    subjective: "Patient reports a cough for 4 days and breathlessness on climbing stairs for 3 weeks.",
+    objective: null, assessment: null, plan: null,
+  },
+  6: {
+    subjective: "Cough for 4 days and breathlessness on climbing stairs for 3 weeks. Takes Metformin 500 mg twice daily and Atorvastatin 10 mg at night.",
+    objective: null, assessment: null, plan: null,
+  },
+  9: {
+    subjective: "Cough for 4 days, breathlessness on exertion for 3 weeks; current meds Metformin 500 mg BD and Atorvastatin 10 mg nightly; no known allergies.",
+    objective: "Chest exam reveals mild crackles.",
+    assessment: null, plan: null,
+  },
+  12: {
+    subjective: "Cough for 4 days and breathlessness on climbing stairs for 3 weeks; on Metformin 500 mg BD and Atorvastatin 10 mg nightly; no known allergies.",
+    objective: "Chest exam reveals mild crackles.",
+    assessment: "Chest infection.",
+    plan: "Start Clarithromycin 500 mg twice daily for 7 days, add Glycomet 500 mg twice daily for glucose control, follow-up in 7 days.",
+  },
+};
+
+// Build the per-line response the mock will return.
+export function mockLineStep(stateIn, speaker, text) {
+  const state = {
+    transcript: [...(stateIn?.transcript || []), { speaker, text }],
+    flags: [...(stateIn?.flags || [])],
+    suggestions: stateIn?.suggestions || [],
+    partial_note: stateIn?.partial_note || { subjective: null, objective: null, assessment: null, plan: null },
+  };
+  const i = state.transcript.length - 1;
+  const add = MOCK_FLAGS_AT[i];
+  if (add) {
+    const existing = new Set(state.flags.map((f) => f.title));
+    for (const f of add) if (!existing.has(f.title)) state.flags.push({ ...f, id: `mf${state.flags.length + 1}`, resolved: false });
+  }
+  const n = state.transcript.length;
+  if (MOCK_SUGGESTIONS_AT[n]) state.suggestions = MOCK_SUGGESTIONS_AT[n];
+  if (MOCK_PARTIAL_AT[n]) state.partial_note = MOCK_PARTIAL_AT[n];
+  return state;
+}
+
+export const mockFinalNote = {
+  subjective: {
+    text: "Patient reports a cough for 4 days and breathlessness on climbing stairs for the past 3 weeks. On Metformin 500 mg twice daily and Atorvastatin 10 mg nightly; no known drug or food allergies.",
+    source_lines: [1, 3, 5, 7],
+  },
+  objective: {
+    text: "On examination, mild crackles were heard on chest auscultation.",
+    source_lines: [8],
+  },
+  assessment: {
+    text: "Chest infection.",
+    source_lines: [9],
+  },
+  plan: {
+    text: "Start Clarithromycin 500 mg twice daily for 7 days and add Glycomet 500 mg twice daily for glucose control. Return in 7 days for a follow-up and repeat chest examination.",
+    source_lines: [9, 10, 12],
+  },
+};
+
+export const mockApprovedRecord = {
+  record: {
+    id: "visit-mock",
+    date: new Date().toISOString().slice(0, 10),
+    type: "visit",
+    status: "good",
+    title: "Visit with Dr. Suresh Menon",
+    provider: null,
+    doctor: "Dr. Suresh Menon",
+    summary: {
+      en: "You have had a cough for four days and shortness of breath when climbing stairs for three weeks. The exam showed mild crackles in your lungs, and the doctor diagnosed a chest infection. Start Clarithromycin 500 mg twice daily for seven days and add Glycomet 500 mg twice daily for glucose control. Return in seven days for a follow-up visit.",
+      ml: "നിങ്ങൾക്ക് നാല് ദിവസമായി ചുമയുണ്ട്, മൂന്ന് ആഴ്ചയായി സീഡികൾ കയറുമ്പോൾ ശ്വാസംമുട്ടുന്നു. പരിശോധനയിൽ ശ്വാസകോശങ്ങളിൽ ചെറിയ ക്രാക്കിളുകൾ കണ്ടെത്തി; ഡോക്ടർ ഒരു ചസ്റ്റ് ഇൻഫെക്ഷൻ എന്ന് നിർണ്ണയിച്ചു. Clarithromycin 500 mg ദിവസം രണ്ടുതവണ 7 ദിവസം, Glycomet 500 mg ദിവസം രണ്ടുതവണ തുടങ്ങുക. 7 ദിവസത്തിന് ശേഷം ഫോളോ-അപ്പിന് വരിക.",
+    },
+    observations: [],
+    medications: [
+      { name: "Clarithromycin", generic: "clarithromycin", dose: "500 mg", schedule: "BD", times: ["08:00", "20:00"], duration: "7 days", purpose: null },
+      { name: "Glycomet",       generic: "metformin",       dose: "500 mg", schedule: "BD", times: ["08:00", "20:00"], duration: null,     purpose: null },
+    ],
+    followUp: "Return in 7 days for a follow-up",
+    source: { kind: "transcript", lines: consultationScript.map(([s, t]) => `${s}: ${t}`), highlight: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] },
+    isNew: true,
+  },
+  alerts: [],
+  reminders: [
+    { id: "r1", title: "Clarithromycin 500 mg", when: new Date().toISOString(), until: null, time: "08:00" },
+    { id: "r2", title: "Glycomet 500 mg", when: new Date().toISOString(), until: null, time: "08:00" },
+  ],
+};

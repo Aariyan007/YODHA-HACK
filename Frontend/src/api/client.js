@@ -150,3 +150,127 @@ export const triage = (text) =>
   USE_MOCK
     ? delay(mock.mockTriage(text))
     : request("/api/triage", { method: "POST", body: { text }, auth: false });
+
+// ---------- consultation (doctor console, Phase 4) ----------
+//
+// Doctor-side flow is NOT authenticated with the patient JWT. The share token
+// identifies the authorized visit; every call after /start sends it as the
+// X-Share-Token header. (The backend validates expiry on every call.)
+
+const MOCK_CID = "cons-mock";
+let MOCK_STATE = null; // reset each /start
+
+async function shareReq(path, { method = "GET", body, shareToken } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (shareToken) headers["X-Share-Token"] = shareToken;
+  const res = await fetch(`${BASE}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail ?? detail; } catch {}
+    throw new Error(typeof detail === "string" ? detail : "Request failed");
+  }
+  return res.json();
+}
+
+// -> { consultationId }
+export function startConsultation(shareToken, doctorName) {
+  if (USE_MOCK) {
+    MOCK_STATE = null;
+    return delay({ consultationId: MOCK_CID });
+  }
+  // Real: POST /api/consultations/start (no auth; patient share token is in body)
+  return shareReq("/api/consultations/start", {
+    method: "POST",
+    body: { patientToken: shareToken, doctorName },
+  });
+}
+
+// -> { transcript, partial_note, flags, suggestions }
+export function sendLine(consultationId, text, speaker, shareToken) {
+  if (USE_MOCK) {
+    MOCK_STATE = mock.mockLineStep(MOCK_STATE, speaker, text);
+    return delay(MOCK_STATE);
+  }
+  // Real: POST /api/consultations/{id}/line
+  return shareReq(`/api/consultations/${encodeURIComponent(consultationId)}/line`, {
+    method: "POST",
+    body: { text, speaker },
+    shareToken,
+  });
+}
+
+// -> consultation shape (incl. finalNote with per-field source_lines)
+export function finalizeConsultation(consultationId, shareToken) {
+  if (USE_MOCK) {
+    return delay({
+      id: MOCK_CID,
+      status: "draft",
+      transcript: MOCK_STATE?.transcript || [],
+      soap: MOCK_STATE?.partial_note || {},
+      finalNote: mock.mockFinalNote,
+      flags: MOCK_STATE?.flags || [],
+      questions: MOCK_STATE?.suggestions || [],
+      editedFields: [],
+    });
+  }
+  return shareReq(`/api/consultations/${encodeURIComponent(consultationId)}/finalize`, {
+    method: "POST",
+    shareToken,
+  });
+}
+
+// -> { record, alerts, reminders }
+export function approveConsultation(consultationId, edits, shareToken) {
+  if (USE_MOCK) {
+    const merged = structuredClone(mock.mockApprovedRecord);
+    for (const k of ["subjective", "objective", "assessment", "plan"]) {
+      if (edits && edits[k] && typeof edits[k].text === "string") {
+        // Mock does not need to re-synth summary; just acknowledge the edit.
+        merged.record.title = merged.record.title; // no-op; keep shape stable
+      }
+    }
+    return delay(merged);
+  }
+  return shareReq(`/api/consultations/${encodeURIComponent(consultationId)}/approve`, {
+    method: "POST",
+    body: { edits: edits || {} },
+    shareToken,
+  });
+}
+
+// -> consultation state (used after a page refresh to restore the view)
+export function getConsultation(consultationId, shareToken) {
+  if (USE_MOCK) {
+    return delay({
+      id: MOCK_CID,
+      status: MOCK_STATE?.transcript?.length ? "active" : "active",
+      transcript: MOCK_STATE?.transcript || [],
+      soap: MOCK_STATE?.partial_note || {},
+      finalNote: {},
+      flags: MOCK_STATE?.flags || [],
+      questions: MOCK_STATE?.suggestions || [],
+      editedFields: [],
+    });
+  }
+  return shareReq(`/api/consultations/${encodeURIComponent(consultationId)}`, { shareToken });
+}
+
+// Feeds the scripted 14-line conversation one line at a time, calling
+// onLine(state, index) after each response so the UI can animate it.
+export async function runDemoConversation(consultationId, shareToken, onLine) {
+  const script = mock.consultationScript;
+  let last;
+  for (let i = 0; i < script.length; i++) {
+    const [speaker, text] = script[i];
+    try {
+      last = await sendLine(consultationId, text, speaker, shareToken);
+    } catch (e) {
+      onLine && onLine({ error: e.message, index: i }, i);
+      throw e;
+    }
+    onLine && onLine(last, i);
+    // Small pause so the demo reads as a conversation, not a dump.
+    await new Promise((r) => setTimeout(r, 450));
+  }
+  return last;
+}
