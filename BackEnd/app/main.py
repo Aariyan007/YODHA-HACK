@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,12 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import store
 from .database import DB_KIND, Base, SessionLocal, engine
-from .routers import auth, patients, shares
+from .routers import auth, documents, patients, shares
 from .seed import seed_if_empty
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if os.getenv("RESET_DB") == "1":
+        print("[db] RESET_DB=1: dropping all tables before create_all")
+        Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         if seed_if_empty(db):
@@ -31,6 +35,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(patients.router)
 app.include_router(shares.router)
+app.include_router(documents.router)
 
 
 @app.get("/health")

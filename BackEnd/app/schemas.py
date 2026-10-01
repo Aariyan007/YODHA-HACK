@@ -53,11 +53,11 @@ def document_out(d: Document) -> dict:
     items = []
     for it in d.items or []:
         it = dict(it)
-        if "code" in it and "value" in it:
+        if "code" in it and "value" in it and "status" not in it:
             it["status"] = lab_status(it["code"], it["value"])
             it["range"] = lab_range(it["code"])
         items.append(it)
-    return {
+    out = {
         "id": d.id,
         "date": d.date,
         "type": d.type,
@@ -68,6 +68,18 @@ def document_out(d: Document) -> dict:
         "tags": d.tags or [],
         "items": items,
     }
+    # Phase 2 fields (only set after upload pipeline)
+    for attr in ("status", "provider", "doctor", "followup"):
+        v = getattr(d, attr, None)
+        if v is not None:
+            out[attr if attr != "followup" else "followUp"] = v
+    if getattr(d, "source_kind", None) or getattr(d, "source_lines", None):
+        out["sourceDoc"] = {
+            "kind": d.source_kind or "image",
+            "lines": d.source_lines or [],
+            "highlight": d.source_highlight or [],
+        }
+    return out
 
 
 def medicine_out(m: Medicine) -> dict:
