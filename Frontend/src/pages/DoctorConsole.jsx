@@ -11,6 +11,7 @@ import { Loading } from "../components/ui.jsx";
 import { HistoryPanel } from "../components/console/HistoryPanel.jsx";
 import { RecordingPanel } from "../components/console/RecordingPanel.jsx";
 import { ReviewPanel } from "../components/console/ReviewPanel.jsx";
+import { ApprovedPanel } from "../components/console/ApprovedPanel.jsx";
 import { useT } from "../i18n.js";
 
 /**
@@ -163,10 +164,21 @@ export default function DoctorConsole() {
         )}
 
         {phase === "approved" && approvedResult && (
-          <div className="card">
-            <h3 style={{ marginTop: 0 }}>Approved state (coming in the next commit)</h3>
-            <pre className="source" style={{ maxHeight: 300 }}>{JSON.stringify(approvedResult.record, null, 2)}</pre>
-          </div>
+          <ApprovedPanel
+            result={approvedResult}
+            patient={snapshot.patient}
+            onNewConsultation={() => {
+              setConsultationId(null);
+              setConsultState({
+                transcript: [], flags: [], suggestions: [],
+                partial_note: { subjective: null, objective: null, assessment: null, plan: null },
+              });
+              setAutoFeedScript(null);
+              setApprovedResult(null);
+              setPhase("history");
+            }}
+            onBack={() => setPhase("history")}
+          />
         )}
       </main>
     </div>
