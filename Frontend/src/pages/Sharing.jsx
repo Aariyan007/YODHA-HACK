@@ -51,6 +51,14 @@ export default function Sharing() {
             <span className="muted small">
               {t("expires")}: {new Date(share.expiresAt).toLocaleString("en-IN")}
             </span>
+            <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              <a href={share.url} target="_blank" rel="noreferrer">
+                <button>Preview what the doctor sees</button>
+              </a>
+              <a href={`/console/${share.token}`} target="_blank" rel="noreferrer">
+                <button className="primary">Open doctor console</button>
+              </a>
+            </div>
           </div>
         )}
       </section>

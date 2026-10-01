@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { getShareSnapshot } from "../api/client.js";
 import { AlertCard, Loading, TimelineItem } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
@@ -31,6 +31,11 @@ export default function Snapshot({ toggle }) {
               {data.patient.allergies.length > 0 && <div className="error">Allergies: {data.patient.allergies.join(", ")}</div>}
               <div className="muted small">
                 {t("readOnly")} {t("expires")}: {new Date(data.expiresAt).toLocaleString("en-IN")}
+              </div>
+              <div className="row" style={{ marginTop: 10 }}>
+                <Link to={`/console/${token}`}>
+                  <button className="primary">🎙 Start consultation</button>
+                </Link>
               </div>
             </div>
 
