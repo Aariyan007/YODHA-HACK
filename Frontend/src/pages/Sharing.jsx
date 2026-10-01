@@ -3,6 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { createShare, getAccessLog, getFamily } from "../api/client.js";
 import { Loading } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
+import { appPath, appUrl } from "../routing.js";
 import { useApi } from "../useApi.js";
 
 export default function Sharing() {
@@ -22,7 +23,7 @@ export default function Sharing() {
     }
   };
 
-  const fullUrl = share ? `${window.location.origin}${share.url}` : "";
+  const fullUrl = share ? appUrl(share.url) : "";
 
   return (
     <>
@@ -45,17 +46,17 @@ export default function Sharing() {
         {share && (
           <div className="qr">
             <QRCodeSVG value={fullUrl} size={180} />
-            <a href={share.url} target="_blank" rel="noreferrer" className="small">
+            <a href={appPath(share.url)} target="_blank" rel="noreferrer" className="small">
               {fullUrl}
             </a>
             <span className="muted small">
               {t("expires")}: {new Date(share.expiresAt).toLocaleString("en-IN")}
             </span>
             <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-              <a href={share.url} target="_blank" rel="noreferrer">
+              <a href={appPath(share.url)} target="_blank" rel="noreferrer">
                 <button>Preview what the doctor sees</button>
               </a>
-              <a href={`/console/${share.token}`} target="_blank" rel="noreferrer">
+              <a href={appPath(`/console/${share.token}`)} target="_blank" rel="noreferrer">
                 <button className="primary">Open doctor console</button>
               </a>
             </div>

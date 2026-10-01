@@ -1,6 +1,7 @@
 // API client. Source of truth for the backend contract.
 // Every function returns the same shape as the matching export in mockData.js.
 import * as mock from "../data/mockData.js";
+import { goLogin } from "../routing.js";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 const BASE = import.meta.env.VITE_API_URL || ""; // empty = same origin, Vite proxies /api
@@ -21,7 +22,7 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   const res = await fetch(`${BASE}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   if (res.status === 401 && auth) {
     setToken(null);
-    window.location.assign("/login");
+    goLogin();
   }
   if (!res.ok) {
     let detail = res.statusText;
@@ -165,7 +166,7 @@ export const importFhirFile = (file) => {
     async (res) => {
       if (res.status === 401) {
         setToken(null);
-        window.location.assign("/login");
+        goLogin();
       }
       if (!res.ok) {
         let detail = res.statusText;
