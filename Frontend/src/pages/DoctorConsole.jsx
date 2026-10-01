@@ -10,6 +10,7 @@ import { consultationScript } from "../data/mockData.js";
 import { Loading } from "../components/ui.jsx";
 import { HistoryPanel } from "../components/console/HistoryPanel.jsx";
 import { RecordingPanel } from "../components/console/RecordingPanel.jsx";
+import { ReviewPanel } from "../components/console/ReviewPanel.jsx";
 import { useT } from "../i18n.js";
 
 /**
@@ -48,6 +49,7 @@ export default function DoctorConsole() {
     partial_note: { subjective: null, objective: null, assessment: null, plan: null },
   });
   const [autoFeedScript, setAutoFeedScript] = useState(null);
+  const [approvedResult, setApprovedResult] = useState(null);
 
   // Load the share snapshot once.
   useEffect(() => {
@@ -147,14 +149,23 @@ export default function DoctorConsole() {
         )}
 
         {phase === "review" && (
-          <div className="card">
-            <h3 style={{ marginTop: 0 }}>Review state (coming in the next commit)</h3>
-          </div>
+          <ReviewPanel
+            consultationId={consultationId}
+            shareToken={token}
+            transcript={consultState.transcript}
+            flags={consultState.flags}
+            onBack={() => setPhase("recording")}
+            onApproved={(result) => {
+              setApprovedResult(result);
+              setPhase("approved");
+            }}
+          />
         )}
 
-        {phase === "approved" && (
+        {phase === "approved" && approvedResult && (
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Approved state (coming in the next commit)</h3>
+            <pre className="source" style={{ maxHeight: 300 }}>{JSON.stringify(approvedResult.record, null, 2)}</pre>
           </div>
         )}
       </main>
