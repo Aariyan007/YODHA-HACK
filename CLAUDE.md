@@ -4,30 +4,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Phases 1 to 5 of SPEC.md are done:
+Phases 1 to 6 of SPEC.md are done:
 
 - Phase 1: FastAPI backend with Supabase (SQLite fallback), seeded demo patient, OTP auth, patient endpoints, share links; Vite + React patient app with login, Home, Timeline, Medicines, Health, Sharing, and a read-only Snapshot page for the doctor QR link.
 - Phase 2: upload pipeline (`POST /api/documents` → background thread → SSE stream at `/api/jobs/{id}/events`). Gemini extracts to JSON (`gemini-flash-latest` with fallback cascade); Groq (`openai/gpt-oss-120b` with `reasoning_effort=low`) writes the patient-facing summary and Malayalam translation; `ai/jev_client.py` runs duplicate / allergy / clash / lab-threshold checks. SHA-256 cache in `BackEnd/demo_cache/`, duplicate-upload guard via `Document.file_hash`, best-effort Telegram notify. Also `POST /api/triage` (emergency keyword list first, then rule table, then Groq fallback).
 - Phase 3: doctor consultation backend. `/api/consultations/{start,/{id}/line,/{id}/finalize,/{id}/approve,/{id},/demo/{id}}`. Per-line Python safety checks (duplicate / clash / allergy / emergency + missing-info flags at ≥6 lines); Groq rebuilds the partial SOAP note and suggests up to 3 follow-up questions every 3 lines; `/finalize` returns a full SOAP with per-field `source_lines`; `/approve` writes the Document + Medicines + Reminders + Alerts and sends a Telegram notify. AI never diagnoses — the assessment field only restates the doctor. Nothing reaches the patient timeline before `/approve`.
 - Phase 4: doctor console frontend at `/console/:token` (outside the patient login guard). Four states: history (reuses `getShareSnapshot`), recording (continuous Web SpeechRecognition with auto-restart, D/P speaker toggle, serial sendLine queue with retry-until-success, live SOAP, flag banners, suggested questions), review (editable S/O/A/P textareas, source-line highlighting, confirm dialog), approved (green tick, TimelineItem preview with EN/ML toggle + Read aloud via SpeechSynthesisUtterance). Entry points: "Open doctor console" next to the QR on Sharing, "Start consultation" on the Snapshot page.
 - Phase 5: real reminders. `app/reminder_service.py` runs an APScheduler `BackgroundScheduler` (every 30 s, Asia/Kolkata) started and stopped in the FastAPI lifespan. `run_tick(now, send)` sends one Telegram message per dose per day (dedup key `{medicine_id}@{HH:MM}@{date}` in the store and in the `sent_doses` table, so a restart never resends), a missed-dose message to the family chat once after `missed_after_minutes` unless the dose was marked taken, and refill / follow-up notices the day before (from 09:00 IST, once, tracked in `sent_notices`). Medicines stop after `duration_days` from `start_date`. Per-patient preferences live in `reminder_settings`. Endpoints: `GET/PUT /api/reminders/settings`, `POST /api/reminders/telegram/test`, `POST /api/reminders/{key}/taken` (the old `/api/patients/me/reminders/{key}/taken` shares the same helper), and `POST /api/demo/fire-reminder` + `/api/demo/fire-missed` (404 unless `DEMO_MODE=true`). Frontend: new Reminders tab (toggles, chat ID, test button, demo controls) and "Turn on these reminders" on the upload result.
+- Phase 6: trend alert, hospital import, demo tooling, offline build, polish.
+  - `app/trends.py::check_trends` (pure Python): after every document save (upload, cached replay, FHIR import) and in seed, if a "higher is worse" lab (HbA1c, FBS, PPBS, LDL, TG, total chol, creatinine, SBP, DBP) has risen in each of the last 3+ stored Observations, it keeps ONE open alert (`kind="trend"`, `severity="high"`) with the real numbers, e.g. "Your HbA1c has risen in each of your last 3 tests: 7.2, 7.6, 8.2. Show this to your doctor." An unread (`resolved=False`) alert for the same test is updated, not duplicated. Tests are matched by lab code, then LOINC, then name. Wording never states a cause or a treatment. Insights chart data comes from stored Observations.
+  - `POST /api/import/fhir` (login; Bundle JSON body or multipart `file`; 2 MB cap; `GET /api/import/fhir/sample` serves `BackEnd/samples/aster_medcity_bundle.json`). `app/fhir_import.py` reads Patient, Encounter, Observation (LOINC, BP panels split into SBP/DBP), Condition (ICD-10 kept on `patient.conditions`), MedicationStatement/MedicationRequest, DiagnosticReport; other resource types are skipped and reported. Runs the same `analyse()` checks and Groq EN+ML summary as uploads. Dedupe: each timeline card gets `Document.external_id` (resource type/id + content hash), so re-importing a bundle adds nothing. New columns: `documents.origin/external_id`, `observations.loinc/source`.
+  - `app/demo.py` + `routers/demo.py` (404 unless `DEMO_MODE=true`, login needed): `POST /api/demo/reset` restores Ammini to 8 records / 3 medicines / 3 alerts, deletes uploads, imports, consultations, visit notes, sent-dose rows, job caches and `uploads/` files (NOT `demo_cache/`), turns Telegram reminders on. `GET /api/health/deep` makes one tiny call each to DB, Redis, Gemini, Groq, Telegram (`getMe`, sends nothing) and the scheduler; never returns keys. The Reminders page "Demo controls" card has a Reset demo button (inline confirm) and a status line from it.
+  - Frontend: dark mode (follows the OS; `<html data-theme="dark|light">` forces one), 48 px touch targets, empty/error states with retry, `npm run build:single` offline build, hash routes in that build. Fixed a `Snapshot` white-screen on invalid/expired links and the doctor console demo auto-feed that did nothing under StrictMode (dev).
+  - Security: uploads limited to 10 MB and jpg/png/webp/pdf (checked by magic bytes); CORS from `CORS_ORIGINS` (a bare `*` is ignored unless `DEMO_MODE=true`); fake share tokens answer 404, expired 410 (snapshot and consultations).
 
 Voice SOAP note and reminders are built. Not built: browser push for the phone channel (the toggle only requests notification permission and saves the setting; delivery today is Telegram only).
 
 ## Commands
 
 - Backend: `cd BackEnd && ./venv/bin/uvicorn app.main:app --reload --port 8000` (seeds DB on first start). Set `RESET_DB=1` to drop and re-seed. Set `OPENFDA_ENABLE=1` to opt into the OpenFDA fallback (off by default — raw OpenFDA has false positives for almost any pair).
-- Frontend: `cd Frontend && npm run dev` (port 5173, proxies `/api` to 8000). `npm run build`. There is no `build:single` script despite the Phase 4 brief mentioning one.
+- Frontend: `cd Frontend && npm run dev` (port 5173, proxies `/api` to 8000). `npm run build`. `npm run build:single` writes `Frontend/dist-single/index.html` (one file, mock data, hash routes, runs from `file://`; gitignored).
+- Demo backend: `cd BackEnd && DEMO_MODE=true ./venv/bin/uvicorn app.main:app --port 8000`.
+- Smoke test (server must be running with `DEMO_MODE=true`; it resets Ammini at start and end): `cd BackEnd && ./venv/bin/python scripts/smoke.py` (13 steps).
+- Security sweep against a running server: `cd BackEnd && ./venv/bin/python scripts/security_sweep.py` (run once with and once without `DEMO_MODE`).
+- Trend + FHIR unit tests (in-memory SQLite, Groq stubbed): `cd BackEnd && ./venv/bin/python -W ignore scripts/test_trends.py -v` and `scripts/test_fhir.py -v`.
 - Pipeline test harness: `cd BackEnd && ./venv/bin/python scripts/make_test_docs.py` to regenerate the Pillow test images, then `./venv/bin/python scripts/run_pipeline.py` to run all three through the pipeline and print stages/alerts/summary/reminders.
 - Consultation test harness: `cd BackEnd && RESET_DB=1 ./venv/bin/python scripts/run_consultation.py` — scripted 14-line visit through the full `/start → /line × 14 → /finalize → /approve` path. Prints flags per line, questions, final SOAP, and asserts the timeline is unchanged until approve (+1 after). The script sets `RESET_DB=1` by default, which wipes and re-seeds the DB it points at (it hits Supabase when `DATABASE_URL` is set).
 - Reminder unit tests (fake clock, in-memory SQLite, nothing is sent): `cd BackEnd && ./venv/bin/python -W ignore scripts/test_reminders.py -v` (13 cases: once per minute, course dates, missed alert timing, taken cancels, restart safety, refill, appointment).
-- No linter yet. Playwright is not installed; Phase 4 end-to-end is manual (steps below).
+- No linter yet. Playwright is not installed; end-to-end browser checks are manual (Claude-in-Chrome worked in Phase 6, but cannot open `file://` pages).
 
 ## Contract
 
 `Frontend/src/api/client.js` lists every endpoint. `Frontend/src/data/mockData.js` was generated from real backend responses; backend serializers in `BackEnd/app/schemas.py` must keep the same camelCase shapes.
 
 ## Gotchas
+
+- `BackEnd/demo_cache/` is gitignored, so a fresh clone has no cached results and the first upload of each test image calls Gemini. The prescription test image's cache entry (`a7618b30...json`) was lost once; it was restored from git history (`git show 54a4ffe:BackEnd/demo_cache/a7618b30e5a763ed0378a69a2e6d3a4c8d22f7daeaef68bb3c3019187f0e2ffc.json`). Gemini's free tier hits 429 quickly, so keep these cache files.
+- `scripts/smoke.py` and `POST /api/demo/reset` act on the DB the server points at (Supabase when `DATABASE_URL` is set) and wipe Ammini's uploads, imports and visits.
+- Gemini rejects client deadlines under 10 s (`HttpOptions(timeout=...)` is in milliseconds).
+- `.env` was committed once in git history (commits `c22276f`..`22c0e01`) but was empty; no key, token or password appears anywhere in history (checked in Phase 6). `uploads/` and `demo_cache/` fictional test files are also in early history.
 
 - `DATABASE_URL` must be the Supabase session pooler URL (`*.pooler.supabase.com`). The direct host is IPv6-only and fails on this network. If Postgres is unreachable the backend falls back to `BackEnd/medithread.db` (SQLite).
 - Redis is optional; without it OTP and reminder-taken state live in memory and reset on restart. Dose dedup does not depend on Redis: it is also written to `sent_doses`.
@@ -39,7 +54,7 @@ Voice SOAP note and reminders are built. Not built: browser push for the phone c
 - `BackEnd/uploads/` and `BackEnd/demo_cache/` are gitignored. Cache keys are the file SHA-256; the cached result is replayed instantly on re-upload. Resetting the DB with the cache intact still produces a saved Document on re-upload via `_persist_result`.
 - SSE endpoint `/api/jobs/{id}/events` is intentionally unauthenticated — the unguessable `jobId` (uuid4) is the key, because `EventSource` cannot send `Authorization`.
 - Consultation endpoints are **not** behind the patient JWT. `/start` is unauthenticated (the share token in the body is the credential); every other call must send `X-Share-Token: <token>` matching `Consultation.share_token`, and the share link's expiry is re-checked on each call. The doctor console lives at `/console/:token` *outside* the patient login guard.
-- The frontend has no `AppShell.jsx`, `DoctorView.jsx`, `Profile.jsx`, `index.css`, Atkinson Hyperlegible font, dark mode, or `build:single` script — the Phase 4 brief referred to a different codebase variant. Entry points to the console are instead on `Sharing.jsx` (owner's QR screen) and `Snapshot.jsx` (doctor's read-only snapshot).
+- The frontend has no `AppShell.jsx`, `DoctorView.jsx`, `Profile.jsx`, `index.css`, Atkinson Hyperlegible font, — the Phase 4 brief referred to a different codebase variant. Entry points to the console are instead on `Sharing.jsx` (owner's QR screen) and `Snapshot.jsx` (doctor's read-only snapshot).
 - Doctor-console in-progress state lives in React state only (no localStorage). A browser refresh loses the consultationId, so a mid-visit refresh starts a new visit; `getConsultation(id, token)` is available in the API client if deep-link restore is ever needed.
 
 ## Layout
@@ -51,7 +66,7 @@ Voice SOAP note and reminders are built. Not built: browser push for the phone c
 
 Names only. Never print or commit the values.
 
-- Backend: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `DEMO_MODE`, `OPENFDA_ENABLE`, `RESET_DB`
+- Backend: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `DEMO_MODE`, `OPENFDA_ENABLE`, `RESET_DB`, `CORS_ORIGINS` (comma-separated allowed browser origins; default is the two local dev URLs)
 - Frontend (Vite, so the `VITE_` prefix): `VITE_USE_MOCK` (toggles mock data instead of the real API), `VITE_API_URL`
 
 This implies a Vite frontend, a backend backed by a database and Redis with JWT auth, Gemini and Groq as LLM providers, and Telegram notifications. Confirm against the real code once it exists.
@@ -88,4 +103,4 @@ Screenshots at 820 px (tablet) and 390 px (phone) are easiest with Chrome DevToo
 - `.console-review-grid` (review) collapses below 960 px (so review stays single-column on both tablet and phone, which matches the brief's "must not overflow on a phone").
 - All buttons use the global `button` 48-px-tall rule in `.console-cta`.
 
-`npm run build` passes (326 kB JS, 10 kB CSS). There is no `build:single` script despite the brief listing one — the scaffold here is Vite single-file-SPA by default.
+`npm run build` passes (326 kB JS, 10 kB CSS). `build:single` was added in Phase 6.
