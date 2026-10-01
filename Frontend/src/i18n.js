@@ -49,6 +49,7 @@ const STRINGS = {
     consultation: "Doctor visit",
     visit: "Doctor visit",
     scan: "Scan",
+    all: "All",
   },
   ml: {
     appName: "മെഡിത്രെഡ്",
@@ -98,6 +99,7 @@ const STRINGS = {
     consultation: "ഡോക്ടർ സന്ദർശനം",
     visit: "ഡോക്ടർ സന്ദർശനം",
     scan: "സ്കാൻ",
+    all: "എല്ലാം",
   },
 };
 

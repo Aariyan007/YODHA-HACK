@@ -176,10 +176,10 @@ function HospitalImport() {
             <strong>{result.message}</strong>
             {result.total > 0 && counts && (
               <ul className="items">
-                <li>{counts.timelineCards} {ml ? "ടൈംലൈൻ കാർഡുകൾ" : "timeline cards"}</li>
-                <li>{counts.observations} {ml ? "ഫലങ്ങൾ" : "results"}</li>
-                <li>{counts.medicines} {ml ? "മരുന്നുകൾ" : "medicines"}</li>
-                <li>{counts.conditions} {ml ? "രോഗാവസ്ഥകൾ" : "conditions"}</li>
+                <li>{counts.timelineCards} {ml ? "ടൈംലൈൻ കാർഡുകൾ" : counts.timelineCards === 1 ? "timeline card" : "timeline cards"}</li>
+                <li>{counts.observations} {ml ? "ഫലങ്ങൾ" : counts.observations === 1 ? "result" : "results"}</li>
+                <li>{counts.medicines} {ml ? "മരുന്നുകൾ" : counts.medicines === 1 ? "medicine" : "medicines"}</li>
+                <li>{counts.conditions} {ml ? "രോഗാവസ്ഥകൾ" : counts.conditions === 1 ? "condition" : "conditions"}</li>
               </ul>
             )}
             {result.duplicates > 0 && !result.alreadyImported && (

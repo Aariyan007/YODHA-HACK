@@ -15,7 +15,19 @@ from ..models import Patient
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
-MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8 MB
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+# Allowed types, checked by the file's first bytes (the filename and Content-Type are only claims).
+def detect_type(data: bytes) -> str | None:
+    if data.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    if data.startswith(b"%PDF-"):
+        return "pdf"
+    return None
 
 
 # ---------- Upload ----------
@@ -25,12 +37,16 @@ async def upload_document(
     file: UploadFile = File(...),
     patient: Patient = Depends(current_patient),
 ):
-    data = await file.read()
+    data = await file.read(MAX_UPLOAD_BYTES + 1)  # never buffer more than the limit plus one byte
     if not data:
         raise HTTPException(400, "File is empty.")
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "File is too large. Please take a smaller photo.")
-    job_id, from_cache = pipeline.start_job(patient.id, data, file.filename or "upload.png")
+        raise HTTPException(413, "File is too large (limit is 10 MB). Please take a smaller photo.")
+    kind = detect_type(data)
+    if kind is None:
+        raise HTTPException(415, "This file type is not supported. Please upload a JPG, PNG, WEBP or PDF.")
+    # Name the file by what it really is, so a renamed file cannot pick its own extension.
+    job_id, from_cache = pipeline.start_job(patient.id, data, f"upload.{kind}")
     return {"jobId": job_id, "cached": from_cache}
 
 

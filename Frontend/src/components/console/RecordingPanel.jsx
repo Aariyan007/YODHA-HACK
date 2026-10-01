@@ -116,20 +116,23 @@ export function RecordingPanel({
   }, [startedAt]);
 
   // ---- auto-feed (demo conversation) ----
-  const fedRef = useRef(false);
+  // feedIdx survives effect re-runs (React StrictMode mounts effects twice in dev, and a cleanup that
+  // killed the timer used to leave the demo stuck). enqueueRef avoids restarting when enqueue changes.
+  const feedIdx = useRef(0);
+  const enqueueRef = useRef(enqueue);
+  enqueueRef.current = enqueue;
   useEffect(() => {
-    if (!autoFeed || !autoFeed.length || fedRef.current) return;
-    fedRef.current = true;
-    let i = 0;
+    if (!autoFeed || !autoFeed.length) return;
+    let timer;
     const tick = () => {
-      if (i >= autoFeed.length) return;
-      const [who, text] = autoFeed[i++];
-      enqueue(text, who);
-      setTimeout(tick, 650);
+      if (feedIdx.current >= autoFeed.length) return;
+      const [who, text] = autoFeed[feedIdx.current++];
+      enqueueRef.current(text, who);
+      timer = setTimeout(tick, 650);
     };
-    const first = setTimeout(tick, 300);
-    return () => clearTimeout(first);
-  }, [autoFeed, enqueue]);
+    timer = setTimeout(tick, feedIdx.current ? 0 : 300);
+    return () => clearTimeout(timer);
+  }, [autoFeed]);
 
   const sendTyped = () => {
     const text = typed.trim();

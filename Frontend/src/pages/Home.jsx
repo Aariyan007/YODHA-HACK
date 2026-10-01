@@ -1,6 +1,6 @@
 import { getAlerts, getInsights, getReminders, markReminderTaken } from "../api/client.js";
 import { getProfile } from "../App.jsx";
-import { AlertCard, Loading } from "../components/ui.jsx";
+import { AlertCard, Empty, Loading } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 import { useApi } from "../useApi.js";
 
@@ -27,8 +27,10 @@ export default function Home() {
 
       <section>
         <h3>{t("todayMeds")}</h3>
-        {reminders.loading ? (
-          <Loading error={reminders.error} />
+        {reminders.loading || reminders.error ? (
+          <Loading error={reminders.error} onRetry={reminders.reload} />
+        ) : reminders.data.length === 0 ? (
+          <Empty>No medicines scheduled. Add a prescription to get reminders.</Empty>
         ) : (
           <div className="list">
             {reminders.data.map((r) => (
@@ -37,7 +39,7 @@ export default function Home() {
                 <div className="grow">
                   <strong>{r.name}</strong>
                   <div className="muted small">
-                    {r.dose} · {r.instructions}
+                    {[r.dose, r.instructions].filter(Boolean).join(" · ")}
                   </div>
                 </div>
                 {r.taken ? (
@@ -55,8 +57,8 @@ export default function Home() {
 
       <section>
         <h3>{t("alerts")}</h3>
-        {alerts.loading ? (
-          <Loading error={alerts.error} />
+        {alerts.loading || alerts.error ? (
+          <Loading error={alerts.error} onRetry={alerts.reload} />
         ) : open.length ? (
           <div className="list">
             {open.map((a) => (

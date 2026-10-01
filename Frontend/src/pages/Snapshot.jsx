@@ -18,8 +18,8 @@ export default function Snapshot({ toggle }) {
         {toggle}
       </header>
       <main>
-        {loading ? (
-          <Loading error={error} />
+        {loading || error ? (
+          <Loading error={error === "Share link expired" ? "This share link has expired. Ask the patient for a new QR code." : error === "Share link not found" ? "This share link is not valid. Ask the patient for a new QR code." : error} />
         ) : (
           <>
             <div className="card">

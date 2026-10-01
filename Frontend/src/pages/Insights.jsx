@@ -1,5 +1,5 @@
 import { getInsights } from "../api/client.js";
-import { HbA1cChart, Loading, Status, formatDate } from "../components/ui.jsx";
+import { Empty, HbA1cChart, Loading, Status, formatDate } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 import { useApi } from "../useApi.js";
 
@@ -12,7 +12,7 @@ export function InsightsView({ data }) {
       <section>
         <h3>{t("sugarTrend")}</h3>
         <div className="card">
-          <HbA1cChart points={data.hba1c} />
+          {data.hba1c?.length ? <HbA1cChart points={data.hba1c} /> : <p className="muted">No HbA1c results yet.</p>}
         </div>
       </section>
 
@@ -58,8 +58,8 @@ export function InsightsView({ data }) {
 
 export default function Insights() {
   const { t } = useT();
-  const { data, loading, error } = useApi(getInsights);
-  if (loading) return <Loading error={error} />;
+  const { data, loading, error, reload } = useApi(getInsights);
+  if (loading || error) return <Loading error={error} onRetry={reload} />;
   return (
     <>
       <h2>{t("insights")}</h2>

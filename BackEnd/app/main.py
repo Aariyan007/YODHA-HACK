@@ -32,9 +32,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="MediThread API", lifespan=lifespan)
 
+DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def cors_origins() -> list[str]:
+    """Allowed browser origins: CORS_ORIGINS (comma-separated) or the local dev servers.
+
+    A bare "*" is never allowed unless DEMO_MODE=true, because the API sends credentials.
+    """
+    raw = [o.strip().rstrip("/") for o in (os.getenv("CORS_ORIGINS") or "").split(",") if o.strip()]
+    if not raw:
+        return DEV_ORIGINS
+    if "*" in raw and not reminder_service.demo_mode():
+        print("[cors] CORS_ORIGINS contains '*', which is only honoured with DEMO_MODE=true. Ignoring it.")
+        raw = [o for o in raw if o != "*"]
+    return raw or DEV_ORIGINS
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

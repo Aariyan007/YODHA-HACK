@@ -84,7 +84,7 @@ def _get_consult(db: Session, cid: str) -> Consultation:
 def _validate_share(db: Session, token: str) -> ShareLink:
     link = db.get(ShareLink, token)
     if link is None:
-        raise HTTPException(401, "Invalid share token")
+        raise HTTPException(404, "Share link not found")
     expires = link.expires_at if link.expires_at.tzinfo else link.expires_at.replace(tzinfo=timezone.utc)
     if expires < datetime.now(timezone.utc):
         raise HTTPException(410, "Share link expired")
@@ -97,7 +97,7 @@ def _authorize(db: Session, cid: str, token: str | None) -> Consultation:
         raise HTTPException(401, "Missing X-Share-Token header")
     c = _get_consult(db, cid)
     if c.share_token != token:
-        raise HTTPException(403, "Share token does not match this consultation")
+        raise HTTPException(404, "Share link not found")  # same answer as a fake token: do not reveal the visit exists
     _validate_share(db, token)
     return c
 

@@ -53,11 +53,11 @@ export default function Sharing() {
               {t("expires")}: {new Date(share.expiresAt).toLocaleString("en-IN")}
             </span>
             <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-              <a href={appPath(share.url)} target="_blank" rel="noreferrer">
-                <button>Preview what the doctor sees</button>
+              <a className="btn" href={appPath(share.url)} target="_blank" rel="noreferrer">
+                Preview what the doctor sees
               </a>
-              <a href={appPath(`/console/${share.token}`)} target="_blank" rel="noreferrer">
-                <button className="primary">Open doctor console</button>
+              <a className="btn primary" href={appPath(`/console/${share.token}`)} target="_blank" rel="noreferrer">
+                Open doctor console
               </a>
             </div>
           </div>
@@ -66,8 +66,8 @@ export default function Sharing() {
 
       <section>
         <h3>{t("family")}</h3>
-        {family.loading ? (
-          <Loading error={family.error} />
+        {family.loading || family.error ? (
+          <Loading error={family.error} onRetry={family.reload} />
         ) : (
           <div className="list">
             {family.data.map((f) => (
@@ -88,8 +88,8 @@ export default function Sharing() {
 
       <section>
         <h3>{t("accessLog")}</h3>
-        {log.loading ? (
-          <Loading error={log.error} />
+        {log.loading || log.error ? (
+          <Loading error={log.error} onRetry={log.reload} />
         ) : (
           <div className="card">
             <table className="labs">
