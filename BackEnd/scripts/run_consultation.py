@@ -46,18 +46,21 @@ def _hr(title: str) -> None:
 def main() -> None:
     with TestClient(app) as client:
         token = create_token(DEMO_ID)
-        H = {"Authorization": f"Bearer {token}"}
+        H = {"Authorization": f"Bearer {token}"}  # patient-side (shares + timeline)
 
         # Baseline timeline count
         timeline_before = client.get("/api/patients/me/timeline", headers=H).json()
         print(f"Timeline rows before consultation: {len(timeline_before)}")
 
-        # Create a share link (as the patient)
+        # Patient creates the share link
         share = client.post("/api/shares", headers=H, json={"hours": 24, "scope": "full"}).json()
         print(f"Share token: {share['token'][:8]}…  expires {share['expiresAt']}")
 
-        # Doctor starts the consultation
-        r = client.post("/api/consultations/start", headers=H,
+        # Doctor-side headers: share token identifies the authorized visit; no patient JWT.
+        DH = {"X-Share-Token": share["token"]}
+
+        # Doctor starts the consultation (no auth required for /start itself).
+        r = client.post("/api/consultations/start",
                         json={"patientToken": share["token"], "doctorName": "Dr. Rahul Das"})
         r.raise_for_status()
         cid = r.json()["consultationId"]
@@ -68,7 +71,7 @@ def main() -> None:
         last_suggestions: list[str] = []
         partial_at = {}
         for i, (speaker, text) in enumerate(DEMO_SCRIPT):
-            r = client.post(f"/api/consultations/{cid}/line", headers=H,
+            r = client.post(f"/api/consultations/{cid}/line", headers=DH,
                             json={"speaker": speaker, "text": text})
             r.raise_for_status()
             data = r.json()
@@ -111,7 +114,7 @@ def main() -> None:
         # Finalize
         _hr("Finalize → full SOAP (with source_line indexes)")
         t0 = time.time()
-        r = client.post(f"/api/consultations/{cid}/finalize", headers=H)
+        r = client.post(f"/api/consultations/{cid}/finalize", headers=DH)
         r.raise_for_status()
         final = r.json()["finalNote"]
         print(f"(took {time.time() - t0:.1f}s)")
@@ -128,7 +131,7 @@ def main() -> None:
 
         # Approve — doctor accepts without edits
         _hr("Approve → write to patient timeline")
-        r = client.post(f"/api/consultations/{cid}/approve", headers=H, json={"edits": {}})
+        r = client.post(f"/api/consultations/{cid}/approve", headers=DH, json={"edits": {}})
         r.raise_for_status()
         approved = r.json()
         rec = approved["record"]

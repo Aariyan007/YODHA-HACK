@@ -20,7 +20,7 @@ import time as _time
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -30,7 +30,6 @@ from ai import reminders as reminders_mod
 from ai import telegram
 from ai.jev_client import allergy_hit, check_pair, to_generic
 
-from ..auth import require_login
 from ..database import get_db
 from ..models import AccessLog, Alert, Consultation, Document, Medicine, Patient, ShareLink, new_id
 
@@ -80,6 +79,27 @@ def _get_consult(db: Session, cid: str) -> Consultation:
     if row is None:
         raise HTTPException(404, "Consultation not found")
     return row
+
+
+def _validate_share(db: Session, token: str) -> ShareLink:
+    link = db.get(ShareLink, token)
+    if link is None:
+        raise HTTPException(401, "Invalid share token")
+    expires = link.expires_at if link.expires_at.tzinfo else link.expires_at.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(410, "Share link expired")
+    return link
+
+
+def _authorize(db: Session, cid: str, token: str | None) -> Consultation:
+    """Fetch the consultation and verify the share token still grants access."""
+    if not token:
+        raise HTTPException(401, "Missing X-Share-Token header")
+    c = _get_consult(db, cid)
+    if c.share_token != token:
+        raise HTTPException(403, "Share token does not match this consultation")
+    _validate_share(db, token)
+    return c
 
 
 def _active_meds(db: Session, patient_id: str) -> list[dict]:
@@ -257,14 +277,8 @@ def _consultation_out(c: Consultation) -> dict:
 # ---------- endpoints ----------
 
 @router.post("/start")
-def start(body: StartBody, db: Session = Depends(get_db), _login=Depends(require_login)):
-    link = db.get(ShareLink, body.patientToken)
-    if link is None:
-        raise HTTPException(404, "Share link not found")
-    expires = link.expires_at if link.expires_at.tzinfo else link.expires_at.replace(tzinfo=timezone.utc)
-    if expires < datetime.now(timezone.utc):
-        raise HTTPException(410, "Share link expired")
-
+def start(body: StartBody, db: Session = Depends(get_db)):
+    link = _validate_share(db, body.patientToken)
     patient = db.get(Patient, link.patient_id)
     doctor_name = (body.doctorName or "Dr. Rahul Das").strip()[:120] or "Dr. Rahul Das"
 
@@ -292,8 +306,12 @@ def start(body: StartBody, db: Session = Depends(get_db), _login=Depends(require
 
 
 @router.post("/{cid}/line")
-def add_line(cid: str, body: LineBody, db: Session = Depends(get_db), _login=Depends(require_login)):
-    c = _get_consult(db, cid)
+def add_line(
+    cid: str, body: LineBody,
+    db: Session = Depends(get_db),
+    x_share_token: str | None = Header(default=None, alias="X-Share-Token"),
+):
+    c = _authorize(db, cid, x_share_token)
     if c.status == "approved":
         raise HTTPException(409, "Consultation already approved")
     patient = db.get(Patient, c.patient_id)
@@ -347,8 +365,12 @@ def add_line(cid: str, body: LineBody, db: Session = Depends(get_db), _login=Dep
 
 
 @router.post("/{cid}/finalize")
-def finalize(cid: str, db: Session = Depends(get_db), _login=Depends(require_login)):
-    c = _get_consult(db, cid)
+def finalize(
+    cid: str,
+    db: Session = Depends(get_db),
+    x_share_token: str | None = Header(default=None, alias="X-Share-Token"),
+):
+    c = _authorize(db, cid, x_share_token)
     if c.status == "approved":
         raise HTTPException(409, "Consultation already approved")
     lines = list(c.transcript_lines or [])
@@ -406,8 +428,12 @@ def _extract_medicines_from_plan(plan_text: str | None, lines: list[dict]) -> li
 
 
 @router.post("/{cid}/approve")
-def approve(cid: str, body: ApproveBody, db: Session = Depends(get_db), _login=Depends(require_login)):
-    c = _get_consult(db, cid)
+def approve(
+    cid: str, body: ApproveBody,
+    db: Session = Depends(get_db),
+    x_share_token: str | None = Header(default=None, alias="X-Share-Token"),
+):
+    c = _authorize(db, cid, x_share_token)
     if c.status == "approved":
         raise HTTPException(409, "Consultation already approved")
     patient = db.get(Patient, c.patient_id)
@@ -539,8 +565,12 @@ def approve(cid: str, body: ApproveBody, db: Session = Depends(get_db), _login=D
 
 
 @router.get("/{cid}")
-def get_consultation(cid: str, db: Session = Depends(get_db), _login=Depends(require_login)):
-    return _consultation_out(_get_consult(db, cid))
+def get_consultation(
+    cid: str,
+    db: Session = Depends(get_db),
+    x_share_token: str | None = Header(default=None, alias="X-Share-Token"),
+):
+    return _consultation_out(_authorize(db, cid, x_share_token))
 
 
 # ---------- scripted stage fallback ----------
@@ -564,12 +594,16 @@ DEMO_SCRIPT = [
 
 
 @router.post("/demo/{cid}")
-def demo_feed(cid: str, db: Session = Depends(get_db), _login=Depends(require_login)):
-    c = _get_consult(db, cid)
+def demo_feed(
+    cid: str,
+    db: Session = Depends(get_db),
+    x_share_token: str | None = Header(default=None, alias="X-Share-Token"),
+):
+    c = _authorize(db, cid, x_share_token)
     if c.status == "approved":
         raise HTTPException(409, "Consultation already approved")
 
     last: dict = {}
     for speaker, text in DEMO_SCRIPT:
-        last = add_line(cid, LineBody(speaker=speaker, text=text), db=db, _login=_login)
+        last = add_line(cid, LineBody(speaker=speaker, text=text), db=db, x_share_token=x_share_token)
     return last
