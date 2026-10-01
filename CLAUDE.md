@@ -51,9 +51,20 @@ Names only. Never print or commit the values.
 
 This implies a Vite frontend, a backend backed by a database and Redis with JWT auth, Gemini and Groq as LLM providers, and Telegram notifications. Confirm against the real code once it exists.
 
-## Phase 4 manual end-to-end
+## Phase 4 end-to-end
 
-Playwright is not installed, so run through the console by hand:
+Playwright is not installed and the Claude-in-Chrome extension was not connected during the build, so the end-to-end check was done by driving the live HTTP API with `curl` + verifying the console UI compiles cleanly. Confirmed results against a running `uvicorn` + a `/share/*` token issued to the demo patient (`9876543210`):
+
+- `POST /api/consultations/start` with `patientToken` returns a 12-char `consultationId`. No bearer token needed.
+- `POST /api/consultations/demo/{id}` with `X-Share-Token: <t>` feeds all 14 lines in one call. Resulting state (`GET /api/consultations/{id}`):
+  - 14 transcript lines
+  - 8 flags: metformin & atorvastatin duplicates + missing-allergy + missing-follow-up at line 5; a clarithromycin+atorvastatin clash and a Glycomet duplicate as new meds are introduced
+  - 3 suggested follow-up questions
+  - Partial SOAP with S/O/A/P all filled by line 12
+- `POST /api/consultations/{id}/finalize` returns a SOAP note with per-field `source_lines` (S:[1,3,5,7], O:[8], A:[9], P:[9,10,12]).
+- `POST /api/consultations/{id}/approve` writes `type=visit` to the patient timeline, saves 8 alerts + 5 reminders, Telegram notify is best-effort. Timeline grew 10 → 11; the new row is the first card, with English and Malayalam summaries both populated.
+
+To replay the console UI by hand against the running stack:
 
 1. Start the backend (`uvicorn`) and the frontend (`npm run dev`). Set `VITE_USE_MOCK=false` in `.env` to hit the real backend; keep `true` to run the console on scripted mock responses.
 2. Log in as the demo patient (`9876543210`, any 6-digit OTP) and open the Sharing tab.
@@ -65,4 +76,11 @@ Playwright is not installed, so run through the console by hand:
 8. The approved panel shows the TimelineItem preview with the EN / മലയാളം toggle and **Read aloud**.
 9. Switch back to the patient app (patient login tab) and reload Timeline — the new visit is the first card, with the Malayalam summary available via the language toggle in the top bar.
 
-Screenshots at 820 px (tablet) and 390 px (phone) are easiest with Chrome DevTools' device toolbar (⌘⇧M). The console grid collapses to a single column below 820 px; `.console-record-grid` collapses below 820 px; `.console-review-grid` collapses below 960 px.
+Screenshots at 820 px (tablet) and 390 px (phone) are easiest with Chrome DevTools' device toolbar (⌘⇧M), one per state × two widths = 8 captures. Responsive breakpoints baked into `styles.css`:
+
+- `.console-grid` (history) collapses to a single column below 820 px.
+- `.console-record-grid` (recording) collapses below 820 px.
+- `.console-review-grid` (review) collapses below 960 px (so review stays single-column on both tablet and phone, which matches the brief's "must not overflow on a phone").
+- All buttons use the global `button` 48-px-tall rule in `.console-cta`.
+
+`npm run build` passes (326 kB JS, 10 kB CSS). There is no `build:single` script despite the brief listing one — the scaffold here is Vite single-file-SPA by default.
