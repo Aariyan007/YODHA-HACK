@@ -71,6 +71,10 @@ class Medicine(Base):
     start_date: Mapped[str | None] = mapped_column(String(10))
     prescribed_by: Mapped[str | None] = mapped_column(String(120))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Phase 5: nullable course length. None = ongoing (no end).
+    duration_days: Mapped[int | None] = mapped_column(default=None)
+    # Phase 5: optional refill date (YYYY-MM-DD). None = no refill tracked.
+    refill_due: Mapped[str | None] = mapped_column(String(10))
 
 
 class Observation(Base):
@@ -126,6 +130,43 @@ class ShareLink(Base):
     scope: Mapped[str] = mapped_column(String(20), default="full")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ReminderSettings(Base):
+    """Per-patient reminder preferences. Phase 5."""
+    __tablename__ = "reminder_settings"
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    channel_phone: Mapped[bool] = mapped_column(Boolean, default=False)
+    channel_telegram: Mapped[bool] = mapped_column(Boolean, default=False)
+    channel_family: Mapped[bool] = mapped_column(Boolean, default=False)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(40))
+    family_chat_id: Mapped[str | None] = mapped_column(String(40))
+    family_name: Mapped[str | None] = mapped_column(String(60))
+    missed_after_minutes: Mapped[int] = mapped_column(default=60)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class SentDose(Base):
+    """One row per (medicine, dose clock, date). Phase 5 — scheduler dedup."""
+    __tablename__ = "sent_doses"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
+    medicine_id: Mapped[str] = mapped_column(ForeignKey("medicines.id"), index=True)
+    clock: Mapped[str] = mapped_column(String(5))      # "HH:MM"
+    date: Mapped[str] = mapped_column(String(10))      # YYYY-MM-DD, IST
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    taken: Mapped[bool] = mapped_column(Boolean, default=False)
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    missed_notified: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class SentNotice(Base):
+    """Once-only notices (refill, appointment). `key` is unique per notice."""
+    __tablename__ = "sent_notices"
+    key: Mapped[str] = mapped_column(String(160), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class AccessLog(Base):

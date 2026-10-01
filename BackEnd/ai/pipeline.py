@@ -187,6 +187,7 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
                 times=m.get("times") or [],
                 instructions=m.get("purpose"),
                 start_date=rec.get("date"), prescribed_by=rec.get("doctor"),
+                duration_days=reminders_mod.parse_duration_days(m.get("schedule"), m.get("duration")),
             ))
 
         # Save alerts (new ids each time; drop the cached ids).
@@ -310,6 +311,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -
                 times=m.get("times") or reminders_mod.parse_schedule(m.get("schedule")),
                 instructions=m.get("purpose"),
                 start_date=date_s, prescribed_by=doctor,
+                duration_days=reminders_mod.parse_duration_days(m.get("schedule"), m.get("duration")),
             ))
 
         # Save alerts (persist so they show on the Home page too).

@@ -136,7 +136,8 @@ def reminder_taken(key: str, patient: Patient = Depends(current_patient), db: Se
     keys = {r["key"] for r in build_reminders(db, patient.id, date)}
     if key not in keys:
         raise HTTPException(404, "Reminder not found")
-    store.set_value(f"taken:{patient.id}:{date}:{key}", datetime.now(IST).isoformat(), ttl=3 * 86400)
+    from .. import reminder_service
+    reminder_service.mark_taken(db, patient.id, key, date)
     return {"key": key, "date": date, "taken": True}
 
 

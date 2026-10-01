@@ -495,6 +495,7 @@ def approve(
             frequency=m.get("schedule"), times=times,
             instructions=m.get("purpose"),
             start_date=date_s, prescribed_by=c.doctor_name,
+            duration_days=reminders_mod.parse_duration_days(m.get("schedule"), m.get("duration")),
         ))
     rem_list = reminders_mod.build_reminders(meds, follow_up)
 

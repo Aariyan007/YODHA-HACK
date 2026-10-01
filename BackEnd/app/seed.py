@@ -1,10 +1,11 @@
 """Demo data: Ammini Varghese. Loaded on startup when the DB is empty."""
+import os
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import AccessLog, Alert, Document, Medicine, Observation, Patient
+from .models import AccessLog, Alert, Document, Medicine, Observation, Patient, ReminderSettings
 
 DEMO_PHONE = "9876543210"
 DEMO_ID = "ammini01"
@@ -127,5 +128,19 @@ def seed_if_empty(db: Session) -> bool:
     now = datetime.now(timezone.utc)
     for who, role, action, via, days in ACCESS_LOG:
         db.add(AccessLog(patient_id=DEMO_ID, who=who, role=role, action=action, via=via, at=now - timedelta(days=days)))
+
+    # Phase 5: seed reminder settings. Pre-fill the Telegram chat id from env
+    # so the demo "fire reminder now" works out of the box.
+    db.add(ReminderSettings(
+        patient_id=DEMO_ID,
+        enabled=False,  # off by default — the patient turns it on in the UI
+        channel_phone=False,
+        channel_telegram=bool(os.getenv("TELEGRAM_CHAT_ID")),
+        channel_family=False,
+        telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
+        family_chat_id=None,
+        family_name="Joseph",
+        missed_after_minutes=60,
+    ))
     db.commit()
     return True
