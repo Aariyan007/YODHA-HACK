@@ -58,7 +58,8 @@ def _fmt_12h(clock: str) -> str:
 def med_label(m: Medicine) -> str:
     name = (m.name or "your medicine").strip()
     dose = (m.dose or "").strip()
-    if dose and dose.lower() not in name.lower():
+    number = "".join(ch for ch in dose.split()[0] if ch.isdigit() or ch == ".") if dose else ""
+    if dose and dose.lower() not in name.lower() and not (number and number in name):
         return f"{name} {dose}"
     return name
 

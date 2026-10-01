@@ -78,6 +78,14 @@ class ReminderTests(unittest.TestCase):
         self.assertEqual(chat, "1001")
         self.assertEqual(text, "Time for Metformin 500 mg. Take it after food. Open MediThread and tap Taken.")
 
+    def test_label_does_not_repeat_dose_already_in_name(self):
+        with self.Session() as db:
+            db.add(Medicine(id="gly", patient_id=PID, name="Glycomet 500", dose="500 mg", times=["06:00"],
+                            start_date="2026-09-01"))
+            db.commit()
+        self.tick(at("2026-10-01", "06:00", 5))
+        self.assertIn("Time for Glycomet 500.", self.out.sent[0][1])
+
     def test_same_dose_sends_again_next_day(self):
         self.tick(at("2026-10-01", "08:00", 5))
         self.assertEqual(self.tick(at("2026-10-02", "08:00", 5))["dose"], 1)

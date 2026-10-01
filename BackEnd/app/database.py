@@ -39,6 +39,30 @@ class Base(DeclarativeBase):
     pass
 
 
+def add_missing_columns() -> list[str]:
+    """Add model columns that exist in code but not in the DB (nullable ADD COLUMN only).
+
+    `create_all` creates missing tables but never alters existing ones, so new
+    columns on old tables would 500. This keeps upgrades non-destructive.
+    """
+    from sqlalchemy import inspect
+
+    added: list[str] = []
+    insp = inspect(engine)
+    for table in Base.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name in have or col.primary_key:
+                continue
+            ddl_type = col.type.compile(dialect=engine.dialect)
+            with engine.begin() as conn:
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {ddl_type}'))
+            added.append(f"{table.name}.{col.name}")
+    return added
+
+
 def get_db():
     db = SessionLocal()
     try:

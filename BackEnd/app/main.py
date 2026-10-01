@@ -5,9 +5,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import reminder_service, store
-from .database import DB_KIND, Base, SessionLocal, engine
+from .database import DB_KIND, Base, SessionLocal, add_missing_columns, engine
 from .routers import auth, consultations, documents, patients, reminders, shares
-from .seed import seed_if_empty
+from .seed import ensure_demo_reminder_settings, seed_if_empty
 
 
 @asynccontextmanager
@@ -16,9 +16,13 @@ async def lifespan(app: FastAPI):
         print("[db] RESET_DB=1: dropping all tables before create_all")
         Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
+    added = add_missing_columns()
+    if added:
+        print(f"[db] Added missing columns: {', '.join(added)}")
     with SessionLocal() as db:
         if seed_if_empty(db):
             print("[seed] Loaded demo patient Ammini Varghese")
+        ensure_demo_reminder_settings(db)
     reminder_service.start()
     try:
         yield
