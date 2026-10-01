@@ -47,6 +47,7 @@ const STRINGS = {
     lab: "Lab report",
     prescription: "Prescription",
     consultation: "Doctor visit",
+    visit: "Doctor visit",
     scan: "Scan",
   },
   ml: {
@@ -95,6 +96,7 @@ const STRINGS = {
     lab: "ലാബ് റിപ്പോർട്ട്",
     prescription: "കുറിപ്പടി",
     consultation: "ഡോക്ടർ സന്ദർശനം",
+    visit: "ഡോക്ടർ സന്ദർശനം",
     scan: "സ്കാൻ",
   },
 };

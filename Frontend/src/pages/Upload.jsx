@@ -1,6 +1,14 @@
 import { useRef, useState } from "react";
-import { STAGES, getReminderSettings, saveReminderSettings, testTelegram, uploadDocument } from "../api/client.js";
-import { AlertCard, Status, formatDate } from "../components/ui.jsx";
+import {
+  STAGES,
+  getReminderSettings,
+  importFhirFile,
+  importFhirSample,
+  saveReminderSettings,
+  testTelegram,
+  uploadDocument,
+} from "../api/client.js";
+import { AlertCard, Status, TimelineItem, formatDate } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 
 const STAGE_LABELS = {
@@ -94,7 +102,114 @@ export default function Upload() {
       )}
 
       {done && <UploadResult result={done} onReset={reset} />}
+
+      {!done && !currentStage && <HospitalImport />}
     </>
+  );
+}
+
+// Second way to add records: a FHIR R4 Bundle exported by a hospital (or the fictional sample).
+function HospitalImport() {
+  const { lang } = useT();
+  const ml = lang === "ml";
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+
+  const run = async (fn) => {
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      setResult(await fn());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const counts = result?.imported;
+  return (
+    <section>
+      <h3>{ml ? "ആശുപത്രിയിൽ നിന്ന് ഇറക്കുമതി ചെയ്യുക (FHIR ഫയൽ)" : "Import from hospital (FHIR file)"}</h3>
+      <div className="card">
+        <p className="muted small">
+          {ml
+            ? "ആശുപത്രി നൽകിയ FHIR .json ഫയൽ തിരഞ്ഞെടുക്കുക. 2 MB വരെ."
+            : "Choose the FHIR .json file your hospital gave you. Up to 2 MB."}
+        </p>
+        <input
+          type="file"
+          accept=".json,application/json,application/fhir+json"
+          aria-label={ml ? "FHIR ഫയൽ" : "FHIR file"}
+          onChange={(e) => {
+            setFile(e.target.files?.[0] || null);
+            setResult(null);
+            setError(null);
+          }}
+        />
+        <div className="row" style={{ marginTop: 10 }}>
+          <button className="primary" disabled={!file || busy} onClick={() => run(() => importFhirFile(file))}>
+            {busy ? "…" : ml ? "ഇറക്കുമതി ചെയ്യുക" : "Import file"}
+          </button>
+          <button disabled={busy} onClick={() => run(importFhirSample)}>
+            {ml ? "സാമ്പിൾ ആശുപത്രി രേഖ ഉപയോഗിക്കുക" : "Use sample hospital record"}
+          </button>
+        </div>
+        {busy && (
+          <p className="muted" role="status">
+            {ml ? "രേഖകൾ വായിച്ച് പരിശോധിക്കുന്നു…" : "Reading and checking the records…"}
+          </p>
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+
+      {result && (
+        <div role="status">
+          <div className="card result" style={{ marginTop: 12 }}>
+            <strong>{result.message}</strong>
+            {result.total > 0 && counts && (
+              <ul className="items">
+                <li>{counts.timelineCards} {ml ? "ടൈംലൈൻ കാർഡുകൾ" : "timeline cards"}</li>
+                <li>{counts.observations} {ml ? "ഫലങ്ങൾ" : "results"}</li>
+                <li>{counts.medicines} {ml ? "മരുന്നുകൾ" : "medicines"}</li>
+                <li>{counts.conditions} {ml ? "രോഗാവസ്ഥകൾ" : "conditions"}</li>
+              </ul>
+            )}
+            {result.duplicates > 0 && !result.alreadyImported && (
+              <p className="muted small">
+                {result.duplicates} {ml ? "കാർഡുകൾ നേരത്തെ ചേർത്തിരുന്നു, ഒഴിവാക്കി." : "already imported, skipped."}
+              </p>
+            )}
+            {result.ignored?.length > 0 && (
+              <p className="muted small">
+                {ml ? "ഒഴിവാക്കിയവ" : "Skipped types"}: {result.ignored.map((x) => `${x.type} (${x.count})`).join(", ")}
+              </p>
+            )}
+          </div>
+          {result.alerts.length > 0 && (
+            <div className="list" style={{ marginTop: 12 }}>
+              {result.alerts.map((a) => (
+                <AlertCard key={a.id} alert={a} />
+              ))}
+            </div>
+          )}
+          {result.records.length > 0 && (
+            <ul className="timeline" style={{ marginTop: 12 }}>
+              {result.records.map((d) => (
+                <TimelineItem key={d.id} doc={d} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

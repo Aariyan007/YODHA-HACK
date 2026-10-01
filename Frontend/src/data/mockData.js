@@ -1301,3 +1301,50 @@ export const mockApprovedRecord = {
     { id: "r2", title: "Glycomet 500 mg", when: new Date().toISOString(), until: null, time: "08:00" },
   ],
 };
+
+
+// ---------- Phase 6: hospital import (FHIR sample) ----------
+
+export const fhirImportResult = {
+  imported: { timelineCards: 2, observations: 3, conditions: 1, medicines: 1 },
+  total: 7,
+  duplicates: 0,
+  alreadyImported: false,
+  ignored: [],
+  skippedInvalid: 0,
+  message: "Imported 7 records: 2 timeline cards, 3 results, 1 medicine, 1 condition.",
+  records: [
+    {
+      id: "fhir-visit", date: "2026-06-10", type: "visit", status: "watch", title: "Diabetes and BP review",
+      source: "Aster Medcity, Kochi, Dr. Anjali Nair (fictional)",
+      summary: "At Aster Medcity your blood pressure was 138/88. Telmisartan 40 mg once a day was written for blood pressure.",
+      summaryMl: "Aster Medcity-യിൽ നിങ്ങളുടെ ബിപി 138/88 ആയിരുന്നു. ബിപിക്ക് Telmisartan 40 mg ദിവസം ഒരു നേരം എഴുതി.",
+      tags: ["Vitamin D deficiency"],
+      items: [
+        { name: "Systolic BP", code: "sbp", value: 138, unit: "mmHg", status: "watch", range: "90 - 130" },
+        { name: "Diastolic BP", code: "dbp", value: 88, unit: "mmHg", status: "watch", range: "60 - 85" },
+        { name: "Telmisartan 40 mg tablet", generic: "telmisartan", dose: "40 mg", frequency: "1 tablet once daily in the morning", duration: null },
+      ],
+    },
+    {
+      id: "fhir-lab", date: "2026-06-10", type: "lab", status: "watch", title: "Hospital results", source: "Aster Medcity, Kochi",
+      summary: "Your sugar average (HbA1c) is 7.6%, a little above the target of 7.",
+      summaryMl: "നിങ്ങളുടെ പഞ്ചസാര ശരാശരി (HbA1c) 7.6% ആണ്, ലക്ഷ്യമായ 7-ൽ അൽപ്പം കൂടുതൽ.",
+      tags: [],
+      items: [{ name: "HbA1c", code: "hba1c", value: 7.6, unit: "%", status: "watch", range: "< 7.0 (diabetic target)" }],
+    },
+  ],
+  alerts: [
+    {
+      id: "fhir-alert1", severity: "high", kind: "duplicate", title: "Telmisartan 40 mg tablet duplicates Telma 40",
+      message: "Telmisartan 40 mg tablet is the same medicine as Telma 40 you are already taking (both are telmisartan). Taking both doubles the dose. Ask your doctor which one to continue.",
+      messageMl: null, resolved: false, createdAt: "2026-10-01T09:00:00Z",
+    },
+  ],
+};
+
+export const fhirAlreadyImported = {
+  imported: { timelineCards: 0, observations: 0, conditions: 0, medicines: 0 },
+  total: 0, duplicates: 2, alreadyImported: true, ignored: [], skippedInvalid: 0,
+  message: "You already imported this hospital record. Nothing new was added.", records: [], alerts: [],
+};

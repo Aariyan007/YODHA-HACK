@@ -12,7 +12,7 @@ export default function Timeline() {
   const [filter, setFilter] = useState("all");
 
   if (loading) return <Loading error={error} />;
-  const docs = filter === "all" ? data : data.filter((d) => d.type === filter);
+  const docs = filter === "all" ? data : data.filter((d) => d.type === filter || (filter === "consultation" && d.type === "visit"));
 
   return (
     <>

@@ -145,6 +145,47 @@ export function uploadDocument(file, callbacks = {}) {
   };
 }
 
+// ---------- hospital record import (Phase 6) ----------
+
+// -> { imported:{timelineCards,observations,conditions,medicines}, total, duplicates, alreadyImported,
+//      ignored:[{type,count}], skippedInvalid, records:[timeline item], alerts:[alert], message }
+// Real: POST /api/import/fhir (Bundle JSON as the body, or multipart `file`, max 2 MB)
+let MOCK_FHIR_DONE = false;
+const mockFhir = () => {
+  const out = structuredClone(MOCK_FHIR_DONE ? mock.fhirAlreadyImported : mock.fhirImportResult);
+  MOCK_FHIR_DONE = true;
+  return delay(out);
+};
+
+export const importFhirFile = (file) => {
+  if (USE_MOCK) return mockFhir();
+  const form = new FormData();
+  form.append("file", file);
+  return fetch(`${BASE}/api/import/fhir`, { method: "POST", body: form, headers: { Authorization: `Bearer ${getToken()}` } }).then(
+    async (res) => {
+      if (res.status === 401) {
+        setToken(null);
+        window.location.assign("/login");
+      }
+      if (!res.ok) {
+        let detail = res.statusText;
+        try {
+          detail = (await res.json()).detail ?? detail;
+        } catch {}
+        throw new Error(typeof detail === "string" ? detail : "Import failed");
+      }
+      return res.json();
+    },
+  );
+};
+
+// Fetches the fictional Aster Medcity bundle and posts it through the same import path.
+export const importFhirSample = async () => {
+  if (USE_MOCK) return mockFhir();
+  const bundle = await request("/api/import/fhir/sample");
+  return request("/api/import/fhir", { method: "POST", body: bundle });
+};
+
 // -> { urgent, specialist, why }
 export const triage = (text) =>
   USE_MOCK

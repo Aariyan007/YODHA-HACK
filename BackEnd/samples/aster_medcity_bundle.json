@@ -1,0 +1,107 @@
+{
+  "resourceType": "Bundle",
+  "id": "sample-aster-medcity-2026-06",
+  "type": "collection",
+  "timestamp": "2026-06-10T12:00:00+05:30",
+  "meta": { "tag": [{ "code": "SAMPLE", "display": "Fictional sample data. Not a real patient." }] },
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:7c1b0000-0000-4000-8000-000000000001",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "sample-pt-1",
+        "name": [{ "text": "Sample Patient (fictional)" }],
+        "gender": "female",
+        "birthDate": "1964-01-01"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:7c1b0000-0000-4000-8000-000000000002",
+      "resource": {
+        "resourceType": "Organization",
+        "id": "aster-medcity",
+        "name": "Aster Medcity, Kochi"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:7c1b0000-0000-4000-8000-000000000003",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-2026-06-10",
+        "status": "finished",
+        "class": { "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB", "display": "ambulatory" },
+        "type": [{ "text": "Diabetes and BP review" }],
+        "subject": { "reference": "Patient/sample-pt-1" },
+        "participant": [{ "individual": { "display": "Dr. Anjali Nair (fictional)" } }],
+        "period": { "start": "2026-06-10T10:15:00+05:30", "end": "2026-06-10T10:45:00+05:30" },
+        "serviceProvider": { "reference": "Organization/aster-medcity", "display": "Aster Medcity, Kochi" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:7c1b0000-0000-4000-8000-000000000004",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-hba1c-2026-06-10",
+        "status": "final",
+        "category": [{ "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "laboratory" }] }],
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "4548-4", "display": "Hemoglobin A1c/Hemoglobin.total in Blood" }], "text": "HbA1c" },
+        "subject": { "reference": "Patient/sample-pt-1" },
+        "effectiveDateTime": "2026-06-10",
+        "valueQuantity": { "value": 7.6, "unit": "%", "system": "http://unitsofmeasure.org", "code": "%" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:7c1b0000-0000-4000-8000-000000000005",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-bp-2026-06-10",
+        "status": "final",
+        "category": [{ "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "vital-signs" }] }],
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel" }], "text": "Blood pressure" },
+        "subject": { "reference": "Patient/sample-pt-1" },
+        "encounter": { "reference": "Encounter/enc-2026-06-10" },
+        "effectiveDateTime": "2026-06-10T10:20:00+05:30",
+        "component": [
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8480-6", "display": "Systolic blood pressure" }] },
+            "valueQuantity": { "value": 138, "unit": "mmHg", "system": "http://unitsofmeasure.org", "code": "mm[Hg]" } },
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8462-4", "display": "Diastolic blood pressure" }] },
+            "valueQuantity": { "value": 88, "unit": "mmHg", "system": "http://unitsofmeasure.org", "code": "mm[Hg]" } }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:7c1b0000-0000-4000-8000-000000000006",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-vitd",
+        "clinicalStatus": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active" }] },
+        "code": { "coding": [{ "system": "http://hl7.org/fhir/sid/icd-10", "code": "E55.9", "display": "Vitamin D deficiency, unspecified" }], "text": "Vitamin D deficiency" },
+        "subject": { "reference": "Patient/sample-pt-1" },
+        "encounter": { "reference": "Encounter/enc-2026-06-10" },
+        "onsetDateTime": "2026-06-10"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:7c1b0000-0000-4000-8000-000000000007",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "medreq-telmisartan",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": { "text": "Telmisartan 40 mg tablet" },
+        "subject": { "reference": "Patient/sample-pt-1" },
+        "encounter": { "reference": "Encounter/enc-2026-06-10" },
+        "authoredOn": "2026-06-10",
+        "requester": { "display": "Dr. Anjali Nair (fictional)" },
+        "reasonCode": [{ "text": "Blood pressure" }],
+        "dosageInstruction": [
+          {
+            "text": "1 tablet once daily in the morning",
+            "timing": { "repeat": { "frequency": 1, "period": 1, "periodUnit": "d" } },
+            "doseAndRate": [{ "doseQuantity": { "value": 40, "unit": "mg" } }]
+          }
+        ]
+      }
+    }
+  ]
+}
