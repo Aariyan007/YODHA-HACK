@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import store
 from .database import DB_KIND, Base, SessionLocal, engine
-from .routers import auth, documents, patients, shares
+from .routers import auth, consultations, documents, patients, shares
 from .seed import seed_if_empty
 
 
@@ -36,6 +36,7 @@ app.include_router(auth.router)
 app.include_router(patients.router)
 app.include_router(shares.router)
 app.include_router(documents.router)
+app.include_router(consultations.router)
 
 
 @app.get("/health")
