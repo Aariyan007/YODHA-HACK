@@ -4,12 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Phase 1 of SPEC.md is done: FastAPI backend with seeded demo patient, and a Vite + React patient app. Upload, AI extraction, drug checks, Telegram and the doctor console are not built yet.
+Phases 1 and 2 of SPEC.md are done:
+
+- Phase 1: FastAPI backend with Supabase (SQLite fallback), seeded demo patient, OTP auth, patient endpoints, share links; Vite + React patient app with login, Home, Timeline, Medicines, Health, Sharing, and a read-only Snapshot page for the doctor QR link.
+- Phase 2: upload pipeline (`POST /api/documents` → background thread → SSE stream at `/api/jobs/{id}/events`). Gemini extracts to JSON (`gemini-flash-latest` with fallback cascade); Groq (`openai/gpt-oss-120b` with `reasoning_effort=low`) writes the patient-facing summary and Malayalam translation; `ai/jev_client.py` runs duplicate / allergy / clash / lab-threshold checks. SHA-256 cache in `BackEnd/demo_cache/`, duplicate-upload guard via `Document.file_hash`, best-effort Telegram notify. Also `POST /api/triage` (emergency keyword list first, then rule table, then Groq fallback).
+
+Doctor console, voice SOAP note, and reminder push are not built yet.
 
 ## Commands
 
-- Backend: `cd BackEnd && ./venv/bin/uvicorn app.main:app --reload --port 8000` (seeds DB on first start)
-- Frontend: `cd Frontend && npm run dev` (port 5173, proxies `/api` to 8000), `npm run build`
+- Backend: `cd BackEnd && ./venv/bin/uvicorn app.main:app --reload --port 8000` (seeds DB on first start). Set `RESET_DB=1` to drop and re-seed. Set `OPENFDA_ENABLE=1` to opt into the OpenFDA fallback (off by default — raw OpenFDA has false positives for almost any pair).
+- Frontend: `cd Frontend && npm run dev` (port 5173, proxies `/api` to 8000). `npm run build`.
+- Pipeline test harness: `cd BackEnd && ./venv/bin/python scripts/make_test_docs.py` to regenerate the Pillow test images, then `./venv/bin/python scripts/run_pipeline.py` to run all three through the pipeline and print stages/alerts/summary/reminders.
 - No tests or linter yet.
 
 ## Contract
@@ -20,7 +26,9 @@ Phase 1 of SPEC.md is done: FastAPI backend with seeded demo patient, and a Vite
 
 - `DATABASE_URL` must be the Supabase session pooler URL (`*.pooler.supabase.com`). The direct host is IPv6-only and fails on this network. If Postgres is unreachable the backend falls back to `BackEnd/medithread.db` (SQLite).
 - Redis is optional; without it OTP and reminder-taken state live in memory and reset on restart.
-- Models in SPEC were retired: use Gemini `gemini-3.8-flash` (retry on 503) and Groq `openai/gpt-oss-120b`.
+- Models in SPEC were retired. Gemini: cascade `gemini-flash-latest` → `gemini-3.5-flash` → `gemini-3.7-flash` → `gemini-3.8-flash` (free tier quota exhausts the latest; cascade falls through). Groq: `openai/gpt-oss-120b` with `reasoning_effort=low` and `max_tokens=1500` (gpt-oss burns tokens on hidden reasoning; low budget truncates visible output).
+- `BackEnd/uploads/` and `BackEnd/demo_cache/` are gitignored. Cache keys are the file SHA-256; the cached result is replayed instantly on re-upload. Resetting the DB with the cache intact still produces a saved Document on re-upload via `_persist_result`.
+- SSE endpoint `/api/jobs/{id}/events` is intentionally unauthenticated — the unguessable `jobId` (uuid4) is the key, because `EventSource` cannot send `Authorization`.
 
 ## Layout
 
