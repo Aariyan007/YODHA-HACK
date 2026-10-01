@@ -24,7 +24,7 @@ Phase 1 of SPEC.md is done: FastAPI backend with seeded demo patient, and a Vite
 
 ## Layout
 
-- `BackEnd/` and `Frontend/` are separate Node/TypeScript projects, each with its own `node_modules`. There is no root workspace config.
+- `BackEnd/` is Python (FastAPI, venv in `BackEnd/venv`). `Frontend/` is Vite + React (JavaScript). No root workspace config.
 - `.env` sits at the repo root and is gitignored. It is shared config for both sides, not per-package.
 
 ## Environment variables (root `.env`)
