@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from ai import consultation as consult_ai
 from ai import medterms
 from ai import transcribe as stt
+from .. import speech
 from ai import visit_classify
 from ai import reminders as reminders_mod
 from ai import decision as laya_decision
@@ -451,9 +452,9 @@ def add_audio(
     mime, ext = kind
 
     vocab = [m["name"] for m in _active_meds(db, c.patient_id)]
-    try:
-        res = stt.transcribe(data, filename=f"clip.{ext}", mime=mime, language=language, vocab=vocab)
-    except stt.TranscribeError as e:
+    try:  # ElevenLabs when its key works (best for Malayalam), Groq Whisper otherwise; the vocabulary prompt only applies to Whisper
+        res = speech.transcribe(data, f"clip.{ext}", mime, language)
+    except speech.SpeechError as e:
         raise HTTPException(e.status, str(e))
 
     text = res["text"]
