@@ -2,6 +2,8 @@
 
 A patient health-record app for an elderly patient and the people who care for them: upload a prescription or lab photo, get a plain-language summary (English and Malayalam), safety warnings, medicine reminders on Telegram, and a doctor console that turns a spoken visit into a SOAP note.
 
+It also checks every reading in the record (reports, hospital imports, home readings, what the doctor said in a visit) for danger signs such as very high blood pressure, low sugar, kidney or potassium problems and low oxygen. An AI review explains the whole record in plain words, and a doctor finder shows nearby doctors on an India map, ranked by distance, rating and reviews, language and hours, with AI-written reasons for the top picks.
+
 The AI never diagnoses and never tells anyone what to take. It restates what the document or the doctor said, and flags things to show a doctor.
 
 - `BackEnd/` FastAPI, SQLAlchemy (Supabase Postgres, SQLite fallback), APScheduler. Gemini reads documents, Groq writes summaries and translations. Safety checks are plain Python.
@@ -97,6 +99,8 @@ cd BackEnd
 ./venv/bin/python -W ignore scripts/test_trends.py -v        # trend alert rules
 ./venv/bin/python -W ignore scripts/test_fhir.py -v          # FHIR import, dedupe, bad input
 ./venv/bin/python -W ignore scripts/test_reminders.py -v     # reminder engine, fake clock
+./venv/bin/python -W ignore scripts/test_risk.py -v          # danger checks, vitals parsing, AI-review guard
+./venv/bin/python -W ignore scripts/test_doctors.py -v       # doctor finder: India-only, ranking, query parsing
 ./venv/bin/python scripts/smoke.py                           # needs a running server with DEMO_MODE=true
 ./venv/bin/python scripts/security_sweep.py                  # needs a running server
 ```
@@ -110,4 +114,6 @@ cd BackEnd
 - **Free hosting sleeps.** On a free tier the server stops after idle time, the first request takes a long time to wake it, and the reminder scheduler does not run while it sleeps, so doses in that window are never sent. Open the app a minute before a demo.
 - **Gemini's free tier runs out.** Uploads that are not in `demo_cache/` fail with a plain error when every model returns 429. Summaries fall back to plain text if Groq fails.
 - **Login is a demo.** Any 6-digit code works; no SMS is sent.
+- **Doctor data is fictional.** The doctor finder uses a made-up, Kerala-heavy sample directory (`BackEnd/data/doctors.json`); names, clinics, phone numbers and reviews are not real. The map needs internet for OpenStreetMap tiles.
+- **AI review needs Groq.** Without `GROQ_API_KEY` the health review and doctor explanations fall back to simple rules. Danger checks and the emergency banner never depend on AI.
 - **Not a medical device.** The checks cover a small list of common drugs and lab ranges. Always ask a doctor.

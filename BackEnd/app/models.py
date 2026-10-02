@@ -28,6 +28,10 @@ class Patient(Base):
     conditions: Mapped[list] = mapped_column(JSON, default=list)
     allergies: Mapped[list] = mapped_column(JSON, default=list)
     family: Mapped[list] = mapped_column(JSON, default=list)
+    # Where the patient lives, for the nearby-doctor finder. Nullable: the browser location wins when given.
+    city: Mapped[str | None] = mapped_column(String(80))
+    lat: Mapped[float | None] = mapped_column(Float)
+    lng: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -95,6 +99,8 @@ class Observation(Base):
     # Phase 6: LOINC code and source tag (None = own upload, "fhir" = hospital import).
     loinc: Mapped[str | None] = mapped_column(String(20))
     source: Mapped[str | None] = mapped_column(String(20))
+    # The reference range printed on the report, used to judge tests that have no built-in rule.
+    ref_range: Mapped[str | None] = mapped_column(String(60))
 
 
 class Alert(Base):
