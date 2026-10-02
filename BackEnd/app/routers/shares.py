@@ -8,6 +8,7 @@ from ..auth import current_patient
 from ..database import get_db
 from ..models import AccessLog, Patient, ShareLink
 from ..schemas import ShareCreate, iso, profile_out
+from ..risk import assess
 from .patients import build_alerts, build_insights, build_medicines, build_timeline
 
 router = APIRouter(prefix="/api/shares", tags=["shares"])
@@ -53,4 +54,5 @@ def snapshot(token: str, viewer: str = "Share link viewer", db: Session = Depend
         "medicines": build_medicines(db, patient.id),
         "alerts": build_alerts(db, patient.id),
         "insights": build_insights(db, patient) if link.scope != "medicines" else None,
+        "risks": assess(db, patient.id) if link.scope != "medicines" else [],
     }

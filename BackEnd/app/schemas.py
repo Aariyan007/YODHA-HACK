@@ -26,6 +26,36 @@ class ShareCreate(BaseModel):
     scope: str = Field(default="full", pattern=r"^(full|medicines|labs)$")
 
 
+NEW_PATIENT_NAME = "New patient"
+
+
+class ProfileUpdate(BaseModel):
+    """Every field optional: only the ones sent are changed."""
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    age: int | None = Field(default=None, ge=0, le=120)
+    gender: str | None = Field(default=None, max_length=20)
+    bloodGroup: str | None = Field(default=None, max_length=5)
+    language: str | None = Field(default=None, pattern=r"^(en|ml)$")
+    conditions: list[str] | None = Field(default=None, max_length=30)
+    allergies: list[str] | None = Field(default=None, max_length=30)
+    city: str | None = Field(default=None, max_length=80)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+
+
+class VitalsIn(BaseModel):
+    """A reading typed in at home. At least one value is required (checked in the route)."""
+    date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    sbp: float | None = Field(default=None, ge=50, le=300)
+    dbp: float | None = Field(default=None, ge=30, le=200)
+    pulse: float | None = Field(default=None, ge=20, le=250)
+    spo2: float | None = Field(default=None, ge=50, le=100)
+    weight: float | None = Field(default=None, ge=2, le=300)
+    temp: float | None = Field(default=None, ge=90, le=110)
+    sugar: float | None = Field(default=None, ge=20, le=800)
+    sugarType: str = Field(default="rbs", pattern=r"^(fbs|ppbs|rbs)$")
+
+
 # ---------- responses ----------
 
 def iso(dt: datetime) -> str:
@@ -46,6 +76,10 @@ def profile_out(p: Patient) -> dict:
         "language": p.language,
         "conditions": [c["name"] for c in (p.conditions or [])],
         "allergies": p.allergies or [],
+        "city": p.city,
+        "lat": p.lat,
+        "lng": p.lng,
+        "profileComplete": bool(p.name and p.name != NEW_PATIENT_NAME and p.age),
     }
 
 
@@ -54,8 +88,11 @@ def document_out(d: Document) -> dict:
     for it in d.items or []:
         it = dict(it)
         if "code" in it and "value" in it and "status" not in it:
-            it["status"] = lab_status(it["code"], it["value"])
-            it["range"] = lab_range(it["code"])
+            try:
+                it["status"] = lab_status(it["code"], float(it["value"]), it.get("range"))
+            except (TypeError, ValueError):
+                it["status"] = "watch"
+            it["range"] = it.get("range") or lab_range(it["code"])
         items.append(it)
     out = {
         "id": d.id,

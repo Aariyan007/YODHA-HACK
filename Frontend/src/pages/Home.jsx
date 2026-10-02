@@ -1,6 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
-import { getAlerts, getInsights, getReminders, markReminderTaken } from "../api/client.js";
+import { Link } from "react-router-dom";
+import { getAlerts, getHealthCheck, getInsights, getReminders, markReminderTaken } from "../api/client.js";
+import { useCountUp } from "../anim.js";
+import { HealthCheckPanel, VitalsForm } from "../components/health.jsx";
 import { getProfile } from "../App.jsx";
 import { AlertCard, Empty, Loading } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
@@ -73,38 +76,73 @@ function ReminderCard({ r, onTake }) {
 
 // ── Today's progress bar ──────────────────────────────────────
 function DoseProgress({ total, taken }) {
+  const pct = total ? Math.round((taken / total) * 100) : 0;
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) gsap.fromTo(ref.current, { width: "0%" }, { width: `${pct}%`, duration: 0.8, ease: "power3.out" });
+  }, [pct]);
   if (!total) return null;
-  const pct = Math.round((taken / total) * 100);
   return (
     <div className="dose-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-      <div className="dose-progress-bar" style={{ width: `${pct}%` }} />
+      <div ref={ref} className="dose-progress-bar" style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
 // ── Home page ─────────────────────────────────────────────────
 export default function Home() {
-  const { t, pick } = useT();
+  const { t, pick, lang } = useT();
   const profile = getProfile();
   const reminders = useApi(getReminders);
   const alerts = useApi(getAlerts);
   const insights = useApi(getInsights);
+  const health = useApi(getHealthCheck);
+  const [showVitals, setShowVitals] = useState(false);
+  const ml = lang === "ml";
 
   const take = async (key) => {
     await markReminderTaken(key);
     reminders.setData((rs) => rs.map((r) => (r.key === key ? { ...r, taken: true } : r)));
   };
 
-  const open = alerts.data?.filter((a) => !a.resolved) ?? [];
+  // Risk alerts are shown in the Health check panel, so the Warnings list skips them.
+  const open = alerts.data?.filter((a) => !a.resolved && a.kind !== "risk") ?? [];
+  const nRisks = health.data?.risks?.length ?? 0;
+  const riskCount = useCountUp(nRisks);
   const totalDoses  = reminders.data?.length ?? 0;
   const takenDoses  = reminders.data?.filter((r) => r.taken).length ?? 0;
 
   return (
     <>
       <Greeting
-        name={profile?.name?.split(" ")[0]}
+        name={profile?.name && profile.name !== "New patient" ? profile.name.split(" ")[0] : null}
         summary={insights.data ? pick(insights.data, "summary") : null}
       />
+
+      <section className="section health-section">
+        <div className="row between mb-2" style={{ alignItems: "center", flexWrap: "wrap", gap: "var(--sp-2)" }}>
+          <h3 style={{ margin: 0 }}>
+            {t("healthCheck")}
+            {health.data && <span className={`count-badge${nRisks ? " warn" : ""}`}>{riskCount}</span>}
+          </h3>
+          <div className="row" style={{ gap: "var(--sp-2)" }}>
+            <button className="ghost small" onClick={() => setShowVitals((x) => !x)} aria-expanded={showVitals}>
+              {showVitals ? (ml ? "അടയ്ക്കുക" : "Close") : (ml ? "+ റീഡിംഗ് ചേർക്കുക" : "+ Log a reading")}
+            </button>
+            <Link className="btn-link" to="/doctors">{ml ? "ഡോക്ടറെ കണ്ടെത്തുക" : "Find a doctor"} →</Link>
+          </div>
+        </div>
+        {showVitals && (
+          <div className="animate-in-fast mb-4">
+            <VitalsForm onSaved={() => { health.reload(); alerts.reload(); insights.reload(); }} />
+          </div>
+        )}
+        {health.loading || health.error ? (
+          <Loading error={health.error} onRetry={health.reload} />
+        ) : (
+          <HealthCheckPanel data={health.data} compact />
+        )}
+      </section>
 
       <div className="grid-2">
         {/* Main Column: Medicines */}

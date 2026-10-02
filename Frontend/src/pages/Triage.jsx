@@ -1,6 +1,17 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { doctorsLink } from "../components/health.jsx";
 import { triage } from "../api/client.js";
 import { useT } from "../i18n.js";
+
+// Triage names like "Diabetologist / Endocrinologist" -> the finder's single specialty.
+const FINDER = ["General Physician", "Cardiologist", "Diabetologist", "Nephrologist", "Pulmonologist", "Gastroenterologist",
+  "Endocrinologist", "Haematologist", "Neurologist", "Orthopaedician", "Gynaecologist", "Paediatrician", "Dermatologist",
+  "Ophthalmologist", "ENT specialist", "Psychiatrist", "Urologist", "Dentist"];
+function toFinderSpecialty(name = "") {
+  const first = name.split("/").map((x) => x.trim()).find((x) => FINDER.includes(x));
+  return first || FINDER.find((f) => name.toLowerCase().includes(f.toLowerCase().split(" ")[0])) || "General Physician";
+}
 
 // ── Result card ───────────────────────────────────────────────
 function TriageResult({ result, lang }) {
@@ -32,6 +43,16 @@ function TriageResult({ result, lang }) {
       <p className="text-sm" style={{ color: "var(--text-2)", lineHeight: 1.6 }}>
         {result.why}
       </p>
+
+      <div className="row" style={{ gap: "var(--sp-3)", marginTop: "var(--sp-4)", flexWrap: "wrap" }}>
+        {result.urgent && <a className="btn-emergency" href="tel:108">{lang === "ml" ? "108 വിളിക്കുക" : "Call 108"}</a>}
+        <Link className="primary-link"
+              to={result.urgent ? doctorsLink("Emergency", { emergency: "1" }) : doctorsLink(toFinderSpecialty(result.specialist))}>
+          {result.urgent
+            ? (lang === "ml" ? "അടുത്തുള്ള ആശുപത്രി →" : "Nearest emergency hospital →")
+            : (lang === "ml" ? `അടുത്തുള്ള ${result.specialist} →` : `Find a ${result.specialist} near me →`)}
+        </Link>
+      </div>
 
       <p className="text-xs text-dim" style={{ marginTop: "var(--sp-4)", borderTop: "1px solid var(--border)", paddingTop: "var(--sp-3)" }}>
         {lang === "ml"

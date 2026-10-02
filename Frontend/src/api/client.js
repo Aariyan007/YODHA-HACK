@@ -396,3 +396,147 @@ export const getDeepHealth = () =>
         scheduler: { status: "ok", detail: "mock" },
       })
     : request("/api/health/deep");
+
+// ---------- profile, home readings, health check (Phase 7) ----------
+
+let MOCK_PROFILE = null;
+
+// -> profile (same shape as login.profile, plus city/lat/lng/profileComplete)
+// Real: PUT /api/patients/me  (only the fields sent are changed)
+export const updateProfile = (fields) => {
+  if (USE_MOCK) {
+    MOCK_PROFILE = { ...(MOCK_PROFILE || mock.login.profile), ...fields, profileComplete: true };
+    return delay(MOCK_PROFILE);
+  }
+  return request("/api/patients/me", { method: "PUT", body: fields });
+};
+
+// body: { date?, sbp?, dbp?, pulse?, spo2?, weight?, temp?, sugar?, sugarType? }
+// -> { record, risks, alerts }
+// Real: POST /api/patients/me/vitals
+export const addVitals = (vitals) =>
+  USE_MOCK
+    ? delay({ record: { id: "mockv", date: new Date().toISOString().slice(0, 10), type: "vitals", title: "Home reading", items: [] },
+              risks: mockRisksFor(vitals), alerts: mock.alerts })
+    : request("/api/patients/me/vitals", { method: "POST", body: vitals });
+
+function mockRisksFor(v) {
+  if (v?.sbp >= 180 || v?.dbp >= 120)
+    return [{ key: "bp", level: "emergency", title: "Very high blood pressure", specialist: "Emergency", reason: "bp_crisis", emergency: true,
+              message: `Your blood pressure was ${v.sbp}/${v.dbp} mmHg today. This is in the danger zone. Call 108 if you have chest pain, a bad headache or weakness.`, evidence: [] }];
+  if (v?.sbp >= 140 || v?.dbp >= 90)
+    return [{ key: "bp", level: "high", title: "High blood pressure", specialist: "Cardiologist", reason: "high_bp", emergency: false,
+              message: `Your blood pressure was ${v.sbp}/${v.dbp} mmHg today. The usual target is below 130/80. Please see a doctor in the next few days.`, evidence: [] }];
+  return [];
+}
+
+const MOCK_HEALTH_CHECK = {
+  risks: [
+    { key: "ldl", level: "watch", title: "LDL cholesterol above target", specialist: "General Physician", reason: "cholesterol", emergency: false,
+      message: "Your LDL (bad cholesterol) was 142 mg/dL on 2025-03-12, above the target of 100. Mention it at your next visit.",
+      messageMl: "നിങ്ങളുടെ LDL 142 mg/dL ആയിരുന്നു, 100 ലക്ഷ്യത്തേക്കാൾ കൂടുതൽ.", evidence: [{ code: "ldl", name: "LDL cholesterol", value: 142, unit: "mg/dL", date: "2025-03-12" }] },
+  ],
+  review: {
+    source: "ai",
+    headline: "Your sugar control has improved a lot since 2024, but cholesterol is still above target.",
+    headlineMl: "2024 മുതൽ പഞ്ചസാര നിയന്ത്രണം വളരെ മെച്ചപ്പെട്ടു, പക്ഷേ കൊളസ്ട്രോൾ ഇപ്പോഴും ലക്ഷ്യത്തിന് മുകളിലാണ്.",
+    points: [
+      { kind: "better", text: "HbA1c fell from 9.1% (Nov 2024) to 7.2% (Sep 2026), close to the 7% target.", textMl: "HbA1c 9.1%-ൽ നിന്ന് 7.2% ആയി കുറഞ്ഞു.", tests: ["hba1c"] },
+      { kind: "worse", text: "LDL was 142 mg/dL in March 2025, above the target of 100.", textMl: "LDL 142 mg/dL ആയിരുന്നു, 100-ന് മുകളിൽ.", tests: ["ldl"] },
+      { kind: "missing", text: "There is no kidney test (creatinine) in the last year. People on Glycomet usually have one yearly.", textMl: "കഴിഞ്ഞ വർഷം വൃക്ക പരിശോധന ഇല്ല.", tests: ["creatinine"] },
+    ],
+    askDoctor: [
+      { text: "Is my cholesterol now on target with Atorva 20?", textMl: "Atorva 20 കൊണ്ട് കൊളസ്ട്രോൾ ലക്ഷ്യത്തിലെത്തിയോ?" },
+      { text: "When should I have a kidney test?", textMl: "വൃക്ക പരിശോധന എപ്പോൾ ചെയ്യണം?" },
+    ],
+  },
+  emergency: false, specialist: "General Physician", reason: "cholesterol", checkedAt: new Date().toISOString(),
+};
+
+// -> { risks:[{key,level,title,message,messageMl,specialist,evidence,reason,emergency}],
+//      review:{headline,headlineMl,points:[{text,textMl,kind,tests}],askDoctor:[{text,textMl}],source},
+//      emergency, specialist, reason, checkedAt }
+// Real: GET /api/patients/me/health-check
+export const getHealthCheck = () => (USE_MOCK ? delay(MOCK_HEALTH_CHECK) : request("/api/patients/me/health-check"));
+
+// ---------- doctor finder (Phase 7, FICTIONAL sample directory) ----------
+
+const qs = (params) => {
+  const u = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "" && v !== false) u.set(k, String(v));
+  });
+  const s = u.toString();
+  return s ? `?${s}` : "";
+};
+
+const INDIA_BOUNDS = { south: 6.0, north: 37.6, west: 68.0, east: 97.5 };
+
+// Mock mode: rank the bundled sample file by distance + rating so the offline build still works.
+async function mockSearch({ lat, lng, city, specialty, emergency } = {}) {
+  const { doctors } = (await import("../data/doctors.sample.json")).default;
+  const cities = mockCities(doctors);
+  const c = cities.find((x) => x.city === city) || cities.find((x) => x.city === "Kochi");
+  const inIndia = lat != null && lng != null && lat >= INDIA_BOUNDS.south && lat <= INDIA_BOUNDS.north && lng >= INDIA_BOUNDS.west && lng <= INDIA_BOUNDS.east;
+  const origin = inIndia ? { lat, lng, label: "Your location", source: "device" } : { lat: c.lat, lng: c.lng, label: c.city, source: city ? "city" : "default" };
+  const spec = emergency ? "Emergency" : specialty;
+  const km = (d) => {
+    const R = 6371, toR = Math.PI / 180;
+    const dLat = (d.lat - origin.lat) * toR, dLng = (d.lng - origin.lng) * toR;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(origin.lat * toR) * Math.cos(d.lat * toR) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  };
+  let results = doctors
+    .filter((d) => !spec || d.specialty === spec || d.specialties.includes(spec) || (spec === "Emergency" && d.emergency24x7))
+    .map((d) => {
+      const dist = Math.round(km(d) * 10) / 10;
+      const score = Math.round((34 * Math.exp(-dist / 12) + ((d.rating * d.reviews + 100) / (d.reviews + 25) - 3.5) / 1.5 * 30) * 10) / 10;
+      return { ...d, distanceKm: dist, openNow: true, closesAt: d.emergency24x7 ? null : "19:00", score,
+               department: spec && d.specialty !== spec && d.type === "hospital" ? spec : null };
+    })
+    .sort((a, b) => (spec === "Emergency" ? a.distanceKm - b.distanceKm : b.score - a.score))
+    .slice(0, 12);
+  const picks = results.slice(0, 3).map((d) => ({
+    id: d.id, source: "rules",
+    why: `${d.department ? `${d.clinic} (${d.department} department)` : `${d.name} (${d.specialty})`}: ${d.distanceKm} km away, rated ${d.rating} from ${d.reviews} reviews, speaks Malayalam.`,
+    reviewSummary: `People say: ${d.reviewSnippets[0].toLowerCase()}`,
+  }));
+  return { origin, specialty: spec || null, results, picks, relaxed: [], nearbyGp: [], bounds: INDIA_BOUNDS, sample: true };
+}
+
+function mockCities(doctors) {
+  const acc = {};
+  doctors.forEach((d) => {
+    const c = (acc[d.city] ||= { city: d.city, district: d.district, state: d.state, lat: 0, lng: 0, doctors: 0 });
+    c.lat += d.lat; c.lng += d.lng; c.doctors += 1;
+  });
+  return Object.values(acc).map((c) => ({ ...c, lat: c.lat / c.doctors, lng: c.lng / c.doctors }))
+    .sort((a, b) => (a.state !== "Kerala") - (b.state !== "Kerala") || a.city.localeCompare(b.city));
+}
+
+// -> [{ city, district, state, lat, lng, doctors }]
+// Real: GET /api/doctors/cities
+export const getDoctorCities = async () =>
+  USE_MOCK ? mockCities((await import("../data/doctors.sample.json")).default.doctors) : request("/api/doctors/cities");
+
+// params: { lat, lng, city, specialty, language, day, openNow, emergency, teleconsult, maxKm, maxFee, minRating, limit }
+// -> { origin:{lat,lng,label,source,outsideIndia}, specialty, results:[doctor + distanceKm, openNow, closesAt, score, department],
+//      picks:[{id, why, whyMl, reviewSummary, reviewSummaryMl, source}], relaxed:[str], nearbyGp:[doctor], bounds, sample }
+// Real: GET /api/doctors/nearby
+export const getNearbyDoctors = (params) =>
+  USE_MOCK ? mockSearch(params) : request(`/api/doctors/nearby${qs(params)}`);
+
+// -> same as nearby + { filters, filtersSource: "ai"|"rules"|"ai+rules", query }
+// Real: POST /api/doctors/ask
+export const askDoctors = async (q, lat, lng) =>
+  USE_MOCK
+    ? { ...(await mockSearch({ lat, lng, specialty: /heart|bp|cardio/i.test(q) ? "Cardiologist" : null })), filters: {}, filtersSource: "rules", query: q }
+    : request("/api/doctors/ask", { method: "POST", body: { q, lat, lng } });
+
+// -> same as nearby + { risk, risks, emergency, bring:[{text,textMl}] }
+// Real: GET /api/doctors/recommend
+export const getDoctorRecommendation = async (params) =>
+  USE_MOCK
+    ? { ...(await mockSearch({ ...params, specialty: "General Physician" })), risk: MOCK_HEALTH_CHECK.risks[0], risks: MOCK_HEALTH_CHECK.risks,
+        emergency: false, bring: [{ text: "Your medicine list: Glycomet 500, Telma 40, Atorva 20" }, { text: "Allergies: Sulfa drugs" }] }
+    : request(`/api/doctors/recommend${qs(params)}`);

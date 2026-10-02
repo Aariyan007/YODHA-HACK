@@ -8,7 +8,7 @@ import { useApi } from "../useApi.js";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const FILTERS = ["all", "prescription", "lab", "consultation"];
+const FILTERS = ["all", "prescription", "lab", "consultation", "vitals"];
 
 // ── Thread skeleton loading state ─────────────────────────────
 function TimelineSkeleton() {

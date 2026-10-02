@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import httpx
 
-from app.labs import lab_range, lab_status
+from app.labs import direction, lab_range, lab_status
 
 # ---------- Common Indian brand names → generic ----------
 # Keys are lowercase; look up by any token in the brand name.
@@ -393,17 +393,23 @@ def analyse(
             val = float(ob["value"])
         except (KeyError, TypeError, ValueError):
             continue
-        status = lab_status(code, val) if code else "watch"
+        printed = ob.get("range")
+        status = lab_status(code or "", val, printed)
         ob["status"] = status
         if not ob.get("range"):
             ob["range"] = lab_range(code) if code else None
         if rank[status] > rank[worst]:
             worst = status
         if status == "alert":
+            way = direction(code or "", val, printed)
+            word = {"high": "above", "low": "below"}.get(way, "outside")
+            name = ob.get("name") or "Lab value"
+            unit = ob.get("unit") or ""
+            rng = f" of {ob['range']}" if ob.get("range") else ""
             _mk_alert(
                 "medium", "lab",
-                f"{ob.get('name', 'Lab value')} is above the healthy range",
-                f"{ob.get('name', 'This value')} is {ob['value']} {ob.get('unit', '')}, outside the usual range of {ob['range']}. Discuss at your next visit.",
+                f"{name} is {word} the healthy range",
+                f"{name} is {ob['value']} {unit}, {word} the usual range{rng}. Discuss at your next visit.".replace("  ", " "),
             )
 
     return {

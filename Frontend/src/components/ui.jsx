@@ -1,3 +1,4 @@
+import { useCountUp } from "../anim.js";
 import { useT } from "../i18n.js";
 
 // ── Status pill (good / watch / alert) ────────────────────────
@@ -140,4 +141,12 @@ function formatDateShort(iso) {
   const mon = d.toLocaleDateString("en-IN", { month: "short" });
   const yr  = String(d.getFullYear()).slice(2);
   return `${day} ${mon}\n'${yr}`;
+}
+
+// ── Animated number (GSAP count-up). Non-numbers are shown as-is. ──
+export function CountUp({ value, decimals }) {
+  const n = typeof value === "number" ? value : Number.NaN;
+  const dec = decimals ?? (Number.isInteger(n) ? 0 : 1);
+  const shown = useCountUp(Number.isNaN(n) ? null : n, { decimals: dec });
+  return <>{Number.isNaN(n) ? value : shown}</>;
 }

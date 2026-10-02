@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import reminder_service, store
 from .database import DB_KIND, Base, SessionLocal, add_missing_columns, engine
-from .routers import auth, consultations, demo, documents, imports, patients, reminders, shares
+from .routers import auth, consultations, demo, doctors, documents, imports, patients, reminders, shares
 from .seed import ensure_demo_reminder_settings, seed_if_empty
 
 
@@ -65,6 +65,7 @@ app.include_router(consultations.router)
 app.include_router(reminders.router)
 app.include_router(imports.router)
 app.include_router(demo.router)
+app.include_router(doctors.router)
 
 
 @app.get("/health")
