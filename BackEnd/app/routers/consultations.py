@@ -459,6 +459,12 @@ def add_audio(
     text = res["text"]
     if not text or len(text) < 2:
         return {**_state_out(c), "heard": "", "added": False}
+    # The same words twice in a row (a clip sent again, or a pause that split one sentence in two) are not a new line.
+    import difflib
+    norm = lambda t: re.sub(r"[^a-z0-9 ]+", "", t.lower()).strip()  # noqa: E731
+    for prev in (c.transcript_lines or [])[-2:]:
+        if prev.get("text") and difflib.SequenceMatcher(None, norm(prev["text"]), norm(text)).ratio() >= 0.9:
+            return {**_state_out(c), "heard": text, "added": False}
     # Fix mis-heard medicine names (reported, never silent).
     text, fixes = medterms.correct(text, vocab)
     out = _append_line(db, c, text[:1000], speaker, fixes=fixes)

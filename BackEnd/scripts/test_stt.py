@@ -85,5 +85,20 @@ class AudioSniff(unittest.TestCase):
         self.assertIsNone(_sniff_audio(b"<html>not audio.."))
 
 
+class InventedAndDuplicate(unittest.TestCase):
+    def test_invented_sign_offs_are_dropped_but_real_sentences_stay(self):
+        from ai import transcribe as t
+        for x in ("Thanks Jonathan.", "I would like to thank you for your time.", "Thank you, Doctor.", "Bye."):
+            self.assertTrue(t._invented(x), x)
+        for x in ("Thank you for the prescription, I will take the tablets.", "For headaches, I would suggest you to take Vicks."):
+            self.assertFalse(t._invented(x), x)
+
+    def test_prompt_is_a_spelling_list_not_a_sentence(self):
+        from ai import transcribe as t
+        p = t.build_prompt(["Telma"])
+        self.assertTrue(p.startswith("Medicines:"))
+        self.assertNotIn("talking", p)
+
+
 if __name__ == "__main__":
     unittest.main()

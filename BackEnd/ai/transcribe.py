@@ -55,17 +55,27 @@ def _norm(text: str) -> str:
     return re.sub(r"[^a-z ]+", "", (text or "").lower()).strip()
 
 
+# Sentences Whisper invents on quiet or noisy clips (it learned them from subtitles): thanks, goodbyes, sign-offs.
+_INVENTED = re.compile(r"^(thanks?( you)?( so much| very much)?( for (watching|listening|your time|your attention|having me|the (help|video)))?[ ,.!]*"
+                       r"([a-z]+)?|i would like to thank you( for your (time|attention))?|you'?re welcome|see you( (soon|later|next time))?|"
+                       r"bye( bye)?|good ?bye|please (like|subscribe).*|thank you,? (doctor|sir|madam|jonathan|everyone))[ .!]*$", re.I)
+
+
+def _invented(text: str) -> bool:
+    return len(text.split()) <= 10 and bool(_INVENTED.match(text.strip()))
+
+
 def _keep_segment(seg: Any) -> bool:
     """Standard Whisper reliability checks: no-speech + low confidence, or runaway repetition."""
     text = (_get(seg, "text") or "").strip()
     if not text:
         return False
-    if _norm(text) in _PHANTOM:
+    if _norm(text) in _PHANTOM or _invented(text):
         return False
     no_speech = _get(seg, "no_speech_prob", 0.0) or 0.0
     logprob = _get(seg, "avg_logprob", 0.0) or 0.0
     compression = _get(seg, "compression_ratio", 0.0) or 0.0
-    if no_speech > 0.6 and logprob < -1.0:
+    if (no_speech > 0.45 and logprob < -0.8) or logprob < -1.6:
         return False
     if compression > 2.4:
         return False
@@ -73,15 +83,12 @@ def _keep_segment(seg: Any) -> bool:
 
 
 def build_prompt(vocab: list[str] | None) -> str:
-    """A short context string. Whisper uses it as 'what was said just before', which steers spelling."""
+    """Only a spelling list. A prompt written as a sentence ("doctor and patient talking...") makes Whisper echo or invent
+    sentences on quiet clips, so none is used; with no medicines to bias toward, no prompt is sent at all."""
     from .medterms import common_brands  # local import: medterms reads the drug datasets on first use
 
-    base = "Doctor and patient talking in a clinic in India."
-    # The patient's own medicines first (most likely to be spoken), then common Indian brands.
-    words = [w.strip() for w in (vocab or []) if w and w.strip()] + common_brands(14)
-    if words:
-        base += " Medicines and terms: " + ", ".join(dict.fromkeys(words))[:220] + "."
-    return base[:400]
+    words = [w.strip() for w in (vocab or []) if w and w.strip()] + common_brands(10)
+    return ("Medicines: " + ", ".join(dict.fromkeys(words))[:180] + ".") if words else ""
 
 
 def transcribe(data: bytes, filename: str = "clip.webm", mime: str = "audio/webm",
@@ -93,8 +100,9 @@ def transcribe(data: bytes, filename: str = "clip.webm", mime: str = "audio/webm
         model=MODEL,
         response_format="verbose_json",
         temperature=0.0,
-        prompt=build_prompt(vocab),
     )
+    if prompt := build_prompt(vocab):
+        kwargs["prompt"] = prompt
     if language:
         kwargs["language"] = language  # a hint only; omit to let Whisper detect it
     try:
@@ -116,6 +124,6 @@ def transcribe(data: bytes, filename: str = "clip.webm", mime: str = "audio/webm
         dropped = len(segments) - len(kept)
     else:  # model returned no segment detail; fall back to the plain text with the phantom check only
         raw = (_get(r, "text") or "").strip()
-        text = "" if _norm(raw) in _PHANTOM else raw
+        text = "" if (_norm(raw) in _PHANTOM or _invented(raw)) else raw
         dropped = 0 if text else (1 if raw else 0)
     return {"text": re.sub(r"\s+", " ", text), "language": _get(r, "language"), "dropped": dropped}

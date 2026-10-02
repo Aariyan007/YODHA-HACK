@@ -36,7 +36,7 @@ export function RecordingPanel({
   const [micError, setMicError] = useState(null);
   const [engine, setEngine] = useState("whisper"); // "whisper" (server) | "browser" (fallback)
   const [engineNote, setEngineNote] = useState(null);
-  const [language, setLanguage] = useState(""); // "" = auto-detect, "en", "ml"
+  const [language, setLanguage] = useState("en"); // "en" by default: auto-detect guesses wrong on short clips. "" = auto, "ml" = Malayalam
   const [stopping, setStopping] = useState(false);
 
   // Always-current copies for async callbacks (a clip finishes seconds after it was spoken).
