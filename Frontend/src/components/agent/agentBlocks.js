@@ -28,7 +28,7 @@ export function resultFromResponse(r) {
   const nav = blocks.find((b) => b.type === "navigation");
   const texts = blocks.filter((b) => b.type === "text" || b.type === "error").map((b) => b.text);
   const items = blocks.map(item).filter(Boolean);
-  const title = nav ? `Opening ${nav.label}` : TITLES[r.intent] || (items.length ? "Result" : texts.length ? "Agent" : "Nothing to show");
+  const title = r.confirmation ? "Please confirm" : nav ? `Opening ${nav.label}` : TITLES[r.intent] || (items.length ? "Result" : texts.length ? "Agent" : "Nothing to show");
   const failed = blocks.some((b) => b.type === "error");
   return {
     title: failed ? "That did not work" : title,
@@ -38,5 +38,6 @@ export function resultFromResponse(r) {
     navigate: nav?.route,
     confirmation: r.confirmation || undefined,
     steps: r.steps,
+    cancelled: r.status === "cancelled",
   };
 }

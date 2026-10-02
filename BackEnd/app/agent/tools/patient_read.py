@@ -266,3 +266,26 @@ def navigation_navigate(ctx: AgentContext, args: dict) -> dict:
         raise ToolError("I cannot open that screen.")
     nav = block("navigation", route=route, label=routes[route], focus=args.get("focus"))
     return {"data": {"route": route}, "blocks": [nav], "target": route}
+
+
+# ---------------- visit preparation (L2: a draft the person reads, nothing is saved)
+
+@tool("visit.prepare", "Prepare for a doctor visit: what changed, what needs attention, and questions to ask. Uses rules over the record, not AI.",
+      permission="health:read", level=L2, roles=ROLES, audit_category="summary")
+def visit_prepare(ctx: AgentContext, args: dict) -> dict:
+    from ...routers.patients import build_health_check
+    p = ctx.db.get(Patient, ctx.patient_id)
+    hc = build_health_check(ctx.db, p, use_ai=False)
+    rev = hc["review"]
+    blocks = [block("text", text=rev["headline"])]
+    for pt in rev.get("points", [])[:5]:
+        blocks.append(block("warning" if pt["kind"] in ("worse", "missing") else "text", severity="medium" if pt["kind"] in ("worse", "missing") else None,
+                            title=pt["kind"].capitalize(), text=pt["text"]))
+    for i, q in enumerate(rev.get("askDoctor", [])[:5], 1):
+        blocks.append(block("text", text=f"Question {i}: {q['text']}"))
+    meds = list(ctx.db.scalars(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.active.is_(True))))
+    if meds:
+        blocks.append(block("text", text="Bring your medicine list: " + ", ".join(m.name for m in meds) + "."))
+    if p.allergies:
+        blocks.append(block("text", text="Tell them about your allergies: " + ", ".join(map(str, p.allergies)) + "."))
+    return {"data": {"risks": len(hc["risks"]), "questions": len(rev.get("askDoctor", []))}, "blocks": blocks}

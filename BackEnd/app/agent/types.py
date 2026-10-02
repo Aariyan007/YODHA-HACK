@@ -31,6 +31,8 @@ class ToolSpec:
     audit_category: str = "read"
     roles: tuple[str, ...] = ("patient",)  # which agents may see/call it
     verify: Callable[..., bool] | None = None  # post-action check; failing it turns "ok" into "failed"
+    preview: Callable[..., list] | None = None  # preview(ctx, args) -> [{label, value}] shown in the confirmation card
+    slow: bool = False                    # may take many seconds (model call): the engine runs it as a background task
 
 
 @dataclass

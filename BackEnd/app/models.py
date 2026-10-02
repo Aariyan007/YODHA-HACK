@@ -281,3 +281,20 @@ class AgentFile(Base):
     extraction: Mapped[dict] = mapped_column(JSON, default=dict)            # structured fields with provenance (phase 7)
     document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.id"))  # set once confirmed into the timeline
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AgentTask(Base):
+    """One agent job: queued -> planning -> running -> (waiting_for_confirmation) -> completed | failed | cancelled."""
+    __tablename__ = "agent_tasks"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(32), index=True)            # patient id or doctor user id
+    agent_type: Mapped[str] = mapped_column(String(10))                      # patient | doctor
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(32))
+    intent: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(24), default="queued", index=True)
+    steps: Mapped[list] = mapped_column(JSON, default=list)                  # [{tool, args, label, status, result?, confirmationId?}]
+    result: Mapped[dict] = mapped_column(JSON, default=dict)                 # final formatted response
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

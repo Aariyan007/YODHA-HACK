@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import store
 from ..agent.context import AgentContext
+from ..agent import tasks as agent_tasks
 from ..agent.engine import AgentEngine
 from ..agent.registry import REGISTRY
 from ..auth import current_patient
@@ -75,6 +76,30 @@ def confirm(body: ConfirmBody, patient: Patient = Depends(current_patient), db: 
     ctx = patient_ctx(patient, db)
     out = engine().confirm(ctx, body.id, body.approve)
     db.commit()
+    return out
+
+
+@router.get("/tasks")
+def my_tasks(limit: int = 10, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    from ..models import AgentTask
+    rows = db.scalars(select(AgentTask).where(AgentTask.user_id == patient.id, AgentTask.agent_type == "patient")
+                      .order_by(AgentTask.created_at.desc()).limit(max(1, min(limit, 30))))
+    return [{**agent_tasks.public(t), "result": None, "createdAt": iso(t.created_at)} for t in rows]
+
+
+@router.get("/tasks/{task_id}")
+def task_status(task_id: str, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    t = agent_tasks.owned(db, patient.id, "patient", task_id)
+    if t is None:
+        raise HTTPException(404, "Task not found")
+    return agent_tasks.public(t)
+
+
+@router.post("/tasks/{task_id}/cancel")
+def task_cancel(task_id: str, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    out = engine().cancel(patient_ctx(patient, db), task_id)
+    if out is None:
+        raise HTTPException(404, "Task not found")
     return out
 
 

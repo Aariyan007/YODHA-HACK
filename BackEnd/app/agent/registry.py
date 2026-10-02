@@ -36,13 +36,13 @@ REGISTRY = AgentToolRegistry()
 
 def tool(name: str, description: str, input_schema: dict | None = None, *, permission: str, level: int = 1,
          confirmation_required: bool = False, audit_category: str = "read", roles: tuple[str, ...] = ("patient",),
-         verify=None):
+         verify=None, slow: bool = False, preview=None):
     """Decorator that registers a handler(ctx, args) -> {"data", "blocks", "evidence"}."""
     def wrap(fn):
         REGISTRY.register(ToolSpec(
             name=name, description=description,
             input_schema=input_schema or {"type": "object", "properties": {}, "additionalProperties": False},
             permission=permission, handler=fn, level=level, confirmation_required=confirmation_required,
-            audit_category=audit_category, roles=roles, verify=verify))
+            audit_category=audit_category, roles=roles, verify=verify, slow=slow, preview=preview))
         return fn
     return wrap

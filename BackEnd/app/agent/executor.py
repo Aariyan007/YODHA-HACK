@@ -74,14 +74,17 @@ class AgentExecutor:
     # ---- confirmation
     def _park(self, ctx: AgentContext, spec, name: str, args: dict) -> ToolResult:
         cid = uuid.uuid4().hex[:16]
-        preview = args.get("_preview") if isinstance(args.get("_preview"), dict) else None
+        try:
+            preview = spec.preview(ctx, args) if spec.preview else None  # what exactly will change, in words
+        except Exception:
+            preview = None
         pending = {"actor": ctx.actor_id, "role": ctx.role, "patient": ctx.patient_id, "tool": name, "args": args,
                    "hash": _args_hash(args)}
         store.set_value(f"agent:confirm:{cid}", json.dumps(pending, default=str), ttl=PENDING_TTL)
         self.audit.record(ctx, spec, name, "needs_confirmation", detail=_args_hash(args))
-        conf = {"id": cid, "tool": name, "level": spec.level, "description": spec.description, "args": args, "preview": preview}
+        conf = {"id": cid, "tool": name, "level": spec.level, "description": spec.description, "preview": preview}
         return ToolResult(False, "needs_confirmation", name, confirmation=conf,
-                          blocks=[block("confirmation", id=cid, tool=name, title=spec.description, args=args, level=spec.level)])
+                          blocks=[block("confirmation", id=cid, tool=name, title=spec.description, preview=preview, level=spec.level)])
 
     def confirm(self, ctx: AgentContext, cid: str, approve: bool) -> ToolResult:
         raw = store.get_value(f"agent:confirm:{cid}")

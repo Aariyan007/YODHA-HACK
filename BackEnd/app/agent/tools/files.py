@@ -47,7 +47,7 @@ def _evidence_list(x: dict) -> list[dict]:
 @tool("documents.extract", "Read an attached file and list the diagnoses, medicines, results and vitals it contains, each with the line it came from. Saves nothing to the health thread.",
       {"type": "object", "properties": {"fileId": {"type": "string", "minLength": 1, "maxLength": 32}, "force": {"type": "boolean"}},
        "required": ["fileId"], "additionalProperties": False},
-      permission="records:read", level=L2, audit_category="extract")
+      permission="records:read", level=L2, audit_category="extract", slow=True)
 def documents_extract(ctx: AgentContext, args: dict) -> dict:
     f = _file(ctx, args["fileId"])
     if f.extraction and not args.get("force"):

@@ -1,9 +1,9 @@
 import { Arrow } from "../../design/primitives.jsx";
 
-export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, onType }) {
+export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, onType, onAnswer }) {
   return (
     <section className="ag-res" data-a aria-live="polite" aria-label="Result">
-      <div className="ag-label">{result.preview ? "Not connected yet" : "Result"}</div>
+      <div className="ag-label">{result.confirmation ? "Needs your OK" : result.preview ? "Not connected yet" : "Result"}</div>
       <h3 className="ag-res-title">{result.title}</h3>
       {result.lead && <p className="ag-res-lead">{result.lead}</p>}
       {result.items?.length > 0 && (
@@ -17,6 +17,20 @@ export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, o
             </li>
           ))}
         </ul>
+      )}
+      {result.confirmation && (
+        <div className="ag-confirm" role="group" aria-label="Please confirm">
+          <p className="ag-res-lead">{result.confirmation.description}</p>
+          {result.confirmation.preview?.length > 0 && (
+            <ul className="ag-res-list">
+              {result.confirmation.preview.map((p, i) => <li key={i} className="steady"><span className="lb">{p.label}</span><span className="vl">{p.value}</span></li>)}
+            </ul>
+          )}
+          <div className="ag-res-actions">
+            <button type="button" className="mt-btn sm" onClick={() => onAnswer(result.confirmation.id, true)}>Yes, do it</button>
+            <button type="button" className="mt-btn secondary sm" onClick={() => onAnswer(result.confirmation.id, false)}>No, cancel</button>
+          </div>
+        </div>
       )}
       {result.note && <p className="ag-res-note">{result.note}</p>}
       {result.typeChoices?.length > 0 && (

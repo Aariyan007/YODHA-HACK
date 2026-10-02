@@ -24,11 +24,12 @@ from app.agent.executor import AgentExecutor, ToolError
 from app.agent.engine import AgentEngine
 from app.agent.llm import LLMService, NullLLM
 from app.agent.planner import AgentPlanner
-from app.agent.registry import REGISTRY, AgentToolRegistry
+from app.agent import tasks as agent_tasks
+from app.agent.registry import REGISTRY, AgentToolRegistry, tool as register_tool
 from app.agent.types import L2, L3, L4, ToolSpec
 from app.database import Base, get_db
 from app.main import app
-from app.models import AgentAudit, CareLink, Document, Medicine, Observation, Patient, ShareLink, User
+from app.models import AgentAudit, AgentTask, CareLink, Document, Medicine, Observation, Patient, ShareLink, User
 
 PW = "correct horse 9"
 
@@ -290,6 +291,99 @@ class ApiTests(Base_):
             self.assertEqual({x["tool"] for x in hist}, {"timeline.list", "navigation.navigate"})
             doc_token = c.post("/api/auth/register", json={"role": "doctor", "name": "Dr Q", "email": "q@example.com", "password": PW}).json()["token"]
             self.assertEqual(c.post("/api/agent/chat", json={"text": "hi"}, headers={"Authorization": "Bearer " + doc_token}).status_code, 401)
+
+
+NOTES: list = []
+
+
+@register_tool("test.note", "Save a test note", {"type": "object", "properties": {"n": {"type": "string", "maxLength": 20}}, "required": ["n"],
+                                                 "additionalProperties": False},
+               permission="records:write", level=L3, confirmation_required=True, audit_category="write")
+def _test_note(ctx, args):
+    NOTES.append(args["n"])
+    return {"data": {"saved": True}, "target": "n1"}
+
+
+class TaskTests(Base_):
+    def setUp(self):
+        super().setUp()
+        NOTES.clear()
+        p = mock.patch.object(agent_tasks, "SESSION", self.Session)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def engine(self, out=None):
+        return AgentEngine(llm=FakeLLM(out) if out else NullLLM(), runner=lambda f: f())
+
+    def two_step_plan(self):
+        return {"intent": "save_and_go", "steps": [{"tool": "test.note", "args": {"n": "hello"}},
+                                                   {"tool": "navigation.navigate", "args": {"route": "/timeline"}}]}
+
+    def test_compound_request_becomes_one_task_with_steps(self):
+        out = self.engine().chat(self.ctx(), "what medicines am I on and what is due today")
+        self.assertEqual((out["intent"], out["status"]), ("multi_step", "completed"))
+        self.assertEqual([s["tool"] for s in out["steps"]], ["medications.list", "careloop.due"])
+        t = self.db.get(AgentTask, out["taskId"])
+        self.assertEqual((t.status, t.agent_type, t.user_id), ("completed", "patient", "pa"))
+        self.assertEqual([s["status"] for s in t.steps], ["ok", "ok"])
+
+    def test_unclear_clause_does_not_add_tools(self):
+        out = self.engine().chat(self.ctx(), "show my medicines and sing me a song")
+        self.assertEqual([s["tool"] for s in out["steps"]], ["medications.list"])
+
+    def test_confirmation_pauses_then_resumes_remaining_steps(self):
+        e = self.engine(self.two_step_plan())
+        out = e.chat(self.ctx(), "do the odd thing please")
+        self.assertEqual(out["status"], "waiting_for_confirmation")
+        self.assertEqual(NOTES, [])
+        self.assertEqual([s["status"] for s in out["steps"]], ["needs_confirmation", "queued"])
+        t = self.db.get(AgentTask, out["taskId"])
+        done = e.confirm(self.ctx(), out["confirmation"]["id"], True)
+        self.assertEqual((NOTES, done["status"]), (["hello"], "completed"))
+        self.assertEqual([s["status"] for s in done["steps"]], ["ok", "ok"])
+        self.assertTrue(any(b["type"] == "navigation" for b in done["blocks"]))
+        self.assertEqual(self.db.get(AgentTask, t.id).status, "completed")
+
+    def test_decline_cancels_the_task_and_skips_the_rest(self):
+        e = self.engine(self.two_step_plan())
+        out = e.chat(self.ctx(), "do the odd thing please")
+        done = e.confirm(self.ctx(), out["confirmation"]["id"], False)
+        self.assertEqual((NOTES, done["status"]), ([], "cancelled"))
+        self.assertEqual([s["status"] for s in done["steps"]], ["declined", "queued"])
+
+    def test_someone_else_cannot_confirm_a_task(self):
+        e = self.engine(self.two_step_plan())
+        out = e.chat(self.ctx(), "do the odd thing please")
+        e.confirm(self.ctx(actor="pb", patient="pb"), out["confirmation"]["id"], True)
+        self.assertEqual(NOTES, [])
+        self.assertEqual(self.db.get(AgentTask, out["taskId"]).status, "waiting_for_confirmation")
+        # the owner can still answer afterwards
+        self.assertEqual(e.confirm(self.ctx(), out["confirmation"]["id"], True)["status"], "completed")
+
+    def test_cancel_a_waiting_task(self):
+        e = self.engine(self.two_step_plan())
+        out = e.chat(self.ctx(), "do the odd thing please")
+        self.assertEqual(e.cancel(self.ctx(), out["taskId"])["status"], "cancelled")
+        self.assertIsNone(e.cancel(self.ctx(actor="pb", patient="pb"), out["taskId"]))  # not yours: not found
+
+    def test_failed_step_stops_the_task(self):
+        e = self.engine({"intent": "x", "steps": [{"tool": "documents.get", "args": {"id": "db1"}},
+                                                  {"tool": "medications.list", "args": {}}]})
+        out = e.chat(self.ctx(), "open that other persons record")
+        self.assertEqual(out["status"], "failed")
+        self.assertEqual([s["status"] for s in out["steps"]], ["failed", "queued"])
+
+    def test_task_api_is_private(self):
+        c = TestClient(app)
+        with mock.patch.dict(os.environ, {"DEMO_MODE": "false"}):
+            h1 = {"Authorization": "Bearer " + c.post("/api/auth/register", json={"role": "patient", "name": "Alice", "email": "a1@example.com", "password": PW}).json()["token"]}
+            h2 = {"Authorization": "Bearer " + c.post("/api/auth/register", json={"role": "patient", "name": "Bobby", "email": "b1@example.com", "password": PW}).json()["token"]}
+            tid = c.post("/api/agent/chat", json={"text": "what medicines am I on"}, headers=h1).json()["taskId"]
+            self.assertEqual(c.get(f"/api/agent/tasks/{tid}", headers=h1).json()["status"], "completed")
+            self.assertEqual(c.get(f"/api/agent/tasks/{tid}", headers=h2).status_code, 404)
+            self.assertEqual(c.post(f"/api/agent/tasks/{tid}/cancel", headers=h2).status_code, 404)
+            self.assertEqual(len(c.get("/api/agent/tasks", headers=h1).json()), 1)
+            self.assertEqual(c.get("/api/agent/tasks", headers=h2).json(), [])
 
 
 if __name__ == "__main__":

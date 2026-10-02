@@ -23,7 +23,11 @@ from app import store, vault
 from app.agent import ingest
 from app.database import Base, get_db
 from app.main import app
+from app.agent import tasks as agent_tasks
+from app.agent.engine import AgentEngine
+from app.agent.llm import NullLLM
 from app.agent.tools import files as ftools
+from app.routers import agent as agent_router
 from app.models import AgentAudit, AgentFile, Document, Observation, Patient
 
 PW = "correct horse 9"
@@ -232,9 +236,27 @@ class ExtractionApiTests(FileApiTests):
         p = mock.patch.object(ftools, "EXTRACTOR", fake)
         p.start()
         self.addCleanup(p.stop)
+        # background tasks run inline on the test database
+        for target, name, value in ((agent_tasks, "SESSION", self.Session), (agent_router, "_engine", AgentEngine(llm=NullLLM(), runner=lambda f: f()))):
+            q = mock.patch.object(target, name, value)
+            q.start()
+            self.addCleanup(q.stop)
+
+    class _R:
+        """The finished task, shaped like a synchronous chat answer."""
+        def __init__(self, resp, c, h):
+            self.status_code = resp.status_code
+            self._j = resp.json()
+            if self._j.get("status") == "running":
+                t = c.get(f"/api/agent/tasks/{self._j['taskId']}", headers=h).json()
+                self._j = {**t["result"], "status": t["status"], "taskId": t["taskId"], "intent": t["intent"]}
+
+        def json(self):
+            return self._j
 
     def chat(self, text, fid, h=None):
-        return self.c.post("/api/agent/chat", json={"text": text, "fileId": fid}, headers=h or self.h1)
+        h = h or self.h1
+        return self._R(self.c.post("/api/agent/chat", json={"text": text, "fileId": fid}, headers=h), self.c, h)
 
     def fid(self, lines=LAB2):
         return self.up(text_pdf(lines)).json()["fileId"]
@@ -305,9 +327,9 @@ class ExtractionApiTests(FileApiTests):
 
         with mock.patch.object(ftools, "EXTRACTOR", boom):
             r = self.chat("summarise", self.fid()).json()
-        self.assertEqual(r["steps"][0]["status"], "failed")
+        self.assertEqual([x["status"] for x in r["steps"]], ["failed", "queued"])  # the dependent summarise step never ran
+        self.assertEqual(r["status"], "failed")
         self.assertIn("busy", str(r["blocks"]))
-        self.assertEqual(len(r["steps"]), 1)  # the dependent summarise step did not run
 
 
 if __name__ == "__main__":

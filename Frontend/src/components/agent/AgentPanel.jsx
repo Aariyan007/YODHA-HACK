@@ -5,7 +5,7 @@ import { reducedMotion } from "../../anim.js";
 import { factsFor } from "./agentContext.js";
 import { loadAgentData, useAgentData } from "./agentData.js";
 import { intentFor, runAction } from "./agentActions.js";
-import { agentAvailable, agentChat, agentSetFileType, agentUploadFile } from "../../api/client.js";
+import { agentAvailable, agentChat, agentConfirm, agentSetFileType, agentTask, agentUploadFile } from "../../api/client.js";
 import { resultFromResponse } from "./agentBlocks.js";
 import AgentHeader from "./AgentHeader.jsx";
 import AgentContext from "./AgentContext.jsx";
@@ -75,8 +75,17 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     const started = Date.now();
     let result;
     try {
-      const r = await agentChat(text, conv.current, fileId.current);
+      let r = await agentChat(text, conv.current, fileId.current);
       conv.current = r.conversationId || conv.current;
+      // A slow job (reading a file) runs on the server as a task; follow its steps until it settles.
+      for (let n = 0; r.status === "running" && n < 90 && alive.current; n++) {
+        await new Promise((ok) => setTimeout(ok, 1000));
+        const t = await agentTask(r.taskId);
+        const cur = t.steps.find((x) => x.status === "running") || t.steps.find((x) => x.status === "queued");
+        if (cur) setView({ kind: "processing", label: cur.label });
+        if (t.status !== "running" && t.status !== "queued") r = { ...t.result, status: t.status, intent: t.intent, taskId: t.taskId, steps: t.steps };
+      }
+      if (r.status === "running") throw new Error("That is taking longer than expected. Check back in a moment.");
       result = resultFromResponse(r);
     } catch (e) {
       result = { title: "That did not work", lead: e?.message && e.message.length < 140 ? e.message : "I could not reach the assistant.", note: "Try again in a moment." };
@@ -110,6 +119,15 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     if (alive.current) setView({ kind: "result", result });
   };
 
+  // The person's answer to "Save this to your health thread?". Nothing was written before this.
+  const answer = async (confirmationId, approve) => {
+    setView({ kind: "processing", label: approve ? "Saving" : "Cancelling" });
+    let result;
+    try { result = resultFromResponse(await agentConfirm(confirmationId, approve)); }
+    catch (e) { result = { title: "That did not work", lead: e?.message && e.message.length < 140 ? e.message : "I could not finish that.", note: "Nothing was saved." }; }
+    if (alive.current) setView({ kind: "result", result });
+  };
+
   const chooseType = async (type) => {
     try { setView({ kind: "result", result: fileResult(await agentSetFileType(fileId.current, type)) }); }
     catch { setView({ kind: "result", result: { title: "That did not work", lead: "I could not save your answer.", note: "Try again." } }); }
@@ -126,7 +144,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
         {view.kind === "home" && <AgentActionList actions={ctx.actions} onRun={run} />}
         {view.kind === "processing" && <AgentProcessing label={view.label} />}
         {view.kind === "result" && (
-          <AgentResult result={view.result} onBack={() => setView({ kind: "home" })} onGo={go} ctxActions={ctx.actions} onRun={run} onType={chooseType} />
+          <AgentResult result={view.result} onBack={() => setView({ kind: "home" })} onGo={go} ctxActions={ctx.actions} onRun={run} onType={chooseType} onAnswer={answer} />
         )}
       </div>
       <AgentInput onSubmit={submit} onFile={agentAvailable() && !ctx.doctor ? attach : undefined} disabled={busy} />

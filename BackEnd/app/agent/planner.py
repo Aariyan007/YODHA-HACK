@@ -67,26 +67,47 @@ class AgentPlanner:
         if not text:
             return Plan("empty", clarify="What would you like me to do?", source="none")
         p = self._file_rules(text, file_id) if file_id else None
-        p = p or self._rules(role, text)
+        p = p or self._compound(role, text) or self._rules(role, text)
         if p is None:
             p = self._llm(role, text, history or [])
         return p or Plan("unknown", clarify="I am not sure what you need. Try 'latest records', 'my medicines', or 'what is due today'.",
                          source="none")
 
+    # ---- "A, then B and C": every clause must be understood by the rules, otherwise the whole text goes to the LLM path
+    def _compound(self, role: str, text: str) -> Plan | None:
+        clauses = [c.strip() for c in re.split(r"\s*(?:,|;|\band then\b|\bthen\b|\band\b|\balso\b)\s*", text) if len(c.strip()) > 3]
+        if len(clauses) < 2:
+            return None
+        steps: list[Step] = []
+        for c in clauses:
+            sub = self._rules(role, c)
+            if sub is None:
+                return None
+            for st in sub.steps:
+                if st not in steps:
+                    steps.append(st)
+        return Plan("multi_step", steps[:MAX_STEPS]) if len(steps) >= 2 else None
+
     # ---- rules for an attached file: always read first (cached after the first time), then the asked step
     def _file_rules(self, text: str, fid: str) -> Plan | None:
         low = text.lower()
         read = Step("documents.extract", {"fileId": fid})
-        one = lambda t, a=None: {"fileId": fid, **(a or {})}  # noqa: E731
-        if re.search(r"compare|previous|earlier|last (report|time)|changed", low):
-            return Plan("file_compare", [read, Step("documents.compare", one(0))])
-        if re.search(r"evidence|where (does|did)|which line|show me (the )?(line|source)|proof", low):
-            return Plan("file_evidence", [read, Step("documents.evidence", one(0))])
-        if re.search(r"medicine|tablet|result|value|diagnos|what('s| is) in|list|entit|find", low):
-            return Plan("file_entities", [read, Step("documents.entities", one(0))])
-        if re.search(r"summar|explain|what does|tell me about|read|understand|simple|plain", low):
-            return Plan("file_summary", [read, Step("documents.summarize", one(0))])
-        return None
+        arg = {"fileId": fid}
+        wants = [
+            (r"summar|explain|what does|tell me about|understand|simple|plain", "documents.summarize", "file_summary"),
+            (r"medicine|tablet|result|value|diagnos|what('s| is) in|list|entit|find", "documents.entities", "file_entities"),
+            (r"compare|previous|earlier|last (report|time)|changed", "documents.compare", "file_compare"),
+            (r"evidence|where (does|did)|which line|show me (the )?(line|source)|proof", "documents.evidence", "file_evidence"),
+        ]
+        steps = [Step(t, dict(arg)) for rx, t, _ in wants if re.search(rx, low)]
+        if re.search(r"question|ask (the |my )?doctor|prepare|visit", low):
+            steps.append(Step("visit.prepare", {}))
+        if not steps and re.search(r"\bread\b|open|look at", low):
+            steps = [Step("documents.summarize", dict(arg))]
+        if not steps:
+            return None
+        intent = "multi_step" if len(steps) > 1 else next(i for rx, t, i in wants if t == steps[0].tool) if steps[0].tool != "visit.prepare" else "visit_prep"
+        return Plan(intent, [read, *steps][:MAX_STEPS])
 
     # ---- rules
     def _rules(self, role: str, text: str) -> Plan | None:

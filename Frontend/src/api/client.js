@@ -647,3 +647,5 @@ export const agentUploadFile = async (file) => {
   return res.json();
 };
 export const agentSetFileType = (fileId, type) => request(`/api/agent/files/${fileId}/type`, { method: "POST", body: { type } });
+export const agentTask = (id) => request(`/api/agent/tasks/${id}`);
+export const agentCancel = (id) => request(`/api/agent/tasks/${id}/cancel`, { method: "POST" });
