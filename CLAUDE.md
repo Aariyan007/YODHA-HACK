@@ -175,3 +175,4 @@ Harness notes:
 ## Laya fine-tune result (2026-10-02)
 
 Colab T4 run finished; weights unzipped to `models/laya/` (gitignored, with `eval_report.json`). Gate FAILED, so the service loads but the app uses rules only: urgency 0.776 with rules (needs 0.80), specialist 0.929 on Gretel (hand-written 0.61), red-team 33/33. English urgency 0.97, Malayalam 0.21, Manglish 0.25; consultation-line flags recall 0.0. Decision: leave Laya off, focus on UI for the judges. To improve later: add hand-written Malayalam/Manglish training rows and retrain. Run without the AI overlay (`docker compose up -d --build --remove-orphans`) to save memory on the 8 GB Mac.
+- Home now opens with `components/glance.jsx` (sugar average + sparkline, BP, dose ring, warnings count; tiles link to Health). Empty states use a drawn mark (`.empty-mark`), no emoji; the `Empty` component no longer takes an `icon` prop.
