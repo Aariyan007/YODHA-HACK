@@ -7,6 +7,7 @@ import { HealthCheckPanel, VitalsForm } from "../components/health.jsx";
 import { getProfile } from "../App.jsx";
 import { AlertCard, Empty, Loading } from "../components/ui.jsx";
 import GlanceStrip from "../components/glance.jsx";
+import Hero from "../components/hero.jsx";
 import { useT } from "../i18n.js";
 import { useApi } from "../useApi.js";
 
@@ -114,9 +115,12 @@ export default function Home() {
 
   return (
     <>
-      <Greeting
+      <Hero
         name={profile?.name && profile.name !== "New patient" ? profile.name.split(" ")[0] : null}
-        summary={insights.data ? pick(insights.data, "summary") : null}
+        subtitle={t("todayOverview")}
+        insights={insights.data}
+        reminders={reminders.data}
+        worst={health.data?.risks?.[0]?.level}
       />
 
       {(insights.data || reminders.data) && (

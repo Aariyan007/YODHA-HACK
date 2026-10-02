@@ -4,6 +4,7 @@ import { reducedMotion } from "./anim.js";
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getToken, setToken } from "./api/client.js";
 import { LangContext, useT } from "./i18n.js";
+import { getTheme, toggleTheme } from "./theme.js";
 import StartupScreen from "./components/StartupScreen.jsx";
 import Login from "./pages/Login.jsx";
 import Home from "./pages/Home.jsx";
@@ -46,6 +47,22 @@ function LangToggle() {
   return (
     <button className="lang" onClick={() => setLang(lang === "en" ? "ml" : "en")} aria-label="Switch language">
       {lang === "en" ? "മലയാളം" : "English"}
+    </button>
+  );
+}
+
+// ── Theme toggle (glass ⇄ light) ────────────────────────────
+function ThemeToggle() {
+  const [theme, setThemeState] = useState(() => getTheme());
+  const flip = () => setThemeState(toggleTheme());
+  const glass = theme !== "light";
+  return (
+    <button className="theme-toggle" onClick={flip} aria-label={glass ? "Switch to light theme" : "Switch to dark theme"} title={glass ? "Light theme" : "Dark theme"}>
+      {glass ? (
+        <svg viewBox="0 0 18 18" width="16" height="16" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="4" stroke="currentColor" strokeWidth="1.6"/><path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.8 3.8l1.4 1.4M12.8 12.8l1.4 1.4M14.2 3.8l-1.4 1.4M5.2 12.8l-1.4 1.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+      ) : (
+        <svg viewBox="0 0 18 18" width="16" height="16" fill="none" aria-hidden="true"><path d="M15 10.5A6.5 6.5 0 0 1 7.5 3a6.5 6.5 0 1 0 7.5 7.5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+      )}
     </button>
   );
 }
@@ -160,6 +177,7 @@ function Layout() {
       <header className="top" role="banner">
         <span className="brand" aria-label="MediThread">MediThread</span>
         <div className="top-actions">
+          <ThemeToggle />
           <LangToggle />
           <NavLink to="/profile" className="profile-chip" aria-label="My profile">
             <span className="avatar" aria-hidden="true">{(profile?.name || "?").trim().charAt(0).toUpperCase()}</span>
@@ -211,6 +229,7 @@ function DoctorLayout() {
       <header className="top" role="banner">
         <span className="brand" aria-label="MediThread">MediThread <span className="pill accent" style={{ marginLeft: 8 }}>Doctor</span></span>
         <div className="top-actions">
+          <ThemeToggle />
           <LangToggle />
           <span className="profile-chip">
             <span className="avatar" aria-hidden="true">{(profile?.name || "?").trim().charAt(0).toUpperCase()}</span>
