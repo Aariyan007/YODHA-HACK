@@ -30,6 +30,9 @@ PW = "correct horse 9"
 class AuthTests(unittest.TestCase):
     def setUp(self):
         store._memory.clear()
+        patcher = mock.patch.object(store, "_redis", None)  # tests never touch a real Redis, even when one is running
+        patcher.start()
+        self.addCleanup(patcher.stop)
         engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
         self.addCleanup(engine.dispose)
         Base.metadata.create_all(engine)

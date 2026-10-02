@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from unittest import mock
 from datetime import datetime
 from pathlib import Path
 
@@ -48,6 +49,9 @@ class Outbox:
 class ReminderTests(unittest.TestCase):
     def setUp(self):
         store._memory.clear()
+        patcher = mock.patch.object(store, "_redis", None)  # tests never touch a real Redis, even when one is running
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
         self.addCleanup(self.engine.dispose)
         Base.metadata.create_all(self.engine)
