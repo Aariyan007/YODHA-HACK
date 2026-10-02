@@ -119,3 +119,5 @@
 @media (prefers-reduced-motion: reduce) { .ag-input .ag-mic.listening { animation: none; } }
 
 .ag-link { display: flex; gap: var(--u1); width: 100%; } .ag-link input { flex: 1; min-width: 0; min-height: 44px; padding: 0 var(--u2); border-radius: var(--rad-m); border: 1px solid var(--mt-line-2); background: var(--mt-paper-2); color: var(--mt-ink); font-size: 0.8rem; }
+
+.ag-res-lead, .ag-res-note { white-space: pre-line; }

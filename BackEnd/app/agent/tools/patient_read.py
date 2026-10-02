@@ -224,7 +224,8 @@ def careloop_history(ctx: AgentContext, args: dict) -> dict:
 
 @tool("doctors.search", "Find doctors in the (sample) directory by specialty, language or city, nearest first.",
       {"type": "object", "properties": {"specialty": {"type": "string", "maxLength": 60}, "language": {"type": "string", "maxLength": 20},
-                                        "city": {"type": "string", "maxLength": 60}, "limit": {"type": "integer", "minimum": 1, "maximum": 8}},
+                                        "city": {"type": "string", "maxLength": 60}, "limit": {"type": "integer", "minimum": 1, "maximum": 8},
+                                        "emergency": {"type": "boolean", "description": "true for the nearest hospital / emergency / casualty"}},
        "additionalProperties": False},
       permission="doctors:read", audit_category="doctors")
 def doctors_search(ctx: AgentContext, args: dict) -> dict:
@@ -233,12 +234,16 @@ def doctors_search(ctx: AgentContext, args: dict) -> dict:
     origin = finder.resolve_origin(None, None, args.get("city"), p.lat, p.lng, p.city)
     spec = args.get("specialty") if args.get("specialty") in finder.SPECIALTIES else None
     lang = args.get("language") if args.get("language") in finder.LANGUAGES else None
-    found = finder.search(origin, spec, lang, None, False, False, None, None, None, False, args.get("limit", 4))
+    found = finder.search(origin, spec, lang, None, False, bool(args.get("emergency")), None, None, None, False, args.get("limit", 4))
     blocks = [block("doctor_match", id=d.get("id"), name=d.get("name"), specialty=d.get("specialties") or d.get("specialty"),
                     hospital=d.get("clinic") or d.get("hospital"), distanceKm=d.get("distanceKm"), rating=d.get("rating"),
                     sample=True) for d in found["results"]]
     if not blocks:
         blocks = [block("text", text="I found no doctor matching that in the sample directory.")]
+    else:
+        src = {"default": "a default starting point (Kochi). Set your town in your profile or use the Doctors page for exact distances",
+               "profile": "your saved town", "city": "the town you chose", "device": "your location"}.get(origin.get("source"), "your area")
+        blocks.insert(0, block("text", text=f"Distances are from {origin.get('label')} ({src}). These are sample listings, not real clinics."))
     return {"data": {"count": len(found["results"]), "origin": origin.get("label")}, "blocks": blocks}
 
 

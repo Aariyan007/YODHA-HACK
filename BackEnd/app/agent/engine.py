@@ -188,7 +188,7 @@ class AgentEngine:
             reply = loop.fixed_reply(conf)
         elif not loop.reply_ok(reply, evidence_text):
             reply = ""  # unsafe or unsupported wording is dropped; the real data cards below still show
-        blocks = ([block("text", text=reply)] if reply else []) + cards
+        blocks = ([block("text", text=loop.plain(reply))] if reply else []) + cards
         if not blocks:
             blocks = [block("text", text="I could not put an answer together. Please try asking another way.")]
         failed = [r for r in results if not r.ok and r.status != "needs_confirmation"]
