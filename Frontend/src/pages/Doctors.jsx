@@ -155,6 +155,7 @@ export default function Doctors() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const seq = useRef(0); // only the newest request may update the page (fast chip clicks and the location lookup used to race)
   const [active, setActive] = useState(null);
   const [onlyOpen, setOnlyOpen] = useState(false);
   const [malayalam, setMalayalam] = useState(false);
@@ -180,6 +181,7 @@ export default function Doctors() {
   useEffect(() => { if (emergency) { locate(); setShowMap(true); } }, [emergency, locate]);
 
   const load = useCallback(async () => {
+    const mine = ++seq.current;
     setBusy(true);
     setError(null);
     try {
@@ -188,13 +190,14 @@ export default function Doctors() {
         ? await getDoctorRecommendation(loc)
         : await getNearbyDoctors({ ...loc, specialty: emergency ? undefined : specialty, emergency, openNow: onlyOpen,
                                    language: malayalam ? "Malayalam" : undefined });
+      if (mine !== seq.current) return;
       setData(res);
       setAsked(false);
       setActive(res.picks?.[0]?.id || res.results?.[0]?.id || null);
     } catch (e) {
-      setError(e.message);
+      if (mine === seq.current) setError(e.message);
     } finally {
-      setBusy(false);
+      if (mine === seq.current) setBusy(false);
     }
   }, [geo, city, mode, specialty, emergency, onlyOpen, malayalam]);
 
@@ -203,17 +206,19 @@ export default function Doctors() {
   const ask = async (e) => {
     e.preventDefault();
     if (q.trim().length < 2) return;
+    const mine = ++seq.current;
     setBusy(true);
     setError(null);
     try {
       const res = await askDoctors(q.trim(), geo?.lat, geo?.lng);
+      if (mine !== seq.current) return;
       setData(res);
       setAsked(true);
       setActive(res.picks?.[0]?.id || res.results?.[0]?.id || null);
     } catch (err) {
-      setError(err.message);
+      if (mine === seq.current) setError(err.message);
     } finally {
-      setBusy(false);
+      if (mine === seq.current) setBusy(false);
     }
   };
 
