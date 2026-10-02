@@ -221,6 +221,13 @@ class PlannerTests(Base_):
             self.assertEqual(plan.steps[0].tool, tool, text)
         self.assertEqual(self.llm.calls, 0)  # rules never spend LLM quota
 
+    def test_symptom_rule_does_not_hijack_record_or_logging_requests(self):
+        p = self.planner()
+        for text, tool in {"log my fever 101": "health.log_reading", "what does my cough medicine do": "medications.list",
+                           "need my chest x-ray report": "documents.search", "i have chest pain": "triage.check",
+                           "feeling dizzy since morning": "triage.check", "i have heart ache": "triage.check"}.items():
+            self.assertEqual(p.plan("patient", text).steps[0].tool, tool, text)
+
     def test_llm_plan_drops_unknown_and_bad_args(self):
         p = self.planner({"intent": "x", "steps": [{"tool": "delete_everything", "args": {}}, {"tool": "timeline.list", "args": {"limit": 3}},
                                                    {"tool": "timeline.list", "args": {"limit": 9999}}]})
@@ -501,6 +508,11 @@ class AgentLoopTests(Base_):
         from app.agent import loop
         self.assertTrue(loop.numbers_ok("BP was 152/96.", "result: Systolic BP 152.0 mmHg ... Diastolic BP 96.0"))
         self.assertFalse(loop.numbers_ok("BP was 153/96.", "result: Systolic BP 152.0 ... 96.0"))
+
+    def test_plain_only_splits_real_numbered_lists(self):
+        from app.agent import loop
+        self.assertEqual(loop.plain("Your sugar is 95. Your doctor should review it."), "Your sugar is 95. Your doctor should review it.")
+        self.assertEqual(loop.plain("Doctors: 1. Dr A 2 km 2. Dr B 3 km"), "Doctors:\n1. Dr A 2 km\n2. Dr B 3 km")
 
     def test_diagnosis_or_medicine_advice_wording_is_dropped(self):
         e = self.eng([{"tool_calls": [("medications__list", {})]}, {"content": "You should stop taking Metformin."}])

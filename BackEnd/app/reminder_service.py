@@ -247,7 +247,7 @@ def _nudge(db: Session, settings: ReminderSettings, patient: Patient, meds: list
         return 0
     due.sort(key=lambda x: x[0].clock)
     lines = [f"- {med_label(m)} (was due {_fmt_12h(r.clock)})" for r, m in due]
-    pending = _pending_later(db, patient.id, meds, today, now, {r.id for r, _ in due})
+    pending = _pending_later(db, patient.id, meds, today, now)
     text = "Reminder: these are not marked as taken yet:\n" + "\n".join(lines)
     if pending:
         text += "\nStill coming up today: " + ", ".join(pending) + "."
@@ -269,7 +269,7 @@ def _nudge(db: Session, settings: ReminderSettings, patient: Patient, meds: list
     return 1
 
 
-def _pending_later(db: Session, patient_id: str, meds: list[Medicine], today: date, now: datetime, skip: set) -> list[str]:
+def _pending_later(db: Session, patient_id: str, meds: list[Medicine], today: date, now: datetime) -> list[str]:
     """Doses later today that have not been announced yet, as 'Name at 9:00 PM'."""
     sent = {(r.medicine_id, r.clock) for r in db.scalars(select(SentDose).where(SentDose.patient_id == patient_id, SentDose.date == today.isoformat()))}
     out = []

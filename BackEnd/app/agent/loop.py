@@ -43,18 +43,7 @@ Examples of casual requests and what to do (people write loosely, in English, Ma
 - Follow-ups like "same but 1 hour", "no the other one", "do it again" refer to the earlier turns shown to you.
 {extra}"""
 
-GROUPS = {
-    "always": ["triage.check", "timeline.list", "documents.search", "medications.list", "health.latest", "health.trend", "health.alerts",
-               "careloop.due", "navigation.navigate", "visit.prepare", "documents.get"],
-    "profile": (r"condition|allerg|risk|danger|diagnos|worry|concern|safe", ["health.conditions", "health.allergies", "health.risks"]),
-    "share": (r"shar|qr|link|access|who can|revoke|remove|stop", ["sharing.active", "sharing.create", "sharing.revoke", "care.revoke_doctor"]),
-    "doctors": (r"doctor|specialist|clinic|hospital|appointment|ഡോക്ടർ", ["doctors.search"]),
-    "pdf": (r"pdf|summary|print|download|hand ?out|brief", ["pdf.generate", "pdf.preview"]),
-    "log": (r"log|add|record|enter|bp|pressure|sugar|pulse|oxygen|weight|temperature|took|taken|mark|dose", ["health.log_reading", "careloop.mark_taken", "careloop.history"]),
-    "file": (None, ["documents.extract", "documents.entities", "documents.evidence", "documents.summarize", "documents.compare", "records.add_from_file"]),
-    "doctor_core": (None, ["doctor.brief", "doctor.changes_since_visit", "doctor.record_conflicts", "doctor.missing_info"]),
-    "consult": (r"draft|note|soap|approve|sign|consult", ["consult.draft_from_notes", "consult.approve_draft"]),
-}
+FILE_TOOLS = {"documents.extract", "documents.entities", "documents.evidence", "documents.summarize", "documents.compare", "records.add_from_file"}
 
 
 def pick_tools(registry, role: str, text: str, has_file: bool) -> list:
@@ -62,7 +51,7 @@ def pick_tools(registry, role: str, text: str, has_file: bool) -> list:
     ("gimme something for the doc") must not hide the tool the person needs. Compact definitions keep this cheap."""
     out = []
     for spec in registry.for_role(role):
-        if spec.name in GROUPS["file"][1] and not has_file:
+        if spec.name in FILE_TOOLS and not has_file:
             continue
         out.append(spec)
     return out
@@ -131,7 +120,8 @@ def plain(text: str) -> str:
     t = re.sub(r"\*\*|__|`", "", text or "")
     t = re.sub(r"^\s*#+\s*", "", t, flags=re.M)
     t = re.sub(r"^\s*[*•]\s+", "- ", t, flags=re.M)
-    t = re.sub(r"(?<=[.!?\w)])\s+(?=(?:\d{1,2}[.)]|-)\s+[A-Z])", "\n", t)  # "... 1. Dr X 2. Dr Y" -> separate lines
+    if re.search(r"(?:^|\s)1[.)]\s+[A-Z]", t) and re.search(r"\s2[.)]\s+[A-Z]", t):  # only a real "1. ... 2. ..." list, not "sugar is 95. Your doctor"
+        t = re.sub(r"(?<=[.!?:\w)])\s+(?=[1-9][.)]\s+[A-Z])", "\n", t)
     return re.sub(r"[ \t]+\n", "\n", t).strip()
 
 
