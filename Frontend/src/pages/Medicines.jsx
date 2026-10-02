@@ -60,7 +60,7 @@ export default function Medicines() {
       </div>
 
       {data.length === 0 ? (
-        <Empty icon="💊">
+        <Empty>
           No medicines yet. They appear here when you add a prescription.
         </Empty>
       ) : (

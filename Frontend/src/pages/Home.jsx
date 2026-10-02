@@ -6,6 +6,7 @@ import { useCountUp } from "../anim.js";
 import { HealthCheckPanel, VitalsForm } from "../components/health.jsx";
 import { getProfile } from "../App.jsx";
 import { AlertCard, Empty, Loading } from "../components/ui.jsx";
+import GlanceStrip from "../components/glance.jsx";
 import { useT } from "../i18n.js";
 import { useApi } from "../useApi.js";
 
@@ -119,6 +120,10 @@ export default function Home() {
         summary={insights.data ? pick(insights.data, "summary") : null}
       />
 
+      {(insights.data || reminders.data) && (
+        <GlanceStrip insights={insights.data} reminders={reminders.data} warnings={open.length} />
+      )}
+
       <section className="section health-section">
         <div className="row between mb-2" style={{ alignItems: "center", flexWrap: "wrap", gap: "var(--sp-2)" }}>
           <h3 style={{ margin: 0 }}>
@@ -147,26 +152,17 @@ export default function Home() {
       <div className="grid-2">
         {/* Main Column: Medicines */}
         <div className="stack" style={{ gap: "var(--sp-8)" }}>
-          {/* Today's doses progress */}
-          {totalDoses > 0 && (
-            <div className="section stagger-1" style={{ marginTop: 0 }}>
-              <div className="row between mb-2" style={{ alignItems: "center" }}>
-                <h3>{t("todayMeds")}</h3>
-                <span className="text-dim text-xs">
-                  {takenDoses}/{totalDoses} done
-                </span>
-              </div>
-              <DoseProgress total={totalDoses} taken={takenDoses} />
-            </div>
-          )}
-
           {/* Medicine cards */}
           <div className="section stagger-2" style={{ marginTop: 0 }}>
-            {!totalDoses && <h3>{t("todayMeds")}</h3>}
+            <div className="row between mb-2" style={{ alignItems: "center" }}>
+              <h3>{t("todayMeds")}</h3>
+              {totalDoses > 0 && <span className="text-dim text-xs">{takenDoses}/{totalDoses} done</span>}
+            </div>
+            {totalDoses > 0 && <DoseProgress total={totalDoses} taken={takenDoses} />}
             {reminders.loading || reminders.error ? (
               <Loading error={reminders.error} onRetry={reminders.reload} />
             ) : reminders.data.length === 0 ? (
-              <Empty icon="💊">
+              <Empty>
                 No medicines scheduled. Add a prescription to get reminders.
               </Empty>
             ) : (
@@ -194,7 +190,7 @@ export default function Home() {
             ) : (
               <div className="card" style={{ padding: "var(--sp-4)" }}>
                 <p className="text-muted text-sm" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
-                  <span style={{ fontSize: "1rem" }}>🟢</span>
+                  <span className="ok-dot" aria-hidden="true" />
                   {t("noAlerts")}
                 </p>
               </div>

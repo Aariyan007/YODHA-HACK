@@ -108,7 +108,7 @@ export default function Timeline() {
       ) : error ? (
         <TimelineError error={error} onRetry={reload} />
       ) : docs.length === 0 ? (
-        <Empty icon="📋">
+        <Empty>
           {data.length === 0
             ? "No records yet. Tap Add to upload a prescription or lab report."
             : "No records of this kind yet."}

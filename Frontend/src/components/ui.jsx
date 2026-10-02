@@ -37,10 +37,13 @@ export function Loading({ error, onRetry }) {
 }
 
 // ── Empty state ───────────────────────────────────────────────
-export function Empty({ icon = "📋", children }) {
+export function Empty({ children }) {
   return (
     <div className="empty animate-in">
-      <span className="empty-icon" aria-hidden="true">{icon}</span>
+      <svg className="empty-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="26" className="em-ring" />
+        <path d="M18 34h8l5-12 7 22 5-10h5" className="em-pulse" />
+      </svg>
       <p>{children}</p>
     </div>
   );
