@@ -20,7 +20,8 @@ export default defineConfig(({ mode }) => {
     }),
     server: {
       port: 5173,
-      proxy: { "/api": "http://localhost:8000" },
+      // VITE_PROXY_TARGET lets the dev server talk to the Docker stack (http://localhost:8080) instead of a local uvicorn.
+      proxy: { "/api": process.env.VITE_PROXY_TARGET || "http://localhost:8000" },
     },
   };
 });

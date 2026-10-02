@@ -10,26 +10,26 @@
 
 :root {
   /* ── Surfaces ── */
-  --bg:             #F7F6F2;
-  --bg-subtle:      #F0EFE9;
+  --bg:             #F3F6F4;
+  --bg-subtle:      #EBF0ED;
   --surface:        #FFFFFF;
-  --surface-2:      #FAFAF8;
-  --surface-3:      #F1F3EF;
-  --border:         #E1E5E1;
-  --border-strong:  #CDD4CF;
+  --surface-2:      #F8FAF8;
+  --surface-3:      #EEF3F0;
+  --border:         #DCE5DF;
+  --border-strong:  #C5D2CA;
 
   /* ── Text ── */
-  --text:     #263238;
-  --text-2:   #4A5B66;
-  --text-3:   #5C6A72;
+  --text:     #1E2B28;
+  --text-2:   #41524D;
+  --text-3:   #56655F;
   --text-inv: #FFFFFF;
 
   /* ── Brand — Muted Sage ── */
-  --brand:          #557A6A;
-  --brand-hover:    #466558;
-  --brand-soft:     #E6EEE9;
-  --brand-border:   #BBCFC5;
-  --brand-dark:     #3B574A;
+  --brand:          #3F7A67;
+  --brand-hover:    #346655;
+  --brand-soft:     #E3EFE9;
+  --brand-border:   #B4D0C4;
+  --brand-dark:     #2C5748;
 
   /* ── Status ── */
   --success:        #3F7A58;
@@ -54,11 +54,14 @@
 
   /* ── Solid fills that carry white text (swapped in dark mode) ── */
   --on-fill:          #FFFFFF;
-  --brand-fill:       #557A6A;
-  --brand-fill-hover: #466558;
+  --brand-fill:       #3F7A67;
+  --brand-fill-hover: #346655;
   --success-fill:     #3F7A58;
   --danger-fill:      #A64848;
-  --bg-glass:         rgba(247,246,242,0.96);
+  --bg-glass:         rgba(243,246,244,0.92);
+  --chart-top:        rgba(63,122,103,0.30);
+  --chart-bottom:     rgba(63,122,103,0.02);
+  --chart-zone:       rgba(63,138,100,0.09);
   --overlay:          rgba(38,50,56,0.45);
 
   /* ── Radii ── */
@@ -156,7 +159,7 @@
   --text-3:   #9AA8A0;
   --text-inv: #121714;
 
-  --brand:          #8FBBA4;
+  --brand:          #86C7AB;
   --brand-hover:    #A5CCB6;
   --brand-soft:     #1F2E27;
   --brand-border:   #3A5648;
@@ -187,6 +190,9 @@
   --success-fill:     #2F6B49;
   --danger-fill:      #A64848;
   --bg-glass:         rgba(18,23,20,0.92);
+    --chart-top:        rgba(134,199,171,0.34);
+    --chart-bottom:     rgba(134,199,171,0.02);
+    --chart-zone:       rgba(127,203,159,0.10);
   --overlay:          rgba(0,0,0,0.6);
 
   color-scheme: dark;
@@ -206,7 +212,7 @@
   --text-3:   #9AA8A0;
   --text-inv: #121714;
 
-  --brand:          #8FBBA4;
+  --brand:          #86C7AB;
   --brand-hover:    #A5CCB6;
   --brand-soft:     #1F2E27;
   --brand-border:   #3A5648;
@@ -237,6 +243,9 @@
   --success-fill:     #2F6B49;
   --danger-fill:      #A64848;
   --bg-glass:         rgba(18,23,20,0.92);
+    --chart-top:        rgba(134,199,171,0.34);
+    --chart-bottom:     rgba(134,199,171,0.02);
+    --chart-zone:       rgba(127,203,159,0.10);
   --overlay:          rgba(0,0,0,0.6);
 
   color-scheme: dark;
@@ -1410,3 +1419,77 @@ button.link, button.link.small { min-height: 48px; padding: 0 var(--sp-2); }
 .pw-row { display: flex; gap: var(--sp-2); align-items: center; }
 .pw-row input { flex: 1; min-width: 0; margin: 0; }
 .invite-code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--font-3xl); font-weight: var(--fw-bold); letter-spacing: 0.12em; color: var(--brand-dark); background: var(--brand-soft); border: 1px dashed var(--brand-border); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-5); text-align: center; user-select: all; }
+
+
+/* ═══════════════════════════════════════════════════════════
+   CHARTS (components/charts.jsx), skeleton loaders, small motion
+═══════════════════════════════════════════════════════════ */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+.chart-card { padding: var(--sp-5) var(--sp-4) var(--sp-3); position: relative; }
+.chart-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 2px 12px; margin-bottom: var(--sp-2); border-radius: var(--r-full); font-size: var(--font-xs); font-weight: var(--fw-semi); background: var(--surface-3); color: var(--text-2); border: 1px solid var(--border); }
+.chart-chip.good  { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+.chart-chip.watch { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+
+.lc { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+.lc-lg { max-width: 900px; margin-inline: auto; }
+.lc-grad-top { stop-color: var(--chart-top); }
+.lc-grad-bottom { stop-color: var(--chart-bottom); }
+.lc-grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 5; opacity: 0.8; }
+.lc-axis { font-family: var(--font); font-size: 10px; fill: var(--text-3); }
+.lc-sm .lc-axis { font-size: 9px; }
+.lc-zone { fill: var(--chart-zone); }
+.lc-target { stroke: var(--success); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.85; }
+.lc-target-label { fill: var(--success); font-weight: 600; }
+.lc-line { fill: none; stroke: var(--brand); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.lc-sm .lc-line { stroke-width: 2.2; }
+.lc-cross { stroke: var(--brand); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.55; }
+.lc-dot { stroke: var(--surface); stroke-width: 2.2; cursor: pointer; transition: r 160ms ease; outline: none; }
+.lc-dot.good  { fill: var(--brand); }
+.lc-dot.watch { fill: var(--warning); }
+.lc-dot.alert { fill: var(--danger); }
+.lc-dot.on, .lc-dot:focus-visible { stroke: var(--text); stroke-width: 2.4; }
+.lc-ping { fill: none; stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: lc-ping 2.4s ease-out infinite; }
+.lc-ping.good  { stroke: var(--brand); }
+.lc-ping.watch { stroke: var(--warning); }
+.lc-ping.alert { stroke: var(--danger); }
+@keyframes lc-ping { 0% { transform: scale(0.7); opacity: 0.8; } 70%, 100% { transform: scale(2.6); opacity: 0; } }
+.lc-val { font-family: var(--font); font-size: 11px; font-weight: 700; fill: var(--text); text-anchor: middle; }
+.lc-val.alert { fill: var(--danger); }
+.lc-val.watch { fill: var(--warning); }
+.lc-sm .lc-val { font-size: 10px; }
+.lc-tip rect { fill: var(--text); }
+.lc-tip text { fill: var(--bg); font-family: var(--font); font-size: 11px; font-weight: 600; }
+
+.labs-spark { width: 96px; padding-block: 0; }
+.spark { width: 84px; height: 26px; display: block; }
+.spark-line { fill: none; stroke: var(--brand); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.spark.watch .spark-line { stroke: var(--warning); }
+.spark.alert .spark-line { stroke: var(--danger); }
+.spark-dot { fill: var(--brand); }
+.spark.watch .spark-dot { fill: var(--warning); }
+.spark.alert .spark-dot { fill: var(--danger); }
+
+/* Skeleton loaders: the shape of what is coming, not a spinner */
+.skeleton-stack { display: grid; gap: var(--sp-3); }
+.skeleton { position: relative; overflow: hidden; border-radius: var(--r-md); background: var(--surface-3); min-height: 16px; }
+.skeleton.card-shape { min-height: 92px; border: 1px solid var(--border); background: var(--surface); }
+.skeleton::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, var(--brand-soft) 50%, transparent 80%); transform: translateX(-100%); animation: skeleton-sweep 1.3s ease-in-out infinite; }
+@keyframes skeleton-sweep { to { transform: translateX(100%); } }
+.skeleton.w-40 { width: 40%; } .skeleton.w-70 { width: 70%; }
+
+/* Small, motivated motion: a taken dose confirms itself; buttons feel pressed; cards lift where they are interactive */
+button:active:not(:disabled), a.btn:active { transform: translateY(1px) scale(0.985); }
+.reminder-card.taken .pill.good { animation: pop-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes pop-in { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.risk-card, .doc-card { transition: transform var(--t-base), box-shadow var(--t-base); }
+.risk-card:hover, .doc-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+/* A faint sage wash behind the page, fixed so scrolling never repaints it */
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(900px 420px at 12% -8%, var(--brand-soft), transparent 70%), radial-gradient(700px 360px at 100% 0%, var(--surface-3), transparent 70%); opacity: 0.9; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-ping, .skeleton::after { animation: none; }
+  .lc-ping { display: none; }
+  .reminder-card.taken .pill.good { animation: none; }
+}

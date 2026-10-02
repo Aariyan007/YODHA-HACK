@@ -77,3 +77,31 @@ export function magnet(el, strength = 6) {
     el.removeEventListener("pointerleave", leave);
   };
 }
+
+// Reveal items that start below the fold when they scroll into view (IntersectionObserver, no scroll listeners).
+// Items already on screen are left alone, so this never fights the page-load stagger.
+export function useScrollIn(deps = [], { selector = ".section, .trend-card, .card", y = 22 } = {}) {
+  const ref = useRef(null);
+  useIsoLayoutEffect(() => {
+    const root = ref.current;
+    if (!root || reducedMotion() || typeof IntersectionObserver === "undefined") return;
+    const vh = window.innerHeight;
+    const items = [...root.querySelectorAll(selector)].filter((el) => el.getBoundingClientRect().top > vh * 0.92);
+    if (!items.length) return;
+    gsap.set(items, { opacity: 0, y });
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        io.unobserve(en.target);
+        gsap.to(en.target, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", clearProps: "transform,opacity" });
+      });
+    }, { threshold: 0.12 });
+    items.forEach((el) => io.observe(el));
+    return () => {
+      io.disconnect();
+      gsap.set(items, { clearProps: "transform,opacity" });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return ref;
+}

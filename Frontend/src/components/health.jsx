@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { gsap } from "gsap";
 import { addVitals } from "../api/client.js";
-import { drawPath, pulse, reducedMotion, useReveal } from "../anim.js";
+import { pulse, useReveal } from "../anim.js";
 import { useT } from "../i18n.js";
 import { CountUp } from "./ui.jsx";
+import { LineChart, changeSummary } from "./charts.jsx";
 
 const LEVEL_LABEL = {
   en: { emergency: "Urgent", high: "See a doctor soon", watch: "Keep an eye" },
@@ -217,52 +217,19 @@ export function VitalsForm({ onSaved }) {
 const TARGETS = { hba1c: 7, sbp: 130, dbp: 80, fbs: 130, ppbs: 180, rbs: 160, ldl: 100, creatinine: 1.2, spo2: 95, pulse: 100 };
 
 export function TrendChart({ series, status }) {
-  const pathRef = useRef(null);
-  const svgRef = useRef(null);
   const pts = series.points;
-  useEffect(() => {
-    const t = drawPath(pathRef.current, { duration: 0.9 });
-    if (svgRef.current && !reducedMotion()) {
-      gsap.from(svgRef.current.querySelectorAll(".tc-dot"), { scale: 0, transformOrigin: "center", duration: 0.3, stagger: 0.07, delay: 0.5, ease: "back.out(2)" });
-    }
-    return () => t?.kill();
-  }, [series.code, pts.length]);
-  const W = 320, H = 120, PL = 30, PR = 14, PT = 22, PB = 22;
-  const vals = pts.map((p) => p.value);
   const target = TARGETS[series.code];
-  const lo = Math.min(...vals, target ?? Infinity), hi = Math.max(...vals, target ?? -Infinity);
-  const pad = (hi - lo) * 0.18 || 1;
-  const min = lo - pad, max = hi + pad;
-  const x = (i) => PL + (i * (W - PL - PR)) / Math.max(pts.length - 1, 1);
-  const y = (v) => PT + (H - PT - PB) - ((v - min) * (H - PT - PB)) / (max - min);
-  const d = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
   const last = pts[pts.length - 1];
   const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10);
+  const sum = changeSummary(pts, series.code, series.unit);
   return (
     <div className={`trend-card ${status || ""}`}>
       <div className="row between" style={{ alignItems: "baseline" }}>
         <span className="trend-name">{series.name}</span>
         <span className="trend-last"><CountUp value={fmt(last.value)} /> <small>{series.unit}</small></span>
       </div>
-      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="trend-svg" role="img" aria-label={`${series.name} trend`}>
-        {target != null && (
-          <g>
-            <line x1={PL} x2={W - PR} y1={y(target)} y2={y(target)} className="tc-target" />
-            <text x={W - PR} y={y(target) - 4} textAnchor="end" className="tc-axis">target {target}</text>
-          </g>
-        )}
-        <path ref={pathRef} d={d} className="tc-line" />
-        {pts.map((p, i) => (
-          <g key={i}>
-            <circle cx={x(i)} cy={y(p.value)} r={i === pts.length - 1 ? 4.5 : 3.2} className="tc-dot" />
-            {(i === 0 || i === pts.length - 1 || pts.length <= 5) && (
-              <text x={x(i)} y={y(p.value) - 8} textAnchor="middle" className="tc-val">{fmt(p.value)}</text>
-            )}
-          </g>
-        ))}
-        <text x={PL} y={H - 6} className="tc-axis">{pts[0].date.slice(2, 7)}</text>
-        <text x={W - PR} y={H - 6} textAnchor="end" className="tc-axis">{last.date.slice(2, 7)}</text>
-      </svg>
+      {sum && <span className={`chart-chip ${sum.tone}`}>{sum.text}</span>}
+      <LineChart points={pts} code={series.code} name={series.name} unit={series.unit} target={target} size="sm" />
     </div>
   );
 }

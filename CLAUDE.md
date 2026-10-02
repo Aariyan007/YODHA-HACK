@@ -155,3 +155,9 @@ Screenshots at 820 px (tablet) and 390 px (phone) are easiest with Chrome DevToo
 ## Laya status (2026-10-02, end of Phase 9 session)
 
 Fine-tuning has NOT been run yet, so Laya is wired but gated off (the zero-shot Hub model cannot pass the gate; set `LAYA_ALLOW_UNGATED=1` to try it in development). Training on this 8 GB M2 is not practical (about 1.8 GB free memory, Docker VM takes 3.8 GB): run `ml/train_laya_colab.ipynb` on a free Colab T4 (needs the repo pushed to GitHub), unzip the result into `models/laya/` with `eval_report.json` beside the weights, check `ml/reports/finetuned.md`, then start with `docker-compose.ai.yml`. Inside Docker on a Mac the service takes 1.4-2.8 s per call (native: 0.1-0.7 s), so prefer running `laya/app.py` natively and setting `LAYA_URL=http://host.docker.internal:8090` for the backend container. Zero-shot lines labels (`emergency_phrase` etc.) come back near 0.5 for everything, so they are useless until fine-tuned. The generated Malayalam training text is LLM-written and has some nonsense sentences; the hand-written test set is what to trust.
+
+## UI refresh (charts and motion)
+
+- `Frontend/src/components/charts.jsx` is the single chart engine: `LineChart` (monotone curve, gradient area, healthy-zone band, hover/touch/keyboard tooltip, pulsing latest dot, GSAP draw-in), `Sparkline`, `changeSummary`. HbA1c, per-test trend cards and the console history all use it.
+- Sage palette deepened (`--brand #3F7A67` light, `#86C7AB` dark); chart tokens `--chart-top/bottom/zone`. Skeleton loaders replace the spinner; `useScrollIn` (IntersectionObserver) reveals below-the-fold sections.
+- `VITE_PROXY_TARGET=http://localhost:8080 npm run dev` points the dev server at the Docker stack. Audit 390/1024 light+dark: no horizontal scroll, 48px targets; only Leaflet controls and decorative stars fail contrast (pre-existing).

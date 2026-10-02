@@ -1,4 +1,5 @@
 import { useCountUp } from "../anim.js";
+import { LineChart } from "./charts.jsx";
 import { useT } from "../i18n.js";
 
 // ── Status pill (good / watch / alert) ────────────────────────
@@ -25,9 +26,12 @@ export function Loading({ error, onRetry }) {
     );
   }
   return (
-    <div className="loading-state animate-in" role="status" aria-live="polite">
-      <div className="spinner" aria-hidden="true" />
-      <p className="text-dim text-sm">{lang === "ml" ? "ലോഡ് ചെയ്യുന്നു…" : "Loading…"}</p>
+    <div className="skeleton-stack" role="status" aria-live="polite">
+      <span className="sr-only">{lang === "ml" ? "ലോഡ് ചെയ്യുന്നു…" : "Loading…"}</span>
+      <div className="skeleton w-40" style={{ height: 28 }} aria-hidden="true" />
+      <div className="skeleton w-70" aria-hidden="true" />
+      <div className="skeleton card-shape" aria-hidden="true" />
+      <div className="skeleton card-shape" aria-hidden="true" />
     </div>
   );
 }
@@ -104,28 +108,7 @@ export function TimelineItem({ doc }) {
 // ── HbA1c chart ───────────────────────────────────────────────
 export function HbA1cChart({ points }) {
   if (!points?.length) return null;
-  const W = 340, H = 150, P = 30;
-  const vals = points.map((p) => p.value);
-  const min = Math.min(6, ...vals) - 0.5;
-  const max = Math.max(...vals) + 0.5;
-  const x = (i) => P + (i * (W - 2 * P)) / Math.max(points.length - 1, 1);
-  const y = (v) => H - P - ((v - min) * (H - 2 * P)) / (max - min);
-  const targetY = y(7);
-  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="HbA1c trend chart">
-      <line x1={P} x2={W - P} y1={targetY} y2={targetY} className="target" />
-      <text x={W - P} y={targetY - 5} textAnchor="end" className="axis">target 7%</text>
-      <path d={path} className="line" />
-      {points.map((p, i) => (
-        <g key={`${p.date}-${i}`}>
-          <circle cx={x(i)} cy={y(p.value)} r="5" className={`dot ${p.value <= 7 ? "good" : p.value <= 8 ? "watch" : "alert"}`} />
-          <text x={x(i)} y={y(p.value) - 10} textAnchor="middle" className="val">{p.value}</text>
-          <text x={x(i)} y={H - 8} textAnchor="middle" className="axis">{p.date.slice(2, 7)}</text>
-        </g>
-      ))}
-    </svg>
-  );
+  return <LineChart points={points} code="hba1c" name="HbA1c" unit="%" target={7} size="lg" />;
 }
 
 // ── Date helpers ──────────────────────────────────────────────
