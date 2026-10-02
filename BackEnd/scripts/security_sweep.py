@@ -143,5 +143,11 @@ if not demo_on:
     check("/api/health/deep is 404 with DEMO_MODE off", http.get("/api/health/deep", headers=H).status_code == 404)
     check("/api/demo/fire-reminder is 404 with DEMO_MODE off", http.post("/api/demo/fire-reminder", headers=H).status_code == 404)
 
+try:
+    from scripts.cleanup_test_accounts import cleanup  # noqa: E402
+    print(f"cleanup: removed {cleanup()} throwaway account(s)")
+except Exception as e:  # never fail a run because of cleanup
+    print(f"cleanup skipped: {type(e).__name__}")
+
 print(f"\n{'ALL PASS' if not fails else str(fails) + ' FAILED'}")
 sys.exit(1 if fails else 0)

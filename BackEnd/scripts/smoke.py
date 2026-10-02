@@ -250,6 +250,12 @@ def _():
     return f"removed {d['uploadedDocuments']} upload, {d['importedRecords']} imported, {d['visitNotes']} visit; Telegram reminders on"
 
 
+try:
+    from scripts.cleanup_test_accounts import cleanup  # noqa: E402
+    print(f"cleanup: removed {cleanup()} throwaway account(s)")
+except Exception as e:  # never fail a run because of cleanup
+    print(f"cleanup skipped: {type(e).__name__}")
+
 passed = sum(1 for _, ok, _ in results if ok)
 print(f"\n{passed}/{len(results)} steps passed in {time.time() - T0:.1f}s")
 sys.exit(0 if passed == len(results) else 1)
