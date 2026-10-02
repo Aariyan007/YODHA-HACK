@@ -1616,3 +1616,36 @@ body::before {
   border-color: var(--hairline);
   box-shadow: var(--shadow-xs);
 }
+
+/* ── v6 Timeline: glass nodes, gradient thread, pill badges ── */
+.timeline::before {
+  width: 2px;
+  background: linear-gradient(var(--brand-border), var(--border) 12%, var(--border) 88%, transparent);
+  opacity: 0.8;
+}
+.tl-dot {
+  width: 16px; height: 16px; border-width: 3px;
+  box-shadow: 0 0 0 4px var(--bg), 0 2px 8px rgba(63,122,103,0.28);
+}
+.tl-item:hover .tl-dot { box-shadow: 0 0 0 4px var(--bg), 0 0 0 8px var(--brand-soft); }
+.tl-card {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--hairline);
+  padding: var(--sp-5);
+}
+.tl-item:hover .tl-card { transform: translateY(-2px); }
+.tl-type {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: var(--r-full);
+  font-size: 0.6875rem; letter-spacing: 0.04em;
+  background: var(--brand-soft); color: var(--brand-dark);
+  border: 1px solid var(--brand-border);
+}
+.tl-item.lab .tl-type { background: var(--info-bg); color: var(--info); border-color: var(--info-border); }
+.tl-item.consultation .tl-type, .tl-item.visit .tl-type { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+
+/* Filter chips → soft pills, active = filled brand */
+.chip { border-radius: var(--r-full); border: 1px solid var(--hairline); box-shadow: var(--shadow-xs); transition: background var(--t-base), color var(--t-base), box-shadow var(--t-base), transform var(--t-fast); }
+.chip:hover { background: var(--surface-3); }
+.chip:active { transform: scale(0.96); }
+.chip.on { background: var(--brand-fill); color: var(--on-fill); border-color: transparent; box-shadow: var(--shadow-brand); }
