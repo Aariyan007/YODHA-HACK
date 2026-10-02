@@ -176,3 +176,16 @@ Harness notes:
 
 Colab T4 run finished; weights unzipped to `models/laya/` (gitignored, with `eval_report.json`). Gate FAILED, so the service loads but the app uses rules only: urgency 0.776 with rules (needs 0.80), specialist 0.929 on Gretel (hand-written 0.61), red-team 33/33. English urgency 0.97, Malayalam 0.21, Manglish 0.25; consultation-line flags recall 0.0. Decision: leave Laya off, focus on UI for the judges. To improve later: add hand-written Malayalam/Manglish training rows and retrain. Run without the AI overlay (`docker compose up -d --build --remove-orphans`) to save memory on the 8 GB Mac.
 - Home now opens with `components/glance.jsx` (sugar average + sparkline, BP, dose ring, warnings count; tiles link to Health). Empty states use a drawn mark (`.empty-mark`), no emoji; the `Empty` component no longer takes an `icon` prop.
+
+## UI v6 — clinical-premium redesign (2026-10-02)
+
+Full visual refresh toward the reference dashboard the user supplied (light, soft, green — NOT dark glassmorphism; that was the written brief but the image won). Kept the sage brand, Malayalam, AA contrast, 48px targets, reduced-motion safety.
+
+- Tokens (`styles.css` `:root`): softer neutral ground `--bg #E9EDEA` + two fixed ambient sage blobs on `body::before`; added `--surface-inset`, `--hairline`, `--r-2xl`, `--shadow-brand`; shadows softened to floating; `--r-lg` 18. Dark equivalents added for the new tokens.
+- Shell: floating glass **pill nav** (`.tabs` is now a rounded surface rail; active tab = filled brand pill with `--shadow-brand`; icons scale on hover; old `.tab-indicator` underline hidden). Top bar blends into the ground via a hairline.
+- Cards: `--r-xl`, hairline border, soft floating shadow, `.card-hover` lift utility. Buttons are pills with hover-lift + `:active` press; inputs have `--r-lg` + focus glow; `.seg` segmented controls.
+- Home dashboard (`components/glance.jsx`): editorial "Welcome, <name>" + `todayOverview` subtitle; four stat tiles (sugar, BP, doses, warnings) with status pills and a recessed `.gl-well` holding a sparkline / dose ring / helpful text. `.gl-head` wraps so the pill never overflows at 390px.
+- Timeline: glass ringed nodes with glow, gradient thread, pill type badges, pill filter chips.
+- Upload: glass drag-and-drop `.dropzone` with a drawn SVG icon + drag state (`onDrop`), ready-to-analyse state, pulsing AI stage dots. No emoji anywhere (empty states use `.empty-mark`).
+- The v6 rules are appended at the END of `styles.css` so they win over v5 at equal specificity (except the 48px touch-target block, still last). The reference image is at `~/Library/.../PHOTO-2026-10-02-14-25-00.jpg` (user's WhatsApp tmp, not in repo).
+- Audit (iframe harness, 11 routes x 390/1024 x light/dark): no horizontal scroll, no sub-48px control; only Doctors rating stars and Leaflet map controls fail contrast (both pre-existing). `npm run build` + `build:single` pass; Docker image rebuilt to serve it.
