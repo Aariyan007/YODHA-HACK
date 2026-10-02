@@ -62,3 +62,28 @@ LLMService.available = _base_available
 LLMService.chat_tools = _base_chat_tools
 GroqLLM.available = lambda self: bool(__import__("os").getenv("GROQ_API_KEY"))
 GroqLLM.chat_tools = lambda self, messages, tools, max_tokens=600: _groq_chat(messages, tools, max_tokens)
+
+
+# ---------------------------------------------------------------- a second, small model that checks the reply
+
+def _groq_judge(system: str, user: str) -> dict | None:
+    """One cheap JSON call on the small model (its own quota). None on any failure: the caller decides what that means."""
+    import json
+    import os
+    from groq import Groq
+    from ai.consultation import FALLBACK_MODEL
+    key = os.getenv("GROQ_API_KEY")
+    if not key:
+        return None
+    try:
+        r = Groq(api_key=key, timeout=15.0, max_retries=0).chat.completions.create(
+            model=FALLBACK_MODEL, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            max_tokens=500, temperature=0, reasoning_effort="medium", response_format={"type": "json_object"})
+        out = json.loads(r.choices[0].message.content or "{}")
+        return out if isinstance(out, dict) else None
+    except Exception:
+        return None
+
+
+LLMService.judge = lambda self, system, user: None
+GroqLLM.judge = lambda self, system, user: _groq_judge(system, user)

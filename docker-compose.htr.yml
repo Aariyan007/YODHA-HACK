@@ -1,0 +1,18 @@
+# Optional handwriting reader (TrOCR). Run with:  docker compose -f docker-compose.yml -f docker-compose.htr.yml up -d --build
+# About 1.5 GB for the model download on first use and about 1 GB of memory: do not run it together with the Laya overlay on an 8 GB Mac.
+services:
+  htr:
+    build: ./htr
+    restart: unless-stopped
+    environment:
+      HTR_MODEL: ${HTR_MODEL:-microsoft/trocr-base-handwritten}
+    volumes: [hf-cache:/home/app/.cache/huggingface]
+    read_only: false
+    mem_limit: 2g
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  backend:
+    environment:
+      HTR_URL: http://htr:8091
+volumes:
+  hf-cache:

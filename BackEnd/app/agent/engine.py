@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 import json
 
-from . import loop, tasks
+from . import judge, loop, tasks
 from .context import AgentContext
 from .executor import AgentExecutor
 from .formatter import AgentResponseFormatter
@@ -188,6 +188,11 @@ class AgentEngine:
             reply = loop.fixed_reply(conf)
         elif not loop.reply_ok(reply, evidence_text):
             reply = ""  # unsafe or unsupported wording is dropped; the real data cards below still show
+        elif results:  # the small judge model has the last word, and can only remove a reply
+            supported, _bad = judge.check(self.llm, evidence_text, reply)
+            if not supported:
+                log.info("judge removed a reply (%d unsupported claim(s))", len(_bad))
+                reply = ""
         blocks = ([block("text", text=loop.plain(reply))] if reply else []) + cards
         if not blocks:
             blocks = [block("text", text="I could not put an answer together. Please try asking another way.")]

@@ -452,6 +452,34 @@ class AgentLoopTests(Base_):
         self.assertIn("<tool_result", str(self.llm.seen[1][0]))
         self.assertIn("sharing__create", self.llm.seen[0][1])  # all tools are offered: casual wording must not hide one
 
+    def test_judge_can_remove_an_unsupported_reply_but_cards_stay(self):
+        class Judged(ScriptedLLM):
+            def judge(self, system, user):
+                self.judged = user
+                return {"supported": False, "unsupported": ["Metformin cures diabetes"]}
+        self.llm = Judged([{"tool_calls": [("medications__list", {})]}, {"content": "You take Metformin 500 mg, which is a good treatment that fully controls sugar."}])
+        out = AgentEngine(llm=self.llm, runner=lambda f: f()).chat(self.ctx(), "what pills am i on")
+        self.assertFalse(any(b["type"] == "text" for b in out["blocks"]))
+        self.assertTrue(any(b["type"] == "medication" for b in out["blocks"]))
+        self.assertIn("TOOL_RESULTS", self.llm.judged)
+
+    def test_judge_unavailable_or_approving_keeps_the_reply(self):
+        reply = "You take Metformin 500 mg in the morning, as prescribed by your doctor in the last visit."
+        for verdict in (None, {"supported": True}, {"nonsense": 1}):
+            class J(ScriptedLLM):
+                def judge(self, system, user):
+                    return verdict
+            llm = J([{"tool_calls": [("medications__list", {})]}, {"content": reply}])
+            out = AgentEngine(llm=llm, runner=lambda f: f()).chat(self.ctx(), "what pills am i on")
+            self.assertEqual(out["blocks"][0]["text"], reply, verdict)
+
+    def test_judge_skipped_without_tool_results_and_for_short_replies(self):
+        class J(ScriptedLLM):
+            def judge(self, system, user):
+                raise AssertionError("must not be called")
+        llm = J([{"tool_calls": [("medications__list", {})]}, {"content": "You take Metformin 500 mg."}])
+        AgentEngine(llm=llm, runner=lambda f: f()).chat(self.ctx(), "what pills am i on")
+
     def test_follow_ups_see_the_earlier_turn(self):
         e = self.eng([{"tool_calls": [("medications__list", {})]}, {"content": "You take Metformin."}, {"content": "Metformin, 500 mg."}])
         ctx = self.ctx()

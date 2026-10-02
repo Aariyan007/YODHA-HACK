@@ -105,4 +105,26 @@ def second_pass(client, call, data: bytes, mime: str, doc: dict) -> dict:
         if len(lines) >= len(doc.get("source_lines") or []):
             doc["source_lines"] = lines  # the careful reading keeps [?] where the page is unclear
     doc["handwritten"] = True
+    _third_reader(img, doc)
     return doc
+
+
+def _third_reader(img: bytes, doc: dict) -> None:
+    """Optional TrOCR reader (htr/ service). It only ADDS information: which accepted medicines it also saw, and an extra
+    caution on names it could not find while the page text it read was substantial. It never makes a medicine certain."""
+    from . import htr
+    lines = htr.read(img)
+    if not lines:
+        return
+    doc["htr_lines"] = lines[:40]
+    substantial = sum(len(l) for l in lines) >= 20
+    keep, demote = [], []
+    for m in doc.get("medicines") or []:
+        saw = htr.seen(str(m.get("name") or ""), lines)
+        m["htr_seen"] = saw
+        if substantial and not saw and not m.get("dose"):  # no dose written and the third reader never saw the name: too thin to trust
+            demote.append({"name": str(m.get("name")), "alternative": None, "reason": "a third reader did not find this name on the page"})
+        else:
+            keep.append(m)
+    doc["medicines"] = keep
+    doc["uncertain_medicines"] = (doc.get("uncertain_medicines") or []) + demote

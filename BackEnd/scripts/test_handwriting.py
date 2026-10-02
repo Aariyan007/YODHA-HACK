@@ -89,5 +89,39 @@ class AgentSurface(unittest.TestCase):
         self.assertTrue(any("handwritten" in w for w in out["warnings"]))
 
 
+class ThirdReader(unittest.TestCase):
+    def setUp(self):
+        from ai import htr
+        self.htr = htr
+
+    def test_seen_is_loose_but_not_blind(self):
+        self.assertTrue(self.htr.seen("Metformin", ["Rx Metformn 500 BD"]))
+        self.assertFalse(self.htr.seen("Metformin", ["Rx Aspirin 75 OD"]))
+
+    def test_off_by_default_and_never_raises(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"HTR_URL": ""}):
+            self.assertIsNone(self.htr.read(png()))
+        with mock.patch.dict(os.environ, {"HTR_URL": "http://127.0.0.1:1"}):
+            self.assertIsNone(self.htr.read(png()))
+
+    def test_third_reader_only_demotes_thin_unseen_names(self):
+        from unittest import mock
+        doc = {"medicines": [{"name": "Metformin", "dose": "500 mg"}, {"name": "Telmisartan"}, {"name": "Amlodipine", "dose": "5 mg"}], "uncertain_medicines": []}
+        with mock.patch.object(self.htr, "read", return_value=["Rx", "Metformin 500 mg BD", "take after food daily"]):
+            hw._third_reader(b"x", doc)
+        self.assertEqual([m["name"] for m in doc["medicines"]], ["Metformin", "Amlodipine"])  # a written dose keeps it
+        self.assertEqual(doc["uncertain_medicines"][0]["name"], "Telmisartan")
+        self.assertTrue(doc["medicines"][0]["htr_seen"])
+
+    def test_no_reader_changes_nothing(self):
+        from unittest import mock
+        doc = {"medicines": [{"name": "Metformin"}], "uncertain_medicines": []}
+        with mock.patch.object(self.htr, "read", return_value=None):
+            hw._third_reader(b"x", doc)
+        self.assertEqual(len(doc["medicines"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
