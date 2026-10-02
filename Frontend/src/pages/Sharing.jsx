@@ -1,10 +1,96 @@
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { createShare, getAccessLog, getFamily } from "../api/client.js";
-import { Loading } from "../components/ui.jsx";
+import { createInvite, createShare, getAccessLog, getFamily, listMyDoctors, removeDoctor } from "../api/client.js";
+import { Empty, Loading } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 import { appPath, appUrl } from "../routing.js";
 import { useApi } from "../useApi.js";
+
+// ── Invite your doctor (Phase 8) ──────────────────────────────
+function InviteDoctor() {
+  const { lang } = useT();
+  const ml = lang === "ml";
+  const doctors = useApi(listMyDoctors);
+  const [invite, setInvite] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState(null); // { kind, text }
+
+  const make = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      setInvite(await createInvite());
+    } catch (e) {
+      setNote({ kind: "error", text: e.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(invite.code);
+      setNote({ kind: "ok", text: ml ? "പകർത്തി." : "Copied." });
+    } catch {
+      setNote({ kind: "error", text: ml ? "പകർത്താനായില്ല. കോഡ് തൊട്ട് തിരഞ്ഞെടുക്കുക." : "Could not copy. Tap the code to select it." });
+    }
+  };
+  const remove = async (d) => {
+    setNote(null);
+    try {
+      await removeDoctor(d.linkId);
+      await doctors.reload();
+    } catch (e) {
+      setNote({ kind: "error", text: e.message });
+    }
+  };
+
+  return (
+    <div className="section stagger-1" style={{ marginTop: 0 }}>
+      <h3>{ml ? "നിങ്ങളുടെ ഡോക്ടറെ ക്ഷണിക്കുക" : "Invite your doctor"}</h3>
+      <div className="card">
+        <p className="text-sm text-muted" style={{ marginBottom: "var(--sp-4)" }}>
+          {ml
+            ? "ഡോക്ടർ അവരുടെ MediThread ഡോക്ടർ അക്കൗണ്ടിൽ ഈ കോഡ് നൽകണം. കോഡ് ഒരു തവണ മാത്രം, 24 മണിക്കൂർ."
+            : "Give this code to your doctor. They enter it in their MediThread doctor account to see your record. It works once and expires after 24 hours."}
+        </p>
+        <button className="primary" onClick={make} disabled={busy}>
+          {busy ? "…" : invite ? (ml ? "പുതിയ കോഡ്" : "New code") : ml ? "കോഡ് ഉണ്ടാക്കുക" : "Make a code"}
+        </button>
+        {invite && (
+          <div style={{ marginTop: "var(--sp-4)", display: "grid", gap: "var(--sp-3)" }}>
+            <div className="invite-code" aria-label={`Invite code ${invite.code}`}>{invite.code}</div>
+            <div className="row between">
+              <span className="text-dim text-xs">{ml ? "കാലാവധി" : "Expires"}: {new Date(invite.expiresAt).toLocaleString("en-IN")}</span>
+              <button onClick={copy}>{ml ? "പകർത്തുക" : "Copy"}</button>
+            </div>
+          </div>
+        )}
+        {note && (
+          <p className={note.kind === "error" ? "error text-sm" : "text-sm"} role={note.kind === "error" ? "alert" : "status"}>{note.text}</p>
+        )}
+
+        <h4 style={{ marginTop: "var(--sp-5)" }}>{ml ? "നിങ്ങളുടെ രേഖ കാണാൻ കഴിയുന്നവർ" : "Doctors who can see your record"}</h4>
+        {doctors.loading || doctors.error ? (
+          <Loading error={doctors.error} onRetry={doctors.reload} />
+        ) : doctors.data.length === 0 ? (
+          <Empty>{ml ? "ഇതുവരെ ആരുമില്ല." : "No doctors yet."}</Empty>
+        ) : (
+          <div className="list">
+            {doctors.data.map((d) => (
+              <div key={d.linkId} className="row between">
+                <div style={{ minWidth: 0 }}>
+                  <strong>{d.name}</strong>
+                  <div className="text-dim text-xs">{[d.specialty, d.hospital].filter(Boolean).join(" · ")}</div>
+                </div>
+                <button onClick={() => remove(d)}>{ml ? "നീക്കം ചെയ്യുക" : "Remove access"}</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Family member row ─────────────────────────────────────────
 function FamilyRow({ f }) {
@@ -82,6 +168,7 @@ export default function Sharing() {
 
       <div className="grid-2">
         <div className="stack" style={{ gap: "var(--sp-8)" }}>
+          <InviteDoctor />
           {/* Share with doctor */}
           <div className="section stagger-1" style={{ marginTop: 0 }}>
             <h3>{t("shareTitle")}</h3>

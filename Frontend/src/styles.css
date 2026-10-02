@@ -1401,3 +1401,12 @@ button.link, button.link.small { min-height: 48px; padding: 0 var(--sp-2); }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--text); }
 .leaflet-container .leaflet-control-attribution { background: var(--bg-glass); color: var(--text-3); }
 .leaflet-container .leaflet-control-attribution a { color: var(--brand-dark); }
+
+
+/* ── Phase 8: sign-in tabs, password row, invite code ── */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--surface-3); border-radius: var(--r-md); }
+.seg button { box-shadow: none; border-color: transparent; background: transparent; color: var(--text-2); white-space: normal; }
+.seg button.on { background: var(--surface); color: var(--text); border-color: var(--border-strong); box-shadow: var(--shadow-xs); }
+.pw-row { display: flex; gap: var(--sp-2); align-items: center; }
+.pw-row input { flex: 1; min-width: 0; margin: 0; }
+.invite-code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--font-3xl); font-weight: var(--fw-bold); letter-spacing: 0.12em; color: var(--brand-dark); background: var(--brand-soft); border: 1px dashed var(--brand-border); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-5); text-align: center; user-select: all; }

@@ -9,6 +9,7 @@ import {
 } from "../api/client.js";
 import { consultationScript } from "../data/mockData.js";
 import { Loading } from "../components/ui.jsx";
+import { getProfile } from "../App.jsx";
 import { HistoryPanel } from "../components/console/HistoryPanel.jsx";
 import { RecordingPanel } from "../components/console/RecordingPanel.jsx";
 import { ReviewPanel } from "../components/console/ReviewPanel.jsx";
@@ -89,7 +90,7 @@ export default function DoctorConsole() {
 
   const [snapshot,     setSnapshot]     = useState(null);
   const [snapshotError,setSnapshotError]= useState(null);
-  const [doctorName,   setDoctorName]   = useState("Dr. Suresh Menon");
+  const [doctorName,   setDoctorName]   = useState(() => { const p = getProfile(); return p?.role === "doctor" && p.name ? p.name : "Dr. Suresh Menon"; });
   const [phase,        setPhase]        = useState("history");
   const [busy,         setBusy]         = useState(false);
   const [startError,   setStartError]   = useState(null);

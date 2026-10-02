@@ -25,7 +25,24 @@ npm install                                                            # first t
 npm run dev
 ```
 
-Open http://localhost:5173 and log in as the demo patient: phone `9876543210`, any 6 digits.
+Open http://localhost:5173 and **Create account**, choosing patient or doctor. With `DEMO_MODE=true` there is also a "Try the demo patient" button (Ammini, seeded data).
+
+## Accounts: testing as patient and doctor
+
+Sign-in is email + password (passwords are hashed with scrypt; 5 wrong tries lock that email and IP for 15 minutes). There is no email check and no password reset; a forgotten password means a new account.
+
+1. **Patient** creates an account, then opens **Sharing > Invite your doctor > Make a code**. The code (like `TX9W-R9DJ`) works once and expires after 24 hours.
+2. **Doctor** creates an account (I'm a doctor), pastes the code on **My patients > Add patient**, then presses **Open record** to see the history and run the consultation console (the doctor's name comes from the account). Nothing the doctor records reaches the patient timeline until they approve the note.
+3. The patient sees every doctor action in **Who viewed your records** and can press **Remove access** at any time. That also kills any console link that doctor already opened.
+
+To try it with a friend on the same Wi-Fi, run the backend without `DEMO_MODE` and the frontend on the network with the Vite proxy (so their browser reaches the API through your machine):
+
+```bash
+cd BackEnd && ./venv/bin/uvicorn app.main:app --port 8000
+cd Frontend && VITE_API_URL= npm run dev -- --host      # friend opens http://<your-LAN-IP>:5173
+```
+
+Use two different browsers or origins (for example `localhost` and `127.0.0.1`) if you test both roles on one computer, because the session lives in localStorage. Traffic is plain HTTP on the LAN: fine for a two-person test, not for the public internet. The microphone only works on `localhost` or HTTPS.
 
 Run exactly one backend process per database. Each one starts a reminder scheduler, and two can send the same dose.
 
@@ -96,6 +113,7 @@ Before you start: backend running with `DEMO_MODE=true`, frontend running, Teleg
 
 ```bash
 cd BackEnd
+./venv/bin/python -W ignore scripts/test_auth.py -v          # accounts, roles, invite codes, revoke
 ./venv/bin/python -W ignore scripts/test_trends.py -v        # trend alert rules
 ./venv/bin/python -W ignore scripts/test_fhir.py -v          # FHIR import, dedupe, bad input
 ./venv/bin/python -W ignore scripts/test_reminders.py -v     # reminder engine, fake clock
@@ -113,7 +131,7 @@ cd BackEnd
 - **Browser voice needs Chrome and internet.** Voice typing uses the browser's Web Speech API, which sends audio to a cloud service. Other browsers get the typed-line fallback.
 - **Free hosting sleeps.** On a free tier the server stops after idle time, the first request takes a long time to wake it, and the reminder scheduler does not run while it sleeps, so doses in that window are never sent. Open the app a minute before a demo.
 - **Gemini's free tier runs out.** Uploads that are not in `demo_cache/` fail with a plain error when every model returns 429. Summaries fall back to plain text if Groq fails.
-- **Login is a demo.** Any 6-digit code works; no SMS is sent.
+- **No email verification or password reset.** The demo patient button and the phone OTP (any 6 digits) exist only with `DEMO_MODE=true`.
 - **Doctor data is fictional.** The doctor finder uses a made-up, Kerala-heavy sample directory (`BackEnd/data/doctors.json`); names, clinics, phone numbers and reviews are not real. The map needs internet for OpenStreetMap tiles.
 - **AI review needs Groq.** Without `GROQ_API_KEY` the health review and doctor explanations fall back to simple rules. Danger checks and the emergency banner never depend on AI.
 - **Not a medical device.** The checks cover a small list of common drugs and lab ranges. Always ask a doctor.

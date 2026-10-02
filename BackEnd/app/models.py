@@ -141,6 +141,8 @@ class ShareLink(Base):
     token: Mapped[str] = mapped_column(String(64), primary_key=True)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
     scope: Mapped[str] = mapped_column(String(20), default="full")
+    # Phase 8: set when a doctor opened the console from their account, so revoking that doctor kills the link.
+    doctor_user_id: Mapped[str | None] = mapped_column(String(32), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { useNavigate } from "react-router-dom";
-import { requestOtp, verifyOtp } from "../api/client.js";
+import { getAuthConfig, loginAccount, registerAccount, requestOtp, verifyOtp } from "../api/client.js";
 import { saveSession } from "../App.jsx";
 import { useT } from "../i18n.js";
 
@@ -166,15 +166,33 @@ function LoginTransition({ onDone }) {
 }
 
 export default function Login({ toggle }) {
-  const { t } = useT();
+  const { lang } = useT();
+  const ml = lang === "ml";
   const navigate = useNavigate();
 
-  const [phone,        setPhone]        = useState("9876543210");
-  const [otp,          setOtp]          = useState("");
-  const [sent,         setSent]         = useState(false);
-  const [busy,         setBusy]         = useState(false);
-  const [error,        setError]        = useState(null);
+  const [mode,    setMode]    = useState("signin"); // signin | register
+  const [role,    setRole]    = useState("patient");
+  const [name,    setName]    = useState("");
+  const [email,   setEmail]   = useState("");
+  const [password, setPassword] = useState("");
+  const [specialty, setSpecialty] = useState("");
+  const [hospital,  setHospital]  = useState("");
+  const [show,    setShow]    = useState(false);
+  const [busy,    setBusy]    = useState(false);
+  const [error,   setError]   = useState(null);
+  const [demoLogin, setDemoLogin] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
+  const [dest, setDest] = useState("/");
+
+  useEffect(() => {
+    getAuthConfig().then((c) => setDemoLogin(!!c.demoLogin)).catch(() => {});
+  }, []);
+
+  const finish = (session) => {
+    saveSession(session);
+    setDest(session.profile?.role === "doctor" ? "/doctor" : "/");
+    setTransitioning(true);
+  };
 
   const run = async (fn) => {
     setBusy(true);
@@ -184,23 +202,43 @@ export default function Login({ toggle }) {
     finally { setBusy(false); }
   };
 
-  const send = (e) => {
+  const submit = (e) => {
     e.preventDefault();
-    run(async () => { await requestOtp(phone); setSent(true); });
-  };
-
-  const verify = (e) => {
-    e.preventDefault();
+    if (mode === "register" && password.length < 8) {
+      setError(ml ? "പാസ്‌വേഡിൽ കുറഞ്ഞത് 8 അക്ഷരം വേണം." : "Your password needs at least 8 characters.");
+      return;
+    }
     run(async () => {
-      saveSession(await verifyOtp(phone, otp));
-      // Trigger brief thread transition before navigating
-      setTransitioning(true);
+      finish(
+        mode === "register"
+          ? await registerAccount({ role, name: name.trim(), email: email.trim(), password, specialty, hospital })
+          : await loginAccount(email.trim(), password),
+      );
     });
   };
 
-  const handleTransitionDone = () => {
-    navigate("/");
+  const tryDemo = () =>
+    run(async () => {
+      await requestOtp("9876543210");
+      finish(await verifyOtp("9876543210", "123456"));
+    });
+
+  const L = {
+    signin: ml ? "സൈൻ ഇൻ" : "Sign in",
+    create: ml ? "അക്കൗണ്ട് ഉണ്ടാക്കുക" : "Create account",
+    patient: ml ? "ഞാൻ രോഗിയാണ്" : "I'm a patient",
+    doctor: ml ? "ഞാൻ ഡോക്ടറാണ്" : "I'm a doctor",
+    name: ml ? "പേര്" : role === "doctor" ? "Your name (as patients see it)" : "Full name",
+    email: ml ? "ഇമെയിൽ" : "Email",
+    password: ml ? "പാസ്‌വേഡ്" : "Password",
+    hint: ml ? "കുറഞ്ഞത് 8 അക്ഷരം" : "At least 8 characters",
+    specialty: ml ? "വിഭാഗം (ഓപ്ഷണൽ)" : "Specialty (optional)",
+    hospital: ml ? "ആശുപത്രി / ക്ലിനിക് (ഓപ്ഷണൽ)" : "Hospital or clinic (optional)",
+    show: show ? (ml ? "മറയ്ക്കുക" : "Hide") : (ml ? "കാണിക്കുക" : "Show"),
+    demo: ml ? "ഡെമോ രോഗിയെ പരീക്ഷിക്കുക" : "Try the demo patient",
+    note: ml ? "ഇമെയിൽ പരിശോധനയോ പാസ്‌വേഡ് റീസെറ്റോ ഇല്ല. പാസ്‌വേഡ് മറന്നാൽ പുതിയ അക്കൗണ്ട് ഉണ്ടാക്കുക." : "No email check or password reset yet. If you forget your password, make a new account.",
   };
+  const submitLabel = mode === "register" ? L.create : L.signin;
 
   return (
     <div style={{
@@ -215,59 +253,85 @@ export default function Login({ toggle }) {
     }}>
       <ThreadBackground />
 
-      {transitioning && <LoginTransition onDone={handleTransitionDone} />}
+      {transitioning && <LoginTransition onDone={() => navigate(dest)} />}
 
       <LoginPanel toggle={toggle}>
-        <form onSubmit={sent ? verify : send} noValidate>
-          <div style={{ display: "grid", gap: "var(--sp-4)" }}>
-            <label>
-              <span>{t("phone")}</span>
-              <input
-                id="phone-input"
-                inputMode="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                disabled={sent}
-                required
-                autoComplete="tel"
-              />
-            </label>
+        <div className="seg" role="tablist" aria-label="Sign in or create account">
+          {[["signin", L.signin], ["register", L.create]].map(([m, label]) => (
+            <button key={m} type="button" role="tab" aria-selected={mode === m} className={mode === m ? "on" : ""}
+              onClick={() => { setMode(m); setError(null); }}>
+              {label}
+            </button>
+          ))}
+        </div>
 
-            {sent && (
-              <label className="animate-in-fast">
-                <span>{t("otp")}</span>
-                <input
-                  id="otp-input"
-                  inputMode="numeric"
-                  maxLength={6}
-                  pattern="\d{6}"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                  autoFocus
-                  required
-                  autoComplete="one-time-code"
-                />
+        <form onSubmit={submit} noValidate style={{ marginTop: "var(--sp-5)" }}>
+          <div style={{ display: "grid", gap: "var(--sp-4)" }}>
+            {mode === "register" && (
+              <div className="seg" role="radiogroup" aria-label="Account type">
+                {[["patient", L.patient], ["doctor", L.doctor]].map(([r, label]) => (
+                  <button key={r} type="button" role="radio" aria-checked={role === r} className={role === r ? "on" : ""}
+                    onClick={() => setRole(r)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {mode === "register" && (
+              <label>
+                <span>{L.name}</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} autoComplete="name" />
               </label>
             )}
 
-            <button
-              id="login-submit-btn"
-              className="primary w-full"
-              disabled={busy}
-              style={{ marginTop: "var(--sp-2)" }}
-            >
+            <label>
+              <span>{L.email}</span>
+              <input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                required autoComplete="email" autoCapitalize="none" spellCheck={false} />
+            </label>
+
+            <label>
+              <span>{L.password}</span>
+              <div className="pw-row">
+                <input type={show ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                  required autoComplete={mode === "register" ? "new-password" : "current-password"} />
+                <button type="button" className="ghost" onClick={() => setShow((v) => !v)} aria-pressed={show}>{L.show}</button>
+              </div>
+              {mode === "register" && <span className="text-dim text-xs">{L.hint}</span>}
+            </label>
+
+            {mode === "register" && role === "doctor" && (
+              <>
+                <label>
+                  <span>{L.specialty}</span>
+                  <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} maxLength={80} />
+                </label>
+                <label>
+                  <span>{L.hospital}</span>
+                  <input value={hospital} onChange={(e) => setHospital(e.target.value)} maxLength={120} />
+                </label>
+              </>
+            )}
+
+            <button id="login-submit-btn" className="primary w-full" disabled={busy || !email || !password || (mode === "register" && !name.trim())}>
               {busy
                 ? <span style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", justifyContent: "center" }}>
                     <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                    {sent ? t("verify") : t("sendOtp")}
+                    {submitLabel}
                   </span>
-                : (sent ? t("verify") : t("sendOtp"))
-              }
+                : submitLabel}
             </button>
           </div>
 
           {error && <p className="error text-sm mt-3" role="alert">{error}</p>}
-          <p className="text-dim text-xs mt-4" style={{ textAlign: "center" }}>{t("demoHint")}</p>
+
+          {demoLogin && (
+            <button type="button" className="w-full" style={{ marginTop: "var(--sp-4)" }} onClick={tryDemo} disabled={busy}>
+              {L.demo}
+            </button>
+          )}
+          {mode === "register" && <p className="text-dim text-xs mt-4" style={{ textAlign: "center" }}>{L.note}</p>}
         </form>
       </LoginPanel>
     </div>

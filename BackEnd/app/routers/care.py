@@ -5,12 +5,12 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..auth import current_patient
 from ..database import get_db
-from ..models import AccessLog, CareLink, InviteCode, Patient, User
+from ..models import AccessLog, CareLink, InviteCode, Patient, ShareLink, User
 from ..schemas import iso
 
 router = APIRouter(prefix="/api/care", tags=["care"])
@@ -56,6 +56,8 @@ def remove_doctor(link_id: str, patient: Patient = Depends(current_patient), db:
     if link is None or link.patient_id != patient.id or link.status != "active":
         raise HTTPException(404, "Doctor not found")
     link.status = "revoked"
+    # Console links this doctor opened stop working at once (consultation calls re-check the share link).
+    db.execute(delete(ShareLink).where(ShareLink.patient_id == patient.id, ShareLink.doctor_user_id == link.doctor_user_id))
     doctor = db.get(User, link.doctor_user_id)
     db.add(AccessLog(patient_id=patient.id, who=patient.name, role="Patient",
                      action=f"Removed access for {doctor.name}", via="Doctor access"))

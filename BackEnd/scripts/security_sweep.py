@@ -79,8 +79,13 @@ finally:
         db.commit()
 
 # ---- uploads: size and type ----
-tok = http.post("/api/auth/otp/verify", json={"phone": "9876543210", "otp": "123456"}).json()["token"]
-H = {"Authorization": f"Bearer {tok}"}
+def register(role):
+    r = http.post("/api/auth/register", json={"role": role, "name": f"Sweep {role}", "email": f"sweep-{role}-{secrets.token_hex(4)}@example.com", "password": "sweep-pass-123"})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+H = register("patient")  # works with DEMO_MODE on or off
 png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
 
 
@@ -99,6 +104,29 @@ for name, data, mime in [("evil.exe", b"MZ\x90\x00" + b"0" * 100, "application/o
     check(f"upload {name} ({mime}) -> 415", r.status_code == 415, f"got {r.status_code}")
 r = up("empty.png", b"", "image/png")
 check("upload empty file -> 400", r.status_code == 400, f"got {r.status_code}")
+
+# ---- accounts and roles (Phase 8) ----
+D = register("doctor")
+for path in ("/api/patients/me", "/api/patients/me/timeline", "/api/care/invite", "/api/documents"):
+    method = "POST" if path in ("/api/care/invite", "/api/documents") else "GET"
+    r = http.request(method, path, headers=D)
+    check(f"doctor token on {method} {path} -> 401", r.status_code == 401, f"got {r.status_code}")
+for method, path in (("GET", "/api/doctor/patients"), ("POST", "/api/doctor/link"), ("GET", "/api/doctor/patients/x/snapshot"), ("POST", "/api/doctor/patients/x/console-token")):
+    r = http.request(method, path, headers=H, json={"code": "AAAA-AAAA"} if method == "POST" else None)
+    check(f"patient token on {method} {path} -> 401", r.status_code == 401, f"got {r.status_code}")
+    r = http.request(method, path, json={"code": "AAAA-AAAA"} if method == "POST" else None)
+    check(f"no token on {method} {path} -> 401", r.status_code == 401, f"got {r.status_code}")
+me = http.get("/api/auth/me", headers=H).json()
+r = http.get(f"/api/doctor/patients/{me['id']}/snapshot", headers=D)
+check("unlinked doctor on a real patient -> 404", r.status_code == 404, f"got {r.status_code}")
+r = http.post(f"/api/doctor/patients/{me['id']}/console-token", headers=D)
+check("unlinked doctor cannot get a console token -> 404", r.status_code == 404, f"got {r.status_code}")
+r = http.post("/api/auth/login", json={"email": "nobody@example.com", "password": "wrong-pass-1"})
+check("login with an unknown email -> 401, generic text", r.status_code == 401 and r.json()["detail"] == "Email or password is incorrect.", f"got {r.status_code}")
+r = http.post("/api/auth/register", json={"role": "admin", "name": "X Y", "email": "a@b.co", "password": "longenough1"})
+check("cannot register an admin role -> 422", r.status_code == 422, f"got {r.status_code}")
+if http.get("/api/auth/config").json().get("demoLogin") is False:
+    check("OTP login is 404 with DEMO_MODE off", http.post("/api/auth/otp/request", json={"phone": "9876543210"}).status_code == 404)
 
 # ---- CORS ----
 for origin in ("http://localhost:5173", "https://evil.example"):

@@ -46,6 +46,61 @@ export const requestOtp = (phone) =>
 export const verifyOtp = (phone, otp) =>
   USE_MOCK ? delay(mock.login) : request("/api/auth/otp/verify", { method: "POST", body: { phone, otp }, auth: false });
 
+// ---------- accounts (Phase 8): email + password, patient or doctor ----------
+
+// -> { demoLogin }  (true only when the server runs with DEMO_MODE=true)
+export const getAuthConfig = () => (USE_MOCK ? delay({ demoLogin: true }) : request("/api/auth/config", { auth: false }));
+
+// Offline build: an email containing "doctor" signs in as the mock doctor, anything else as the mock patient.
+const mockSession = (email, name) =>
+  /doctor/i.test(email)
+    ? { token: "mock-doctor", profile: { id: "doc1", userId: "doc1", role: "doctor", name: name || "Dr. Suresh Menon", email, specialty: "General Medicine", hospital: "Caritas Hospital" } }
+    : { ...structuredClone(mock.login), profile: { ...structuredClone(mock.login.profile), role: "patient", email } };
+
+// -> { token, profile:{ role, name, email, ... } }.  body: { role, name, email, password, specialty?, hospital? }
+export const registerAccount = (body) =>
+  USE_MOCK ? delay(mockSession(body.email, body.name)) : request("/api/auth/register", { method: "POST", body, auth: false });
+
+export const loginAccount = (email, password) =>
+  USE_MOCK ? delay(mockSession(email)) : request("/api/auth/login", { method: "POST", body: { email, password }, auth: false });
+
+// Patient side: invite a doctor.  -> { code: "K7M2-9QXA", expiresAt }
+export const createInvite = () =>
+  USE_MOCK
+    ? delay({ code: "K7M2-9QXA", expiresAt: new Date(Date.now() + 24 * 3600e3).toISOString() })
+    : request("/api/care/invite", { method: "POST" });
+
+let MOCK_DOCTORS = [];
+// -> [{ linkId, name, specialty, hospital, since }]
+export const listMyDoctors = () => (USE_MOCK ? delay(MOCK_DOCTORS) : request("/api/care/doctors"));
+export const removeDoctor = (linkId) => {
+  if (USE_MOCK) {
+    MOCK_DOCTORS = MOCK_DOCTORS.filter((d) => d.linkId !== linkId);
+    return delay({ ok: true });
+  }
+  return request(`/api/care/doctors/${encodeURIComponent(linkId)}`, { method: "DELETE" });
+};
+
+// Doctor side.
+// -> { patientId, name }
+export const linkPatient = (code) => {
+  if (USE_MOCK) {
+    if (!/^[A-Z0-9-]{8,9}$/i.test(code.trim())) return Promise.reject(new Error("That code is not valid. Ask the patient for a new one (codes work once and expire after 24 hours)."));
+    return delay({ patientId: "ammini01", name: "Ammini Varghese" });
+  }
+  return request("/api/doctor/link", { method: "POST", body: { code } });
+};
+// -> [{ patientId, name, age, gender, openAlerts, lastRecord, since }]
+export const listDoctorPatients = () =>
+  USE_MOCK
+    ? delay([{ patientId: "ammini01", name: "Ammini Varghese", age: 62, gender: "Female", openAlerts: 3, lastRecord: "2026-09-24", since: new Date().toISOString() }])
+    : request("/api/doctor/patients");
+// -> { token, doctorName, expiresAt }  (token opens /console/:token, the existing consultation console)
+export const startDoctorConsole = (patientId) =>
+  USE_MOCK
+    ? delay({ token: "demo-share", doctorName: "Dr. Suresh Menon", expiresAt: new Date(Date.now() + 8 * 3600e3).toISOString() })
+    : request(`/api/doctor/patients/${encodeURIComponent(patientId)}/console-token`, { method: "POST" });
+
 // ---------- patient ----------
 
 export const getTimeline = () => (USE_MOCK ? delay(mock.timeline) : request("/api/patients/me/timeline"));

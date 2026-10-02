@@ -210,6 +210,34 @@ def _():
     assert r.status_code == 400 and "not a FHIR Bundle" in r.text
 
 
+@step("accounts: register patient + doctor, invite code, link, snapshot")
+def _():
+    tag = os.urandom(3).hex()
+    reg = lambda role, name: post("/api/auth/register", json={"role": role, "name": name, "email": f"smoke-{role}-{tag}@example.com", "password": "smoke-pass-123"})
+    pat, doc = reg("patient", "Smoke Patient"), reg("doctor", "Dr. Smoke")
+    ph, dh = {"Authorization": f"Bearer {pat['token']}"}, {"Authorization": f"Bearer {doc['token']}"}
+    assert doc["profile"]["role"] == "doctor" and pat["profile"]["role"] == "patient"
+    code = post("/api/care/invite", headers=ph)["code"]
+    linked = post("/api/doctor/link", json={"code": code}, headers=dh)
+    assert linked["name"] == "Smoke Patient"
+    assert [p["patientId"] for p in get("/api/doctor/patients", headers=dh)] == [linked["patientId"]]
+    assert get(f"/api/doctor/patients/{linked['patientId']}/snapshot", headers=dh)["patient"]["name"] == "Smoke Patient"
+    ctx["acct"] = (ph, dh, linked["patientId"])
+    return "linked with a one-time code"
+
+
+@step("accounts: console token works, then revoke kills it")
+def _():
+    ph, dh, pid = ctx["acct"]
+    tok = post(f"/api/doctor/patients/{pid}/console-token", headers=dh)
+    assert http.get(f"/api/shares/{tok['token']}/snapshot").status_code == 200
+    link_id = get("/api/care/doctors", headers=ph)[0]["linkId"]
+    assert http.delete(f"/api/care/doctors/{link_id}", headers=ph).status_code == 200
+    assert http.get(f"/api/shares/{tok['token']}/snapshot").status_code == 404, "console link survived the revoke"
+    assert http.get(f"/api/doctor/patients/{pid}/snapshot", headers=dh).status_code == 404
+    return "doctor locked out"
+
+
 @step("demo reset restores 8 records / 3 medicines / 3 alerts")
 def _():
     out = post("/api/demo/reset", headers=auth())

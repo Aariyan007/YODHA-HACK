@@ -100,7 +100,7 @@ def patient_snapshot(patient_id: str, doctor: User = Depends(current_doctor), db
 def console_token(patient_id: str, doctor: User = Depends(current_doctor), db: Session = Depends(get_db)):
     """A normal share link (8 h) so the existing consultation console and its X-Share-Token flow are reused."""
     patient = _linked_patient(db, doctor, patient_id)
-    link = ShareLink(token=secrets.token_urlsafe(16), patient_id=patient.id, scope="full",
+    link = ShareLink(token=secrets.token_urlsafe(16), patient_id=patient.id, scope="full", doctor_user_id=doctor.id,
                      expires_at=datetime.now(timezone.utc) + timedelta(hours=CONSOLE_HOURS))
     db.add(link)
     _log(db, doctor, patient, "Opened the consultation console")

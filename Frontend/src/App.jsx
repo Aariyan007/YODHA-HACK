@@ -19,6 +19,7 @@ import DoctorConsole from "./pages/DoctorConsole.jsx";
 // The map page pulls in Leaflet; load it only when opened.
 const Doctors = lazy(() => import("./pages/Doctors.jsx"));
 import Profile from "./pages/Profile.jsx";
+import DoctorHome from "./pages/doctor/DoctorHome.jsx";
 
 const PROFILE_KEY = "medithread_profile";
 const LANG_KEY    = "medithread_lang";
@@ -131,6 +132,7 @@ function Layout() {
 
   if (!getToken()) return <Navigate to="/login" replace />;
   const profile = getProfile();
+  if (profile?.role === "doctor") return <Navigate to="/doctor" replace />;
   if (profile?.profileComplete === false && location.pathname !== "/profile" && !sessionStorage.getItem(SKIP_PROFILE_KEY)) {
     return <Navigate to="/profile?welcome=1" replace />;
   }
@@ -178,6 +180,46 @@ function Layout() {
           </NavLink>
         ))}
       </nav>
+      <main role="main" id="main-content">
+        <div className="page-shell">
+          <PageTransition key={location.pathname}>
+            <Outlet />
+          </PageTransition>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ── Doctor layout (no patient tabs) ──────────────────────────
+function DoctorLayout() {
+  const { t } = useT();
+  const navigate = useNavigate();
+  const location = useLocation();
+  if (!getToken()) return <Navigate to="/login" replace />;
+  const profile = getProfile();
+  if (profile?.role !== "doctor") return <Navigate to="/" replace />;
+
+  const logout = () => {
+    setToken(null);
+    localStorage.removeItem(PROFILE_KEY);
+    navigate("/login");
+  };
+
+  return (
+    <div className="shell">
+      <header className="top" role="banner">
+        <span className="brand" aria-label="MediThread">MediThread <span className="pill accent" style={{ marginLeft: 8 }}>Doctor</span></span>
+        <div className="top-actions">
+          <LangToggle />
+          <span className="profile-chip">
+            <span className="avatar" aria-hidden="true">{(profile?.name || "?").trim().charAt(0).toUpperCase()}</span>
+            <span className="profile-chip-name">{profile?.name}</span>
+          </span>
+          <button className="ghost" onClick={logout}>{t("logout")}</button>
+        </div>
+      </header>
+      <div className="route-thread" aria-hidden="true" />
       <main role="main" id="main-content">
         <div className="page-shell">
           <PageTransition key={location.pathname}>
@@ -238,6 +280,9 @@ export default function App() {
         <Route path="/login"          element={<Login toggle={<LangToggle />} />} />
         <Route path="/share/:token"   element={<Snapshot toggle={<LangToggle />} />} />
         <Route path="/console/:token" element={<DoctorConsole />} />
+        <Route path="doctor" element={<DoctorLayout />}>
+          <Route index element={<DoctorHome />} />
+        </Route>
         <Route element={<Layout />}>
           <Route index                element={<Home />} />
           <Route path="upload"        element={<Upload />} />

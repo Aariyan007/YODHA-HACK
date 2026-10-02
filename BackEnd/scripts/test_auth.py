@@ -152,12 +152,17 @@ class AuthTests(unittest.TestCase):
         log = self.c.get("/api/patients/me/access-log", headers=ph).json()
         self.assertTrue(any(a["who"] == "Dr Me" and a["role"] == "Doctor" for a in log))
         # revoke
+        H = {"X-Share-Token": tok["token"]}
+        self.assertEqual(self.c.get(f"/api/consultations/{start.json()['consultationId']}", headers=H).status_code, 200)
         link_id = self.c.get("/api/care/doctors", headers=ph).json()[0]["linkId"]
         self.assertEqual(self.c.delete(f"/api/care/doctors/{link_id}", headers=ph).status_code, 200)
         self.assertEqual(self.c.get("/api/doctor/patients", headers=dh).json(), [])
         self.assertEqual(self.c.get(f"/api/doctor/patients/{pid}/snapshot", headers=dh).status_code, 404)
         self.assertEqual(self.c.post(f"/api/doctor/patients/{pid}/console-token", headers=dh).status_code, 404)
         self.assertEqual(self.c.delete(f"/api/care/doctors/{link_id}", headers=ph).status_code, 404)
+        # the console link the doctor already held is dead too
+        self.assertEqual(self.c.get(f"/api/shares/{tok['token']}/snapshot").status_code, 404)
+        self.assertEqual(self.c.get(f"/api/consultations/{start.json()['consultationId']}", headers=H).status_code, 404)
 
     def test_relink_after_revoke_uses_a_new_code(self):
         _, ph, _ = self.register("patient")
