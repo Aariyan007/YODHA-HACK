@@ -1,0 +1,78 @@
+{
+  "model": "typed-decisions",
+  "when": "2026-10-02 10:26",
+  "test_handwritten": {
+    "n": 67,
+    "urgency": {
+      "accuracy": 0.552,
+      "macro_f1": 0.565,
+      "n": 67,
+      "ece": 0.486,
+      "under_triage": 14,
+      "over_triage": 16,
+      "emergency_recall": 0.278,
+      "by_language": {
+        "en": 0.833,
+        "ml": 0.263,
+        "ml-latin": 0.167
+      },
+      "rules_plus_model": {
+        "accuracy": 0.716,
+        "under_triage": 3
+      }
+    },
+    "specialist": {
+      "accuracy": 0.478,
+      "macro_f1": 0.485,
+      "n": 67,
+      "ece": 0.093
+    },
+    "median_ms": 719.8
+  },
+  "test_gretel": {
+    "n": 212,
+    "specialist": {
+      "accuracy": 0.524,
+      "macro_f1": 0.52,
+      "n": 212,
+      "ece": 0.238
+    },
+    "median_ms": 719.7
+  },
+  "test_generated_held_out": {
+    "n": 57,
+    "urgency": {
+      "accuracy": 0.526,
+      "macro_f1": 0.561,
+      "n": 57,
+      "ece": 0.444,
+      "under_triage": 25,
+      "over_triage": 2,
+      "emergency_recall": 0.395,
+      "by_language": {
+        "en": 0.826,
+        "ml": 0.227,
+        "ml-latin": 0.5
+      },
+      "rules_plus_model": {
+        "accuracy": 0.561,
+        "under_triage": 23
+      }
+    },
+    "specialist": {
+      "accuracy": 0.386,
+      "macro_f1": 0.432,
+      "n": 57,
+      "ece": 0.194
+    },
+    "median_ms": 817.0
+  },
+  "redteam": {
+    "n": 33,
+    "rules_only": 33,
+    "model_only": 14,
+    "rules_plus_model": 33,
+    "missed": [],
+    "gate_pass": true
+  }
+}

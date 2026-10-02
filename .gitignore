@@ -59,3 +59,7 @@ desktop.ini
 .agents/
 models/
 deploy/certs/
+ml/data/raw/
+ml/base/
+ml/out/
+ml/data/*.pt

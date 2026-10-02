@@ -1,0 +1,16 @@
+{
+  "counts": {
+    "gretel_train": 853,
+    "triage500": 250,
+    "generated_en": 378,
+    "generated_ml-latin": 402,
+    "generated_ml": 402,
+    "lines": 241
+  },
+  "sources": {
+    "gretelai/symptom_to_diagnosis": "Apache-2.0; diagnosis mapped to a specialist by our own table; urgency is a weak prior",
+    "syntech-ai/medical-triage-500": "CC BY-NC 4.0 (non-commercial); synthetic; 250 rows used with 'immediate' downgraded to urgent unless a chest-pain or breathlessness red flag",
+    "groq-generated": "wording by openai/gpt-oss-120b, labels from ml/scenarios.py; synthetic; 14% held out",
+    "handwritten": "ml/seed/handwritten.py, written by a person, test only"
+  }
+}

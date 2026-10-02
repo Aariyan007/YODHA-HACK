@@ -43,6 +43,13 @@ function TriageResult({ result, lang }) {
       <p className="text-sm" style={{ color: "var(--text-2)", lineHeight: 1.6 }}>
         {result.why}
       </p>
+      <p className="text-xs text-dim" style={{ marginTop: "var(--sp-2)" }}>
+        {result.model
+          ? (lang === "ml"
+              ? `എഐ മോഡൽ പരിശോധിച്ചു (${Math.round((result.confidence || 0) * 100)}% ഉറപ്പ്). ഇത് രോഗനിർണയമല്ല.`
+              : `Checked by an AI model (${Math.round((result.confidence || 0) * 100)}% sure) and safety rules. Not a diagnosis.`)
+          : (lang === "ml" ? "സുരക്ഷാ നിയമങ്ങൾ പരിശോധിച്ചു. ഇത് രോഗനിർണയമല്ല." : "Checked by safety rules. Not a diagnosis.")}
+      </p>
 
       <div className="row" style={{ gap: "var(--sp-3)", marginTop: "var(--sp-4)", flexWrap: "wrap" }}>
         {result.urgent && <a className="btn-emergency" href="tel:108">{lang === "ml" ? "108 വിളിക്കുക" : "Call 108"}</a>}

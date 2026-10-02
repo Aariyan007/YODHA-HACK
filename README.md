@@ -46,6 +46,32 @@ Use two different browsers or origins (for example `localhost` and `127.0.0.1`) 
 
 Run exactly one backend process per database. Each one starts a reminder scheduler, and two can send the same dose.
 
+## Run it as a stack (nginx + Redis + backend)
+
+Docker Desktop must be running. From the repo root:
+
+```bash
+docker compose up -d --build --wait         # nginx, backend, Redis (Postgres stays on Supabase, from .env)
+open https://localhost:8443                 # self-signed certificate: accept the warning once (http://localhost:8080 also works)
+```
+
+What you get: nginx serves the built React app and proxies `/api` to the backend (gzip, one-year cache for hashed assets,
+security headers and a Content-Security-Policy, rate limits on sign-in and uploads, 11 MB upload cap, SSE progress
+streams unbuffered, JSON access logs with share tokens and job ids redacted). The backend runs one worker (it owns the
+reminder scheduler) as a non-root user on a read-only filesystem, with Redis for login throttling, "taken" flags and dose
+de-duplication. Redis and the backend have no published ports: only nginx is reachable from outside.
+
+- Readiness: `curl http://localhost:8080/api/health/ready` shows database, Redis, scheduler, DDInter and Laya status.
+- Demo mode: `DEMO_MODE=true docker compose up -d backend`. LAN friend: `CERT_SANS="DNS:localhost,IP:127.0.0.1,IP:<your-LAN-IP>" docker compose up -d --build --wait` (HTTPS also makes the microphone work).
+- Edge checks: `cd BackEnd && ./venv/bin/python scripts/test_nginx.py`. Run `smoke.py` and `security_sweep.py` inside the container so nginx's rate limits do not count them: `docker compose exec -e BASE_URL=http://127.0.0.1:8000 backend python scripts/smoke.py`.
+- Without Docker: `brew services start redis` and the two dev commands above work as before; the app falls back to in-memory storage if Redis is down.
+
+## AI decision layer and datasets
+
+- **Interactions**: `BackEnd/ai/safety.py` (formerly `jev_client.py`, there was never a Jev service) looks pairs up in the DDInter dataset (about 160k pairs, Major / Moderate; build it with `cd BackEnd && ./venv/bin/python scripts/build_ddi.py`) after the hand-written patient messages. Unknown pairs give no alert.
+- **Laya** (https://huggingface.co/convaiinnovations/laya): a small classifier that helps with symptom triage and with spotting emergencies in what a patient types or a doctor says, in English, Malayalam and Manglish. Rules always run first; the model can only raise urgency, never lower it, and it is used only after it passes its own evaluation gate. Setup, training and the honest numbers are in [`ml/README.md`](ml/README.md). Run it with `docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build --wait`.
+- Data sources and licences: [`ml/DATA_LICENSES.md`](ml/DATA_LICENSES.md). DDInter and one training source are non-commercial.
+
 ## Environment variables
 
 Set them in the root `.env` (gitignored). Never commit values.
@@ -114,6 +140,8 @@ Before you start: backend running with `DEMO_MODE=true`, frontend running, Teleg
 ```bash
 cd BackEnd
 ./venv/bin/python -W ignore scripts/test_auth.py -v          # accounts, roles, invite codes, revoke
+./venv/bin/python -W ignore scripts/test_ddi.py -v           # DDInter lookups and severity mapping
+./venv/bin/python -W ignore scripts/test_decision.py -v      # Laya client, escalate-only merge, triage route (model faked)
 ./venv/bin/python -W ignore scripts/test_trends.py -v        # trend alert rules
 ./venv/bin/python -W ignore scripts/test_fhir.py -v          # FHIR import, dedupe, bad input
 ./venv/bin/python -W ignore scripts/test_reminders.py -v     # reminder engine, fake clock

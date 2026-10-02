@@ -227,3 +227,17 @@ class CareLink(Base):
     doctor_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     status: Mapped[str] = mapped_column(String(10), default="active")  # active | revoked
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AiDecision(Base):
+    """Audit trail for every Laya answer: what was asked (hash only, never the text), what came back, how long it took."""
+    __tablename__ = "ai_decisions"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    kind: Mapped[str] = mapped_column(String(20), index=True)  # triage | line
+    input_hash: Mapped[str] = mapped_column(String(64), index=True)
+    model: Mapped[str | None] = mapped_column(String(80))
+    result: Mapped[dict] = mapped_column(JSON, default=dict)   # labels and probabilities
+    final: Mapped[dict] = mapped_column(JSON, default=dict)    # what the app actually used after the rules merge
+    latency_ms: Mapped[float | None] = mapped_column(Float)
+    cached: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

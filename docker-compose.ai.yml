@@ -1,0 +1,31 @@
+# Adds the Laya decision service and points the backend at it:
+#   docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build --wait
+# Needs a fine-tuned checkpoint in ./models/laya (see ml/README.md). For a quick look with the zero-shot Hub model
+# instead (NOT gated, development only):  LAYA_FALLBACK=typed-decisions LAYA_ALLOW_UNGATED=1 docker compose -f ... up
+# Docker Desktop's memory should be at least 6 GB (Settings > Resources); Laya alone uses about 1.6 GB.
+services:
+  laya:
+    build: ./laya
+    restart: unless-stopped
+    environment:
+      LAYA_MODEL_DIR: /models/laya
+      LAYA_API_KEY: ${LAYA_API_KEY:-}
+      LAYA_FALLBACK: ${LAYA_FALLBACK:-}
+      LAYA_MIN_URGENCY_ACC: ${LAYA_MIN_URGENCY_ACC:-0.80}
+      LAYA_MIN_SPECIALIST_ACC: ${LAYA_MIN_SPECIALIST_ACC:-0.70}
+    volumes:
+      - ./models/laya:/models/laya:ro
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 2g
+    # no published port: only the backend can reach it
+
+  backend:
+    environment:
+      LAYA_URL: http://laya:8080
+      LAYA_API_KEY: ${LAYA_API_KEY:-}
+      LAYA_ALLOW_UNGATED: ${LAYA_ALLOW_UNGATED:-0}
+    depends_on:
+      laya: { condition: service_healthy }

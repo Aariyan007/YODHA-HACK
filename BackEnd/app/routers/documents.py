@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from ai import pipeline
+from ai import decision, laya_schema as S, pipeline
+from ai.triage_rules import EMERGENCY_PATTERNS, emergency_hit, merge_urgency
 from ..auth import current_patient
 from ..models import Patient
 
@@ -98,15 +99,6 @@ class TriageBody(BaseModel):
     text: str = Field(min_length=1, max_length=600)
 
 
-EMERGENCY_PATTERNS = [
-    (r"\bchest\s+pain\b|\bheart\s+attack\b", "chest pain"),
-    (r"\bcan'?t\s+breathe\b|\bshort(ness)?\s+of\s+breath\b|\bbreathless\b", "trouble breathing"),
-    (r"\bface\s+droop(ing)?\b|\bslurred\s+speech\b|\bweak(ness)?\s+(on\s+)?one\s+side\b|\bstroke\b", "signs of stroke"),
-    (r"\bfaint(ing|ed)?\b|\bunconscious\b|\bpassed\s+out\b", "fainting"),
-    (r"\bbleeding\s+heavily\b|\buncontroll(ed|able)\s+bleeding\b", "heavy bleeding"),
-    (r"\bsevere\s+allergic\b|\banaphylaxis\b|\bswollen\s+tongue\b", "severe allergy"),
-]
-
 # Keyword → specialist rules (ported from frontend symptomRules).
 SYMPTOM_RULES = [
     ("chest|breath|palpit|heart", "Cardiologist", "Heart-related symptoms"),
@@ -126,48 +118,45 @@ SYMPTOM_RULES = [
 ]
 
 
+SPEC_CONF_MIN = 0.50  # below this the model's specialist guess is ignored and the keyword rules decide
+
+
 @router.post("/triage")
 def triage(body: TriageBody):
-    text = body.text.strip().lower()
+    """Which doctor, and how soon. Order: emergency keywords (rules) -> Laya (advisory, can only raise the level)
+    -> specialist keyword rules -> General Physician. Never a diagnosis."""
+    text = body.text.strip()
+    low = text.lower()
+    rule = emergency_hit(text)
+    d = decision.triage(text)  # None when Laya is off, down, slow, or has not passed its quality gate
+    level, src = merge_urgency("emergency" if rule else None, d["urgency"] if d else None, d["urgency_conf"] if d else 0.0)
+    info = {"source": "rules", "model": None, "confidence": None}
+    if d and src != "none":
+        info = {"source": src, "model": d["model"], "confidence": d["urgency_conf"]}
 
-    # Emergency keywords first — pure Python, no AI.
-    for pattern, label in EMERGENCY_PATTERNS:
-        if re.search(pattern, text):
-            return {
-                "urgent": True,
-                "specialist": "Emergency / 108",
+    if level == "emergency":
+        label = rule or "emergency"
+        if d:
+            decision.record_final("triage", text, {"level": "emergency", "by": src})
+        return {"urgent": True, "specialist": "Emergency / 108",
                 "why": f"Possible {label}. Call 108 immediately or go to the nearest emergency room.",
-            }
+                "urgency": "emergency", **info}
 
-    # Deterministic rules first (match on keywords in the frontend symptomRules).
-    for pattern, specialist, why in SYMPTOM_RULES:
-        if re.search(pattern, text):
-            return {"urgent": False, "specialist": specialist, "why": why}
-
-    # Fallback: ask Groq for a specialist TYPE only (never a disease).
-    try:
-        from groq import Groq
-        import os
-        client = Groq(api_key=os.environ["GROQ_API_KEY"], timeout=15.0)
-        r = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[
-                {"role": "system", "content":
-                 "You help a lay patient decide which TYPE of doctor to see. "
-                 "Reply ONLY as a single JSON object with keys 'specialist' and 'why'. "
-                 "'specialist' is a doctor type (General Physician, Cardiologist, Dermatologist, …). "
-                 "'why' is one short reason, no diagnosis. Default to 'General Physician' if unsure."},
-                {"role": "user", "content": body.text[:500]},
-            ],
-            max_tokens=120, temperature=0.2,
-            response_format={"type": "json_object"},
-        )
-        data = json.loads(r.choices[0].message.content or "{}")
-        return {
-            "urgent": False,
-            "specialist": data.get("specialist") or "General Physician",
-            "why": data.get("why") or "A general check-up is a good starting point.",
-        }
-    except Exception as e:
-        print(f"[triage] fallback failed: {type(e).__name__}")
-        return {"urgent": False, "specialist": "General Physician", "why": "A general check-up is a good starting point."}
+    specialist, why, spec_src = None, None, "rules"
+    if d and d["specialist_conf"] >= SPEC_CONF_MIN:
+        specialist = S.SPECIALIST_NAME[d["specialist"]]
+        why = "Covers: " + S.SPECIALISTS[d["specialist"]][1] + "."
+        spec_src = "model"
+    if specialist is None:
+        for pattern, name, reason in SYMPTOM_RULES:
+            if re.search(rf"(?<![a-z])(?:{pattern})", low):  # word start, so 'unclear' is not 'ear'
+                specialist, why = name, reason
+                break
+    if specialist is None:
+        specialist, why = "General Physician", "A general check-up is a good starting point."
+    if level == "urgent":
+        why = "Please see a doctor within a day. " + why
+    if d:
+        decision.record_final("triage", text, {"level": level, "specialist": specialist, "specialist_by": spec_src})
+    return {"urgent": False, "specialist": specialist, "why": why, "urgency": level, "soon": level == "urgent",
+            "specialistSource": spec_src, **info}

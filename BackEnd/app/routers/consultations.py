@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from ai import consultation as consult_ai
 from ai import reminders as reminders_mod
+from ai import decision as laya_decision
 from ai.safety import allergy_hit, check_pair_level, to_generic
 
 from ..database import get_db
@@ -337,6 +338,15 @@ def add_line(
         line=line, line_index=new_index, patient=patient,
         active_meds=active, other_mentions=prior_mentions,
     )
+    # Laya (advisory): it can ADD an emergency flag the keyword rules missed. It never removes or lowers a flag.
+    if not any(f.get("kind") == "urgent" for f in new_flags):
+        lf = laya_decision.line_flags(speaker, line["text"])
+        if lf and lf.get("emergency_phrase", 0.0) >= 0.85:
+            new_flags.append(_flag(
+                "urgent", "high", "Possible emergency described",
+                f"The line \"{line['text']}\" may describe an emergency symptom (AI model, {round(lf['emergency_phrase'] * 100)}% sure). Check it now.",
+                new_index,
+            ))
     existing_flags.extend(new_flags)
 
     # Missing-info flags (dedupe via kind_tag)
