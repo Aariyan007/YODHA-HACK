@@ -8,7 +8,7 @@ from .types import ToolResult, block
 LEAD = {
     "latest_records": "Your latest records:", "search": "Records that match:", "medications": "Your current medicines:",
     "care_loop": "Today's doses:", "labs": "Your latest results:", "alerts": "What needs your attention:",
-    "pdf": "Your PDF:", "visit_prep": "Getting ready for your visit:", "multi_step": "Here is what I did:", "file_summary": "About this file:", "file_entities": "What the file contains:", "file_compare": "Compared with your thread:", "file_evidence": "Where it says that:",
+    "pdf": "Your PDF:", "medicine_change": "About your medicines:", "visit_prep": "Getting ready for your visit:", "multi_step": "Here is what I did:", "file_summary": "About this file:", "file_entities": "What the file contains:", "file_compare": "Compared with your thread:", "file_evidence": "Where it says that:",
     "find_doctor": "Doctors from the sample directory (not real clinics):", "sharing_status": "Sharing right now:",
 }
 DISCLAIMER = "This is information from your own records, not medical advice. Your doctor decides about treatment."
@@ -31,8 +31,10 @@ class AgentResponseFormatter:
                 if k not in seen:
                     seen.add(k)
                     evidence.append(e)
+        if plan.clarify and results:  # a standing note the person must see with the results (e.g. why a medicine change is not possible)
+            blocks.insert(0, block("text", text=plan.clarify))
         lead = LEAD.get(plan.intent)
-        if lead and blocks and blocks[0]["type"] != "text":
+        if lead and blocks and blocks[0]["type"] != "text" and not plan.clarify:
             blocks.insert(0, block("text", text=lead))
         if not blocks:
             blocks = [block("text", text=plan.clarify or "I have nothing to show for that.")]

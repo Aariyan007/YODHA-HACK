@@ -20,6 +20,12 @@ ROLES = ("patient", "doctor")
 DOC_TYPES = ["lab", "prescription", "consultation", "visit", "scan", "vitals"]
 
 
+def share_ref(token: str) -> str:
+    """A handle for a share link that is not the token (safe to show and to log)."""
+    import hashlib
+    return hashlib.sha256(token.encode()).hexdigest()[:10]
+
+
 def _docs(ctx: AgentContext):
     """Document query limited to this patient and what the scope allows."""
     q = select(Document).where(Document.patient_id == ctx.patient_id)
@@ -240,10 +246,10 @@ def sharing_active(ctx: AgentContext, args: dict) -> dict:
     for s in ctx.db.scalars(select(ShareLink).where(ShareLink.patient_id == ctx.patient_id, ShareLink.doctor_user_id.is_(None))):
         exp = s.expires_at if s.expires_at.tzinfo else s.expires_at.replace(tzinfo=timezone.utc)
         if exp > now:
-            rows.append({"ref": s.token[:4] + "…", "scope": s.scope, "expiresAt": iso(exp)})
+            rows.append({"ref": share_ref(s.token), "scope": s.scope, "expiresAt": iso(exp)})
     text = (f"{len(rows)} share link(s) active." if rows else "No share links are active.")
     return {"data": {"count": len(rows), "links": rows},
-            "blocks": [block("text", text=text)] + [block("care_item", name=f"Share ({r['scope']})", time=r["expiresAt"]) for r in rows]}
+            "blocks": [block("text", text=text)] + [block("care_item", key=r["ref"], name=f"Share ({r['scope']})", time=r["expiresAt"]) for r in rows]}
 
 
 # ---------------- navigation (L2): the frontend executes the structured action

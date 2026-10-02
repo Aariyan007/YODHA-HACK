@@ -58,7 +58,7 @@ class AgentEngine:
             return out
         specs = [REGISTRY.get(s.tool) for s in plan.steps]
         task = tasks.create(ctx, plan.intent, [{"tool": s.tool, "args": s.args, "label": _label(sp)} for s, sp in zip(plan.steps, specs)])
-        task.result = {"userText": text[:300], "planSource": plan.source}
+        task.result = {"userText": text[:300], "planSource": plan.source, "lead": plan.clarify}
         ctx.db.commit()
         if any(sp and sp.slow for sp in specs):
             snap = dict(role=ctx.role, actor_id=ctx.actor_id, actor_name=ctx.actor_name, patient_id=ctx.patient_id, scope=ctx.scope,
@@ -116,7 +116,7 @@ class AgentEngine:
 
     def _finish(self, ctx: AgentContext, task, intent: str, conv: str, source: str) -> dict:
         results = [tasks.result_from_dict(s["result"]) for s in task.steps if s.get("result")]
-        out = self.formatter.format(Plan(intent), results)
+        out = self.formatter.format(Plan(intent, clarify=(task.result or {}).get("lead")), results)
         out.update(taskId=task.id, status=task.status, conversationId=conv, planSource=source,
                    steps=[{"tool": s["tool"], "status": s["status"]} for s in task.steps])
         if task.status == "cancelled":

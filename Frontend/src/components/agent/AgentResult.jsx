@@ -1,4 +1,5 @@
 import { Arrow } from "../../design/primitives.jsx";
+import AgentQR from "./AgentQR.jsx";
 
 export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, onType, onAnswer, onDownload }) {
   return (
@@ -32,6 +33,7 @@ export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, o
           </div>
         </div>
       )}
+      {result.qr && <AgentQR qr={result.qr} />}
       {result.note && <p className="ag-res-note">{result.note}</p>}
       {result.typeChoices?.length > 0 && (
         <div className="ag-res-sug" role="group" aria-label="What kind of document is this?">

@@ -103,6 +103,17 @@ def task_cancel(task_id: str, patient: Patient = Depends(current_patient), db: S
     return out
 
 
+@router.get("/shares/{ref}")
+def share_qr(ref: str, patient: Patient = Depends(current_patient)):
+    """The QR payload for a share the agent just made. The token never travels in a task result or the audit log: it is
+    held for 15 minutes under a key only this patient can read, and is fetched here with the patient's login."""
+    import json
+    raw = store.get_value(f"agent:qr:{patient.id}:{ref}") if ref.isalnum() else None
+    if raw is None:
+        raise HTTPException(404, "That share is no longer available to show. Ask me to make a new one.")
+    return json.loads(raw)
+
+
 @router.get("/tools")
 def tools(patient: Patient = Depends(current_patient)):
     return [{"name": t["name"], "description": t["description"], "level": t["level"]} for t in REGISTRY.describe("patient")]

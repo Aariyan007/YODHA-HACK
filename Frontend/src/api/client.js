@@ -658,3 +658,4 @@ export const agentDownload = async (fileId, name) => {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 };
+export const agentShareQr = (ref) => request(`/api/agent/shares/${ref}`);

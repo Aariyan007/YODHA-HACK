@@ -106,3 +106,7 @@
 /* attach: same footprint as the send button, quiet until hovered */
 .ag-input .ag-attach { background: var(--mt-paper-2); color: var(--mt-deep); border: 1px solid var(--mt-line-2); display: grid; place-items: center; }
 .ag-input .ag-attach:hover:not(:disabled) { background: var(--mt-pale); }
+
+.ag-qr { margin: var(--u2) 0; display: grid; justify-items: center; gap: var(--u1); }
+.ag-qr svg { background: #fff; padding: var(--u1); border-radius: var(--rad-m); border: 1px solid var(--mt-line-2); }
+.ag-qr figcaption { font-size: 0.8rem; color: var(--mt-ink-3); text-align: center; }

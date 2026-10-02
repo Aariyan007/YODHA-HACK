@@ -3,7 +3,7 @@
 const TITLES = {
   latest_records: "Your latest records", search: "Matching records", medications: "Your medicines", care_loop: "Today's doses",
   labs: "Your latest results", alerts: "What needs attention", find_doctor: "Doctors (sample directory)", sharing_status: "Sharing",
-  trend: "How it has changed", file_summary: "About this file", file_entities: "What the file contains", file_compare: "Compared with your thread", file_evidence: "Where it says that", allergies: "Allergies", conditions: "Conditions", navigate: "Opening",
+  trend: "How it has changed", pdf: "Your PDF", share_create: "Share link ready", share_stop: "Sharing stopped", log_reading: "Reading added", mark_taken: "Dose marked", file_add: "Added to your thread", medicine_change: "About your medicines", send_to_doctor: "Sending to a doctor", doctor_remove: "Access removed", file_summary: "About this file", file_entities: "What the file contains", file_compare: "Compared with your thread", file_evidence: "Where it says that", allergies: "Allergies", conditions: "Conditions", navigate: "Opening",
 };
 const tone = (s) => (s === "alert" || s === "high" ? "alert" : s === "watch" || s === "medium" ? "watch" : s === "good" ? "good" : "steady");
 const cite = (e) => (e?.quote ? `Page ${e.page || 1}: "${e.quote}"` : undefined);
@@ -14,6 +14,7 @@ function item(b) {
     case "document": return { label: b.title, value: when(b.date) || "", sub: [b.docType, b.provider || b.doctor].filter(Boolean).join(" · ") || undefined, tone: tone(b.status) };
     case "medication": return { label: b.name, value: b.dose || "", sub: [b.frequency, (b.times || []).join(", "), cite(b.evidence)].filter(Boolean).join(" · ") || undefined, tone: "steady" };
     case "metric": return { label: b.name, value: `${b.value}${b.unit ? ` ${b.unit}` : ""}`, sub: [when(b.date), b.range && `usual ${b.range}`, cite(b.evidence)].filter(Boolean).join(" · "), tone: tone(b.status) };
+    case "timeline_event": return { label: b.title, value: when(b.date) || "", sub: `Added to your health thread (${b.docType})`, tone: tone(b.status) };
     case "pdf": return { label: b.name, value: `${b.pages || 1} page${(b.pages || 1) > 1 ? "s" : ""}`, sub: `Private. Available for ${b.expiresInHours} hours.`, tone: "good" };
     case "evidence": return { label: b.label || "Line", value: b.quote || "", sub: `Page ${b.page || 1}, line ${(b.lines || []).join(", ")}`, tone: "steady" };
     case "comparison": return { label: b.name, value: `${b.before.value} → ${b.after.value}${b.unit ? ` ${b.unit}` : ""}`, sub: `${b.points} results, ${when(b.before.date)} to ${when(b.after.date)}`, glyph: b.change > 0 ? "↑" : b.change < 0 ? "↓" : "→", tone: "steady" };
@@ -37,6 +38,7 @@ export function resultFromResponse(r) {
     items,
     note: [texts.slice(1).join(" "), r.disclaimer].filter(Boolean).join(" ") || undefined,
     navigate: nav?.route,
+    qr: blocks.find((b) => b.type === "action" && b.kind === "show_qr") || undefined,
     pdf: blocks.find((b) => b.type === "pdf") || undefined,
     confirmation: r.confirmation || undefined,
     steps: r.steps,

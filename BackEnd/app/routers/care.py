@@ -50,8 +50,8 @@ def my_doctors(patient: Patient = Depends(current_patient), db: Session = Depend
     return [doctor_row(l, db.get(User, l.doctor_user_id)) for l in links]
 
 
-@router.delete("/doctors/{link_id}")
-def remove_doctor(link_id: str, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+def revoke_link(db: Session, patient: Patient, link_id: str) -> User:
+    """Stop a doctor's access (the route and the agent both use it). Raises 404 if it is not this patient's active link."""
     link = db.get(CareLink, link_id)
     if link is None or link.patient_id != patient.id or link.status != "active":
         raise HTTPException(404, "Doctor not found")
@@ -61,5 +61,11 @@ def remove_doctor(link_id: str, patient: Patient = Depends(current_patient), db:
     doctor = db.get(User, link.doctor_user_id)
     db.add(AccessLog(patient_id=patient.id, who=patient.name, role="Patient",
                      action=f"Removed access for {doctor.name}", via="Doctor access"))
+    return doctor
+
+
+@router.delete("/doctors/{link_id}")
+def remove_doctor(link_id: str, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    revoke_link(db, patient, link_id)
     db.commit()
     return {"ok": True}

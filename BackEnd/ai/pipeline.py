@@ -206,7 +206,7 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
     return {"record": rec, "alerts": saved_alerts, "reminders": reminders_list}
 
 
-def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -> dict:
+def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, doc: dict | None = None) -> dict:
     """Run every stage. Returns the final result dict (ready for the SSE 'done' event)."""
     mime = _mime_from_name(filename)
 
@@ -214,7 +214,8 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus) -
     bus.send({"stage": "read"})
     # understand (same model call, split as a stage so the UI shows motion)
     bus.send({"stage": "understand"})
-    doc = extract(data, mime)
+    if doc is None:  # the agent passes a document it already read and the person confirmed
+        doc = extract(data, mime)
 
     # code: build full picture
     bus.send({"stage": "code"})

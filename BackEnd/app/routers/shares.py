@@ -14,15 +14,18 @@ from .patients import build_alerts, build_insights, build_medicines, build_timel
 router = APIRouter(prefix="/api/shares", tags=["shares"])
 
 
+def make_share(db: Session, patient_id: str, scope: str, hours: int) -> ShareLink:
+    """The one place a share link is made (the route and the agent both use it). Does not commit."""
+    link = ShareLink(token=secrets.token_urlsafe(16), patient_id=patient_id, scope=scope,
+                     expires_at=datetime.now(timezone.utc) + timedelta(hours=hours))
+    db.add(link)
+    db.flush()
+    return link
+
+
 @router.post("")
 def create_share(body: ShareCreate, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
-    link = ShareLink(
-        token=secrets.token_urlsafe(16),
-        patient_id=patient.id,
-        scope=body.scope,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=body.hours),
-    )
-    db.add(link)
+    link = make_share(db, patient.id, body.scope, body.hours)
     db.commit()
     return {"token": link.token, "url": f"/share/{link.token}", "scope": link.scope, "expiresAt": iso(link.expires_at)}
 

@@ -44,6 +44,13 @@ NAV = {
 _P = lambda *words: re.compile("|".join(words), re.I)  # noqa: E731
 R_PDF = _P(r"\bpdf\b", r"printable", r"hand ?out", r"doctor summary", r"health summary", r"download .*(summary|report)")
 R_SEND = _P(r"send .*(doctor|dr\b)", r"(email|whatsapp|forward|mail) .*(doctor|dr\b)")
+R_SHARE_STATUS = _P(r"who can see", r"who has access", r"active shar", r"share status", r"shared with")
+R_SHARE_NEW = _P(r"(make|create|generate|give me|get me|new|show me).{0,25}(\bqr\b|share link|sharing link)", r"share my (records|reports|labs|lab reports|medicines|prescriptions)")
+R_SHARE_STOP = _P(r"stop sharing", r"revoke (all |my |the )?(share|link|qr)", r"turn off (sharing|the share)", r"cancel (the |my )?(share|link|qr)")
+R_DOC_REMOVE = re.compile(r"(?:remove|revoke|stop)\s+(?:access\s+(?:for|of|to)\s+|(?:dr\.?\s+)?)?(dr\.?\s+[a-z .]{2,40}?)(?:'s)?\s*(?:access|from my record)?\s*$", re.I)
+R_TOOK = re.compile(r"(?:mark|log|i (?:took|have taken|had))\s+(?:my\s+)?(?:dose of\s+)?([a-z][a-z0-9 -]{1,30}?)(?:\s+(?:as\s+)?(?:taken|done)|\s+tablet|\s+dose|\s+at\s+(\d{1,2}:\d{2}))?\s*$", re.I)
+R_LOG = _P(r"\b(log|add|record|enter|save|note down|note)\b")
+R_MED_CHANGE = _P(r"\b(stop|skip|quit|double|increase|reduce|lower|raise|change|switch|start)\b.{0,25}\b(medicine|medication|tablet|pill|dose|metformin|insulin|telma|atorva|amlodipine)", r"\bshould i (stop|take|skip|change|increase|reduce)\b")
 R_NAV = re.compile(r"^\s*(?:please\s+)?(?:open|go to|take me to|show me the|navigate to)\s+(?:the\s+|my\s+)?(.+?)(?: page| tab| screen)?\s*$", re.I)
 R_MEDS = _P(r"medicin", r"tablet", r"\bpills?\b", r"prescri", r"മരുന്ന്", r"\bdrugs?\b")
 R_DUE = _P(r"\bdue\b", r"reminder", r"dose", r"care.?loop", r"today'?s", r"missed", r"taken")
@@ -101,6 +108,8 @@ class AgentPlanner:
             (r"compare|previous|earlier|last (report|time)|changed", "documents.compare", "file_compare"),
             (r"evidence|where (does|did)|which line|show me (the )?(line|source)|proof", "documents.evidence", "file_evidence"),
         ]
+        if re.search(r"\b(add|save|put|store|keep)\b.{0,30}\b(thread|timeline|record|history)\b|\badd (it|this|these|them)\b", low):
+            return Plan("file_add", [read, Step("records.add_from_file", dict(arg))])
         steps = [Step(t, dict(arg)) for rx, t, _ in wants if re.search(rx, low)]
         if re.search(r"question|ask (the |my )?doctor|prepare|visit", low):
             steps.append(Step("visit.prepare", {}))
@@ -119,12 +128,31 @@ class AgentPlanner:
             for word, route in NAV.items():
                 if word in target:
                     return Plan("navigate", [Step("navigation.navigate", {"route": route})])
+        if R_MED_CHANGE.search(low) and not R_NAV.match(text):  # L4: the agent never changes or advises on medicines
+            return Plan("medicine_change", [Step("medications.list")],
+                        clarify="I cannot start, stop or change a medicine, and I cannot tell you whether to. That is your doctor's decision. "
+                                "Here is your current list; I can also prepare questions for your next visit.")
+        if R_SHARE_STOP.search(low) and role == "patient":
+            return Plan("share_stop", [Step("sharing.revoke", {"all": True})])
+        if role == "patient" and (m := R_DOC_REMOVE.search(text)) and re.search(r"\bdr\b", m.group(1), re.I):
+            return Plan("doctor_remove", [Step("care.revoke_doctor", {"name": m.group(1).strip()[:80]})])
+        if R_SHARE_NEW.search(low) and role == "patient":
+            scope = "labs" if re.search(r"\blabs?\b|lab report", low) else "medicines" if re.search(r"medicin|prescri", low) else "full"
+            return Plan("share_create", [Step("sharing.create", {"scope": scope})])
         if R_SEND.search(low):  # delivery is never faked: say what is really possible
             return Plan("send_to_doctor", clarify="I cannot send anything to a doctor myself, so I will not pretend to. I can make a PDF summary "
                                                   "for you to hand over, or a share link and QR code your doctor can scan. Which would you like?")
         if R_PDF.search(low):
             kind = "medication_summary" if re.search(r"medic|tablet|drug", low) else "visit_prep" if re.search(r"visit|prepar|appointment", low) else "patient_summary"
             return Plan("pdf", [Step("pdf.generate", {"kind": kind})])
+        reading = self._reading(text) if R_LOG.search(low) and role == "patient" else None
+        if reading:
+            return Plan("log_reading", [Step("health.log_reading", reading)])
+        if role == "patient" and (m := R_TOOK.match(text.strip())):
+            args = {"medicine": m.group(1).strip()}
+            if m.group(2):
+                args["time"] = m.group(2).zfill(5)
+            return Plan("mark_taken", [Step("careloop.mark_taken", args)])
         for word, code in LAB_WORDS.items():
             if word in low and (R_TREND.search(low) or "how is" in low or "how's" in low):
                 return Plan("trend", [Step("health.trend", {"code": code})])
@@ -137,7 +165,7 @@ class AgentPlanner:
         if role == "patient" and (R_DOCTOR.search(low) or (q.get("specialty") and re.search(r"\b(find|near|nearby|book|need)\b", low))):
             args = {k: q[k] for k in ("specialty", "language") if q.get(k)}
             return Plan("find_doctor", [Step("doctors.search", args)])
-        if R_SHARE.search(low) and role == "patient":
+        if (R_SHARE_STATUS.search(low) or R_SHARE.search(low)) and role == "patient":
             return Plan("sharing_status", [Step("sharing.active")])
         if R_DUE.search(low):
             return Plan("care_loop", [Step("careloop.due")])
@@ -152,6 +180,22 @@ class AgentPlanner:
         if R_LABS.search(low):
             return Plan("labs", [Step("health.latest")])
         return None
+
+    @staticmethod
+    def _reading(text: str) -> dict | None:
+        """Numbers only from the person's own words, with their meaning from the nearby label. Never from a model or from audio alone."""
+        low = text.lower()
+        out: dict = {}
+        if m := re.search(r"(?:\bbp\b|blood pressure)\D{0,12}(\d{2,3})\s*(?:/|over|by)\s*(\d{2,3})", low):
+            out["sbp"], out["dbp"] = float(m.group(1)), float(m.group(2))
+        for key, rx in (("pulse", r"(?:pulse|heart rate)\D{0,8}(\d{2,3})"), ("spo2", r"(?:spo2|oxygen|saturation)\D{0,8}(\d{2,3})"),
+                        ("weight", r"weight\D{0,8}(\d{2,3}(?:\.\d)?)"), ("temp", r"(?:temp|temperature|fever)\D{0,8}(\d{2,3}(?:\.\d)?)"),
+                        ("sugar", r"(?:sugar|glucose)\D{0,12}(\d{2,3})")):
+            if m := re.search(rx, low):
+                out[key] = float(m.group(1))
+        if "sugar" in out:
+            out["sugarType"] = "fbs" if re.search(r"fasting|fbs|empty stomach", low) else "ppbs" if re.search(r"after (food|meal|lunch|dinner|breakfast)|ppbs|post", low) else "rbs"
+        return out or None
 
     # ---- LLM
     def _llm(self, role: str, text: str, history: list[dict]) -> Plan | None:

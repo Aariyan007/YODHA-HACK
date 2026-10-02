@@ -76,6 +76,9 @@ class AgentExecutor:
         cid = uuid.uuid4().hex[:16]
         try:
             preview = spec.preview(ctx, args) if spec.preview else None  # what exactly will change, in words
+        except _ToolError as e:  # nothing sensible to confirm (not found, ambiguous): say so instead of asking
+            self.audit.record(ctx, spec, name, "failed", detail=str(e))
+            return ToolResult(False, "failed", name, error=str(e), blocks=[block("error", text=str(e))])
         except Exception:
             preview = None
         pending = {"actor": ctx.actor_id, "role": ctx.role, "patient": ctx.patient_id, "tool": name, "args": args,
