@@ -627,3 +627,10 @@ export const getDoctorRecommendation = async (params) =>
     ? { ...(await mockSearch({ ...params, specialty: "General Physician" })), risk: MOCK_HEALTH_CHECK.risks[0], risks: MOCK_HEALTH_CHECK.risks,
         emergency: false, bring: [{ text: "Your medicine list: Glycomet 500, Telma 40, Atorva 20" }, { text: "Allergies: Sulfa drugs" }] }
     : request(`/api/doctors/recommend${qs(params)}`);
+
+// ---------- agent ----------
+
+// Typed requests go to the backend Agent Engine. Offline/mock build has no engine, so callers fall back to local actions.
+export const agentAvailable = () => !USE_MOCK;
+export const agentChat = (text, conversationId) => request("/api/agent/chat", { method: "POST", body: { text, conversationId } });
+export const agentConfirm = (id, approve) => request("/api/agent/confirm", { method: "POST", body: { id, approve } });

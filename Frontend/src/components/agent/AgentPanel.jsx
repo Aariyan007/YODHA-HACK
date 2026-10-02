@@ -5,6 +5,8 @@ import { reducedMotion } from "../../anim.js";
 import { factsFor } from "./agentContext.js";
 import { loadAgentData, useAgentData } from "./agentData.js";
 import { intentFor, runAction } from "./agentActions.js";
+import { agentAvailable, agentChat } from "../../api/client.js";
+import { resultFromResponse } from "./agentBlocks.js";
 import AgentHeader from "./AgentHeader.jsx";
 import AgentContext from "./AgentContext.jsx";
 import { AgentActionList } from "./AgentAction.jsx";
@@ -17,6 +19,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
   const navigate = useNavigate();
   const ref = useRef(null);
   const alive = useRef(true);
+  const conv = useRef(null);
   const [view, setView] = useState({ kind: "home" });
   const { data, loading } = useAgentData(!ctx.doctor);
 
@@ -54,13 +57,35 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     setTimeout(() => { if (alive.current) setView({ kind: "result", result }); }, wait);
   }, [data]);
 
-  const submit = (text) => {
+  const localAnswer = (text) => {
     const actionId = intentFor(text);
     if (actionId) return run(actionId, text);
     setView({
       kind: "result",
-      result: { title: "I can't do that yet", lead: "In this preview I can work on these from this page.", note: "Typed requests are matched to a fixed set of actions. No model reads them.", suggestions: ctx.actions },
+      result: { title: "I can't do that yet", lead: "I can work on these from this page.", note: "I did not understand that request.", suggestions: ctx.actions },
     });
+  };
+
+  // Typed requests go to the Agent Engine on the server (planner -> permitted tools -> verified result).
+  // The offline build and doctor pages have no patient engine, so they keep the local actions.
+  const submit = async (text) => {
+    if (!agentAvailable() || ctx.doctor) return localAnswer(text);
+    setView({ kind: "processing", label: text });
+    const started = Date.now();
+    let result;
+    try {
+      const r = await agentChat(text, conv.current);
+      conv.current = r.conversationId || conv.current;
+      result = resultFromResponse(r);
+    } catch (e) {
+      result = { title: "That did not work", lead: e?.message && e.message.length < 140 ? e.message : "I could not reach the assistant.", note: "Try again in a moment." };
+    }
+    const wait = Math.max(0, 700 - (Date.now() - started));
+    setTimeout(() => {
+      if (!alive.current) return;
+      setView({ kind: "result", result });
+      if (result.navigate) go(result.navigate); // a navigation request really navigates
+    }, wait);
   };
 
   const facts = factsFor(ctx, data);

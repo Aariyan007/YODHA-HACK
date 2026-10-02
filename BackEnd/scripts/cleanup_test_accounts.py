@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import delete, or_, select
 
 from app.database import SessionLocal
-from app.models import (AccessLog, Alert, CareLink, Consultation, Document, InviteCode, Medicine, Observation, Patient,
+from app.models import (AccessLog, AgentAudit, Alert, CareLink, Consultation, Document, InviteCode, Medicine, Observation, Patient,
                         ReminderSettings, SentDose, SentNotice, ShareLink, User)
 
 PREFIXES = ("smoke-", "sweep-", "edge-")
@@ -33,7 +33,7 @@ def cleanup(extra_emails: tuple[str, ...] = ()) -> int:
         db.execute(delete(CareLink).where(or_(CareLink.doctor_user_id.in_(uids), CareLink.patient_id.in_(pids))))
         db.execute(delete(ShareLink).where(or_(ShareLink.doctor_user_id.in_(uids), ShareLink.patient_id.in_(pids))))
         db.execute(delete(InviteCode).where(InviteCode.patient_id.in_(pids)))
-        for model in (SentDose, SentNotice, Consultation, Observation, Medicine, Alert, AccessLog, Document, ReminderSettings):
+        for model in (SentDose, SentNotice, Consultation, Observation, Medicine, Alert, AccessLog, AgentAudit, Document, ReminderSettings):
             col = model.patient_id
             db.execute(delete(model).where(col.in_(pids)))
         db.execute(delete(User).where(User.id.in_(uids)))
