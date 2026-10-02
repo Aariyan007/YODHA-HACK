@@ -45,3 +45,33 @@ Use a venv that has `laya` and `torch` for steps 2 and 3 (`pip install laya`); t
 `reports/<name>.md` has accuracy, macro-F1, calibration error, per-language accuracy, **under-triage** (the model less urgent than the label: the dangerous direction), and the red-team gate: rules + model must flag every emergency message. The service enables the model only if the report clears `LAYA_MIN_URGENCY_ACC` (0.80), `LAYA_MIN_SPECIALIST_ACC` (0.70) and the red-team gate.
 
 The red-team patterns were written by the same person as the rules, so the gate is a regression check, not proof of coverage. The test sets are small. Treat every number as a smoke check, not clinical validation.
+
+## Training on a Windows laptop (PowerShell)
+
+Needs Python 3.12 (3.10 to 3.13 also work), Git, about 12 GB free disk and 8 GB RAM. Do NOT start the Docker stack on that machine until training is done: the images take about 5 GB.
+
+```powershell
+git clone https://github.com/<your-fork>/YODHA-HACK.git ; cd YODHA-HACK
+git remote add upstream https://github.com/Aariyan007/YODHA-HACK.git ; git pull upstream main   # only if the fork is behind
+python -m venv mlenv ; .\mlenv\Scripts\Activate.ps1      # if blocked: Set-ExecutionPolicy -Scope Process Bypass
+nvidia-smi                                                # is there an NVIDIA GPU? (decides the next lines)
+
+# NVIDIA GPU (about 30-60 minutes):
+pip install torch --index-url https://download.pytorch.org/whl/cu124
+pip install laya safetensors transformers huggingface_hub
+python ml/train_laya.py --device cuda --epochs 3 --micro-batch 8 --grad-accum 4
+
+# No GPU (slow, overnight): lower layers frozen so it fits in RAM
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install laya safetensors transformers huggingface_hub
+python ml/train_laya.py --device cpu --freeze-below 20 --epochs 2 --micro-batch 2 --grad-accum 16
+
+# Try 5 minutes first with a small run to check it works:  add  --max-items 200 --epochs 1
+
+python ml/eval.py --model ml/out/laya-medithread --name finetuned
+copy ml\reports\finetuned.json ml\out\laya-medithread\eval_report.json
+Compress-Archive ml\out\laya-medithread laya-medithread.zip      # about 0.8 GB: send this and ml\reports\finetuned.md
+```
+
+On the app machine: unzip into `models/laya/` (so `models/laya/model.safetensors` exists), then
+`docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build --wait`.
