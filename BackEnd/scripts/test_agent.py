@@ -442,7 +442,17 @@ class AgentLoopTests(Base_):
         self.assertEqual(out["steps"], [{"tool": "medications.list", "status": "ok"}])
         # the model saw the data as untrusted tool output, and only a relevant subset of tools
         self.assertIn("<tool_result", str(self.llm.seen[1][0]))
-        self.assertNotIn("sharing__create", self.llm.seen[0][1])
+        self.assertIn("sharing__create", self.llm.seen[0][1])  # all tools are offered: casual wording must not hide one
+
+    def test_follow_ups_see_the_earlier_turn(self):
+        e = self.eng([{"tool_calls": [("medications__list", {})]}, {"content": "You take Metformin."}, {"content": "Metformin, 500 mg."}])
+        ctx = self.ctx()
+        e.chat(ctx, "what pills am i on")
+        e.chat(ctx, "and the dose?")  # same conversation
+        sent = str(self.llm.seen[-1][0])
+        self.assertIn("what pills am i on", sent)
+        self.assertIn("medications__list", sent)
+        self.assertIn("You take Metformin.", sent)
 
     def test_invented_number_is_dropped_but_real_cards_stay(self):
         e = self.eng([{"tool_calls": [("health__trend", {"code": "hba1c"})]}, {"content": "Your HbA1c is 9.9 now."}])

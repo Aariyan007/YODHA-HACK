@@ -124,12 +124,12 @@ class AgentEngine:
         by_fn = {loop.fn_name(s.name): s for s in specs}
         defs = loop.tool_defs(specs)
         msgs: list[dict] = [{"role": "system", "content": loop.system_prompt(ctx.role, ctx.session)}]
-        for h in history[-4:]:
-            msgs += [{"role": "user", "content": h["u"]}, {"role": "assistant", "content": f"(I looked at: {h['a']})"}]
+        for h in history[-5:]:  # earlier turns, so "same but 1 hour" or "no, the other one" make sense
+            msgs += [{"role": "user", "content": h["u"]}, {"role": "assistant", "content": h["a"]}]
         user = text + (f"\n(The person attached a file; its id is {ctx.file_id}. Read it with documents_extract first.)" if ctx.file_id else "")
         msgs.append({"role": "user", "content": user})
         tasks.set_status(ctx.db, task, "running")
-        results, evidence_text, reply, ran, retried = [], text, "", False, False
+        results, evidence_text, reply, ran, retried, called, done = [], text, "", False, False, [], {}
         for _ in range(loop.MAX_ROUNDS):
             turn = self.llm.chat_tools(msgs, defs)
             if turn is None:
@@ -158,6 +158,11 @@ class AgentEngine:
                     args = args if isinstance(args, dict) else {}
                 except ValueError:
                     args = {}
+                key = (c["name"], json.dumps(args, sort_keys=True))
+                if key in done:  # the model asked for exactly what it already has: do not run (or audit) it again
+                    msgs.append({"role": "tool", "tool_call_id": c["id"], "content": done[key]})
+                    continue
+                called.append(f"{c['name']}({(c['arguments'] or '')[:120]})")
                 i = tasks.add_step(ctx.db, task, name, _label(spec) if spec else name)
                 r = self.executor.run(ctx, name, args) if spec else self.executor.run(ctx, "unknown.tool", {})
                 ctx.db.commit()
@@ -171,6 +176,7 @@ class AgentEngine:
                 if r.ok and isinstance(r.data, dict) and r.data.get("consultationId"):
                     self.memory.set_session(ctx.role, ctx.actor_id, conv, last_consultation=r.data["consultationId"])
                 shown = loop.view(name, r.blocks, r.error)
+                done[key] = shown + "\n(You already have this result.)"
                 evidence_text += " " + shown
                 msgs.append({"role": "tool", "tool_call_id": c["id"], "content": shown if r.status != "needs_confirmation" else "waiting for the person to confirm"})
             if stop:
@@ -190,8 +196,10 @@ class AgentEngine:
                "steps": [{"tool": s["tool"], "status": s["status"]} for s in task.steps]}
         task.result = {**(task.result or {}), **{k: out[k] for k in ("blocks", "evidence", "confirmation", "disclaimer", "steps")}}
         tasks.set_status(ctx.db, task, status if status != "failed" else "failed", None)
-        if status != "waiting_for_confirmation":
-            self.memory.add_turn(ctx.role, ctx.actor_id, conv, text, ", ".join(dict.fromkeys(r.tool for r in results)) or "chat")
+        if True:
+            # What the model did (tools + arguments it chose) and the reply that passed the checks: enough for follow-ups.
+            mem = ("[did: " + "; ".join(called) + "] " if called else "") + reply
+            self.memory.add_turn(ctx.role, ctx.actor_id, conv, text, mem.strip() or "ok")
         return out
 
     def _background(self, task_id: str, snap: dict) -> None:

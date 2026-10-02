@@ -22,7 +22,7 @@ class AgentMemory:
 
     def add_turn(self, role: str, actor: str, conv: str, user_text: str, agent_text: str) -> None:
         h = self.history(role, actor, conv)
-        h.append({"u": user_text[:500], "a": agent_text[:500]})
+        h.append({"u": user_text[:500], "a": agent_text[:600]})
         store.set_value(_key(role, actor, conv, "hist"), json.dumps(h[-MAX_TURNS:], ensure_ascii=False), ttl=TTL)
 
     def session(self, role: str, actor: str, conv: str) -> dict:

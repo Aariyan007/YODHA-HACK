@@ -43,7 +43,7 @@ NAV = {
 
 _P = lambda *words: re.compile("|".join(words), re.I)  # noqa: E731
 R_PDF = _P(r"\bpdf\b", r"printable", r"hand ?out", r"doctor summary", r"health summary", r"download .*(summary|report)")
-R_SEND = _P(r"send .*(doctor|dr\b)", r"(email|whatsapp|forward|mail) .*(doctor|dr\b)")
+R_SEND = _P(r"\b(send|email|e-mail|mail|whatsapp|forward|text|message|share it with|give it to)\b.{0,30}\b(doctor|doc|dr|physician|specialist)\b")
 R_SHARE_STATUS = _P(r"who can see", r"who has access", r"active shar", r"share status", r"shared with")
 R_SHARE_NEW = _P(r"\b(show|display|get|open|need)\b.{0,12}\bqr\b", r"(make|create|generate|give me|get me|new|show me).{0,25}(\bqr\b|share link|sharing link)", r"share my (records|reports|labs|lab reports|medicines|prescriptions)")
 R_SHARE_STOP = _P(r"stop sharing", r"revoke (all |my |the )?(share|link|qr)", r"turn off (sharing|the share)", r"cancel (the |my )?(share|link|qr)")
