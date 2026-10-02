@@ -64,7 +64,7 @@ R_LATEST = _P(r"latest", r"recent", r"last (record|report|visit)", r"new(est)? (
               r"my records", r"റിപ്പോർട്ട്")
 R_TREND = _P(r"trend", r"over time", r"history of", r"going up", r"going down", r"changed")
 R_LABS = _P(r"\blabs?\b", r"results?", r"test values", r"my numbers")
-R_SEARCH = re.compile(r"(?:find|search|look for|show)\s+(?:my\s+)?(.+?)\s*(?:report|record|document|prescription)s?\b", re.I)
+R_SEARCH = re.compile(r"(?:find|search|look for|show|need|get|want|pull up)\s+(?:my\s+)?(.+?)\s*(?:report|record|document|prescription)s?\b", re.I)
 
 
 class AgentPlanner:
