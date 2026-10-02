@@ -171,3 +171,7 @@ Harness notes:
 - `test_nginx.py` fails "backend is not reachable around nginx" if any local uvicorn listens on :8000. Stop it first; it would also run a second scheduler and double-send reminders. Check with `lsof -nP -iTCP:8000 -sTCP:LISTEN`.
 - Unit-suite last lines can be log noise; grep for `^(OK|FAILED|Ran)`.
 - Not covered: Laya (gated off until fine-tuned). The Docker nginx image still serves the pre-refresh UI until `docker compose up -d --build`.
+
+## Laya fine-tune result (2026-10-02)
+
+Colab T4 run finished; weights unzipped to `models/laya/` (gitignored, with `eval_report.json`). Gate FAILED, so the service loads but the app uses rules only: urgency 0.776 with rules (needs 0.80), specialist 0.929 on Gretel (hand-written 0.61), red-team 33/33. English urgency 0.97, Malayalam 0.21, Manglish 0.25; consultation-line flags recall 0.0. Decision: leave Laya off, focus on UI for the judges. To improve later: add hand-written Malayalam/Manglish training rows and retrain. Run without the AI overlay (`docker compose up -d --build --remove-orphans`) to save memory on the 8 GB Mac.
