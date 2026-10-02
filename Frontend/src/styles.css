@@ -1010,8 +1010,10 @@ textarea { resize: vertical; min-height: 90px; }
 .reminder-detail { font-size: var(--font-sm); color: var(--text-2); margin-top: 2px; }
 
 /* ── Home greeting ── */
-.home-greeting { margin-bottom: var(--sp-8); }
-.home-greeting h2 { margin-bottom: var(--sp-3); }
+.home-greeting { margin-bottom: var(--sp-6); }
+.home-greeting h2 { margin-bottom: 2px; font-size: clamp(1.9rem, 4vw, 2.6rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+.greet-name { color: var(--brand-dark); }
+.greet-sub { color: var(--text-3); font-size: var(--font-lg); font-weight: var(--fw-medium); }
 
 /* ═══════════════════════════════════════════════════════════
    DOCTOR CONSOLE
@@ -1502,28 +1504,30 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   .reminder-card.taken .pill.good { animation: none; }
 }
 
-/* Home: at-a-glance strip */
-.gl-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); margin: 0 0 var(--sp-8); }
-.gl-tile { position: relative; display: flex; flex-direction: column; gap: 6px; padding: var(--sp-4); min-height: 132px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-xs); color: var(--text); text-decoration: none; overflow: hidden; transition: transform var(--t-base), box-shadow var(--t-base), border-color var(--t-base); }
-.gl-tile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--brand-border); }
-.gl-tile.good::before { background: var(--brand); }
-.gl-tile.watch::before { background: var(--warning); }
-.gl-tile.alert::before { background: var(--danger); }
-a.gl-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--brand-border); }
-a.gl-tile:active { transform: translateY(0) scale(0.99); }
+/* Home: at-a-glance stat tiles (reference-matched) */
+.gl-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-4); margin: 0 0 var(--sp-8); }
+.gl-tile { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-5); min-height: 168px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-xl); box-shadow: var(--shadow-sm); color: var(--text); text-decoration: none; }
+.gl-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .gl-label { font-size: var(--font-xs); font-weight: var(--fw-semi); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); }
-.gl-value { font-size: 2rem; line-height: 1.1; font-weight: var(--fw-bold, 700); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.gl-value small { margin-left: 4px; font-size: var(--font-xs); font-weight: var(--fw-medium); letter-spacing: 0; color: var(--text-3); }
+.gl-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: var(--r-full); font-size: 0.6875rem; font-weight: var(--fw-semi); background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); white-space: nowrap; }
+.gl-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.gl-pill.watch { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+.gl-pill.alert { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+.gl-main { display: flex; align-items: baseline; }
+.gl-value { font-size: 2.25rem; line-height: 1.05; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.gl-value small { margin-left: 5px; font-size: var(--font-xs); font-weight: var(--fw-medium); letter-spacing: 0; color: var(--text-3); }
 .gl-slash { margin: 0 2px; color: var(--text-3); font-weight: 400; }
-.gl-foot { margin-top: auto; font-size: var(--font-xs); font-weight: var(--fw-semi); color: var(--text-2); }
-.gl-foot.good { color: var(--success); } .gl-foot.watch { color: var(--warning); } .gl-foot.alert { color: var(--danger); }
-.gl-tile .spark { position: absolute; right: var(--sp-4); top: 42px; }
-.gl-ring { position: absolute; right: var(--sp-4); top: 34px; width: 52px; height: 52px; }
-.gl-ring-bg { fill: none; stroke: var(--border); stroke-width: 6; }
-.gl-ring-arc { fill: none; stroke: var(--brand); stroke-width: 6; stroke-linecap: round; }
+.gl-well { margin-top: auto; background: var(--surface-inset); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); min-height: 48px; display: flex; align-items: center; justify-content: space-between; }
+.gl-well .spark { width: 100%; height: 32px; }
+.gl-foot { font-size: var(--font-xs); font-weight: var(--fw-semi); color: var(--text-2); }
+.gl-dose-row { display: flex; align-items: center; gap: var(--sp-3); width: 100%; }
+.gl-dose-foot { font-size: var(--font-xs); font-weight: var(--fw-semi); color: var(--text-2); }
+.gl-ring { width: 36px; height: 36px; flex-shrink: 0; }
+.gl-ring-bg { fill: none; stroke: var(--border); stroke-width: 7; }
+.gl-ring-arc { fill: none; stroke: var(--brand); stroke-width: 7; stroke-linecap: round; }
 .ok-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--brand); }
 @media (max-width: 900px) { .gl-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 380px) { .gl-value { font-size: 1.7rem; } .gl-tile .spark { display: none; } }
+@media (max-width: 380px) { .gl-value { font-size: 1.9rem; } }
 
 /* ═══════════════════════════════════════════════════════════
    v6 — clinical-premium refresh (reference-matched)

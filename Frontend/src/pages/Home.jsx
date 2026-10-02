@@ -21,14 +21,13 @@ function Greeting({ name, summary }) {
       });
     }
   }, []);
+  const { t } = useT();
   return (
     <div ref={ref} className="home-greeting">
       <h2>
-        {name ? `Hello, ${name}` : "Hello"}
+        {name ? <>Welcome, <span className="greet-name">{name}</span></> : "Welcome"}
       </h2>
-      {summary && (
-        <p className="lead" style={{ marginTop: "var(--sp-3)" }}>{summary}</p>
-      )}
+      <p className="greet-sub">{t("todayOverview")}</p>
     </div>
   );
 }

@@ -6,17 +6,21 @@ import { Link } from "react-router-dom";
 import { reducedMotion, useCountUp, useReveal } from "../anim.js";
 import { Sparkline } from "./charts.jsx";
 
-const STATUS_TEXT = { good: "On track", watch: "Keep an eye", alert: "Needs attention" };
+const STATUS_TEXT = { good: "Normal", watch: "Keep an eye", alert: "Needs attention" };
 
-function Tile({ label, to, status, children, foot }) {
+function Tile({ label, to, status, children, well }) {
   const body = (
     <>
-      <span className="gl-label">{label}</span>
-      {children}
-      {foot && <span className={`gl-foot ${status || ""}`}>{foot}</span>}
+      <div className="gl-head">
+        <span className="gl-label">{label}</span>
+        {status && <span className={`gl-pill ${status}`}>{STATUS_TEXT[status]}</span>}
+      </div>
+      <div className="gl-main">{children}</div>
+      {well && <div className="gl-well">{well}</div>}
     </>
   );
-  return to ? <Link to={to} className={`gl-tile ${status || ""}`}>{body}</Link> : <div className={`gl-tile ${status || ""}`}>{body}</div>;
+  const cls = `gl-tile ${status || ""}${to ? " card-hover" : ""}`;
+  return to ? <Link to={to} className={cls}>{body}</Link> : <div className={cls}>{body}</div>;
 }
 
 function DoseRing({ taken, total }) {
@@ -56,23 +60,25 @@ export default function GlanceStrip({ insights, reminders, warnings }) {
   return (
     <div ref={ref} className="gl-strip" role="group" aria-label="Today at a glance">
       {a1c && (
-        <Tile label="Sugar average" to="/insights" status={a1c.status} foot={STATUS_TEXT[a1c.status]}>
+        <Tile label="Sugar average" to="/insights" status={a1c.status}
+          well={<Sparkline points={series("hba1c") || insights.hba1c} code="hba1c" />}>
           <span className="gl-value">{a1cVal}<small>%</small></span>
-          <Sparkline points={series("hba1c") || insights.hba1c} code="hba1c" />
         </Tile>
       )}
       {sbp && dbp && (
-        <Tile label="Blood pressure" to="/insights" status={bpStatus} foot={STATUS_TEXT[bpStatus]}>
+        <Tile label="Blood pressure" to="/insights" status={bpStatus}
+          well={series("sbp") ? <Sparkline points={series("sbp")} code="sbp" /> : <span className="gl-foot">Target under 130 / 80</span>}>
           <span className="gl-value">{sbpVal}<span className="gl-slash">/</span>{dbpVal}<small>mmHg</small></span>
         </Tile>
       )}
       {total > 0 && (
-        <Tile label="Doses today" status={taken === total ? "good" : ""} foot={taken === total ? "All done" : `${total - taken} to go`}>
+        <Tile label="Doses today" status={taken === total ? "good" : ""}
+          well={<div className="gl-dose-row"><DoseRing taken={taken} total={total} /><span className="gl-dose-foot">{taken === total ? "All done" : `${total - taken} left today`}</span></div>}>
           <span className="gl-value">{takenVal}<small>of {total}</small></span>
-          <DoseRing taken={taken} total={total} />
         </Tile>
       )}
-      <Tile label="Warnings" status={warnings ? "watch" : "good"} foot={warnings ? "Open below" : "All clear"}>
+      <Tile label="Warnings" to="/timeline" status={warnings ? "watch" : "good"}
+        well={<span className="gl-foot">{warnings ? "See details below" : "All clear"}</span>}>
         <span className="gl-value">{warnVal}</span>
       </Tile>
     </div>
