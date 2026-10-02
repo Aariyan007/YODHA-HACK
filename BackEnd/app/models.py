@@ -191,3 +191,37 @@ class AccessLog(Base):
     action: Mapped[str] = mapped_column(String(200))
     via: Mapped[str] = mapped_column(String(40))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class User(Base):
+    """A login. Patients own a Patient row (patient_id); doctors have a profile instead. Phase 8."""
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(300))
+    role: Mapped[str] = mapped_column(String(10))  # patient | doctor
+    name: Mapped[str] = mapped_column(String(120))
+    patient_id: Mapped[str | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    specialty: Mapped[str | None] = mapped_column(String(80))
+    hospital: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class InviteCode(Base):
+    """One-time code a patient gives a doctor so the doctor can see the record."""
+    __tablename__ = "invite_codes"
+    code: Mapped[str] = mapped_column(String(12), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_by: Mapped[str | None] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class CareLink(Base):
+    """Doctor <-> patient access. `revoked` is kept (not deleted) so the history stays."""
+    __tablename__ = "care_links"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
+    doctor_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    status: Mapped[str] = mapped_column(String(10), default="active")  # active | revoked
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

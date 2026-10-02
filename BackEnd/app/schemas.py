@@ -68,7 +68,7 @@ def profile_out(p: Patient) -> dict:
     return {
         "id": p.id,
         "name": p.name,
-        "phone": p.phone,
+        "phone": p.phone if (p.phone or "").isdigit() else None,  # email sign-ups get a placeholder
         "age": p.age,
         "gender": p.gender,
         "bloodGroup": p.blood_group,
@@ -81,6 +81,12 @@ def profile_out(p: Patient) -> dict:
         "lng": p.lng,
         "profileComplete": bool(p.name and p.name != NEW_PATIENT_NAME and p.age),
     }
+
+
+def user_out(u, patient=None) -> dict:
+    """Session profile for any login. Patients carry their patient profile; doctors a small one."""
+    base = profile_out(patient) if patient is not None else {"id": u.id, "name": u.name}
+    return {**base, "userId": u.id, "email": u.email, "role": u.role, "specialty": u.specialty, "hospital": u.hospital}
 
 
 def document_out(d: Document) -> dict:
