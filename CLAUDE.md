@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Phases 1 to 6 of SPEC.md are done, plus Phase 7 (below):
+Phases 1 to 9 are done (Phase 6+ extend SPEC.md; see below). Quick orientation: FastAPI in `BackEnd/app` (routers in `routers/`, AI in `ai/`), React in `Frontend/src` (pages, `components/`, `api/client.js`), Docker stack at the repo root, Laya training in `ml/`:
 
 - Phase 1: FastAPI backend with Supabase (SQLite fallback), seeded demo patient, OTP auth, patient endpoints, share links; Vite + React patient app with login, Home, Timeline, Medicines, Health, Sharing, and a read-only Snapshot page for the doctor QR link.
 - Phase 2: upload pipeline (`POST /api/documents` → background thread → SSE stream at `/api/jobs/{id}/events`). Gemini extracts to JSON (`gemini-flash-latest` with fallback cascade); Groq (`openai/gpt-oss-120b` with `reasoning_effort=low`) writes the patient-facing summary and Malayalam translation; `ai/jev_client.py` runs duplicate / allergy / clash / lab-threshold checks. SHA-256 cache in `BackEnd/demo_cache/`, duplicate-upload guard via `Document.file_hash`, best-effort Telegram notify. Also `POST /api/triage` (emergency keyword list first, then rule table, then Groq fallback).
@@ -96,7 +96,7 @@ Redesign regressions found after the merge, and fixed in the "Frontend: restore 
 - `BackEnd/uploads/` and `BackEnd/demo_cache/` are gitignored. Cache keys are the file SHA-256; the cached result is replayed instantly on re-upload. Resetting the DB with the cache intact still produces a saved Document on re-upload via `_persist_result`.
 - SSE endpoint `/api/jobs/{id}/events` is intentionally unauthenticated — the unguessable `jobId` (uuid4) is the key, because `EventSource` cannot send `Authorization`.
 - Consultation endpoints are **not** behind the patient JWT. `/start` is unauthenticated (the share token in the body is the credential); every other call must send `X-Share-Token: <token>` matching `Consultation.share_token`, and the share link's expiry is re-checked on each call. The doctor console lives at `/console/:token` *outside* the patient login guard.
-- The frontend has no `AppShell.jsx`, `DoctorView.jsx`, `Profile.jsx`, `index.css`, Atkinson Hyperlegible font — the Phase 4 brief referred to a different codebase variant. Entry points to the console are instead on `Sharing.jsx` (owner's QR screen) and `Snapshot.jsx` (doctor's read-only snapshot).
+- The frontend has no `AppShell.jsx`, `DoctorView.jsx`, `index.css` or Atkinson Hyperlegible font (a `Profile.jsx` page was added in Phase 7) — the Phase 4 brief referred to a different codebase variant. Entry points to the console are instead on `Sharing.jsx` (owner's QR screen) and `Snapshot.jsx` (doctor's read-only snapshot).
 - Doctor-console in-progress state lives in React state only (no localStorage). A browser refresh loses the consultationId, so a mid-visit refresh starts a new visit; `getConsultation(id, token)` is available in the API client if deep-link restore is ever needed.
 
 - Doctor data is FICTIONAL (names, clinics, `+91 00000 …` phone numbers, reviews). Never present it as real. Map tiles come from tile.openstreetmap.org (needs internet; cloud sandboxes block it, so the map is grey there but pins and list still work).
