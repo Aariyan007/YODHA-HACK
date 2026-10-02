@@ -49,11 +49,14 @@ Voice SOAP note and reminders are built. Not built: browser push for the phone c
 
 Verified on the merged tree against a live `DEMO_MODE=true` server: `test_trends` 9, `test_fhir` 8, `test_reminders` 13, `test_risk` 27, `test_doctors` 17 all pass; `scripts/smoke.py` 13/13 (reset still restores 8 records / 3 medicines / 3 alerts, so Phase 7 risk alerts do not fire on the clean seed); `scripts/security_sweep.py` all pass over the 12 `/api/patients/*` routes (new ones included); `/api/doctors/nearby|ask|recommend` and `/api/patients/me/health-check` return 401 without a login (`/api/doctors/cities` is public, fictional data). `npm run build` and `npm run build:single` both build.
 
-Known regressions from the v5 redesign (commit 6dc27b3) against the Phase 6 polish pass; not fixed yet:
-- Dark mode is gone. `styles.css` is light only (`color-scheme: light`); the `prefers-color-scheme` / `data-theme` blocks from Phase 6 were replaced.
-- Buttons are `height: 42px`, below the 48 px target (only `.toggle` keeps 48 px). The Phase 6 audit script (iframes at 390/1024 px) would flag them.
-- `build:single` now bundles GSAP and Leaflet (about 870 kB). The doctor map needs internet for OpenStreetMap tiles, so the offline file shows a grey map; the list and pins still work. Rerun the offline demo flow (login, timeline, upload, console) after UI changes.
-- `scripts/test_risk.py::test_fallback_without_groq` used to call Groq when `GROQ_API_KEY` was in `.env` (it passed only in sandboxes with no key). It now blanks the key with `mock.patch.dict`.
+Redesign regressions found after the merge, and fixed in the "Frontend: restore dark mode and 48px targets" commit (2026-10-02):
+- Dark mode is back on the v5 tokens: a dark token set under `@media (prefers-color-scheme: dark)` (`:root:not([data-theme="light"])`) plus `:root[data-theme="dark"]`. Solid fills that carry white text use `--brand-fill`, `--success-fill`, `--danger-fill`, `--on-fill` (not `--brand` / `--danger`, which become light "ink" colours in dark). Use `--bg-glass` / `--overlay` for translucent layers, never a hard-coded rgba. Leaflet tiles are inverted in dark, and the zoom buttons / popups follow the theme.
+- All buttons, `a.btn`, chips, tab links, inputs and selects are at least 48 px (one override block at the end of `styles.css`; later rules win, so put new button styles above it).
+- Contrast fixes: darker `--text-3`, `--success`, `--warning`, `--danger`, `--info` in light; `--brand-dark` for active tab text, accent pills and `.btn-link`; the splash screen uses theme variables.
+- Doctor console header no longer overflows at 390 px.
+- Skill note: `.agents/skills/design-taste-frontend` (github.com/Leonxlnx/taste-skill) is installed locally (untracked, with `skills-lock.json`). It says it is for landing pages and portfolios and lists dense product UI as out of scope, so only its redesign-preserve method, dark-mode, reduced-motion, contrast and state rules were applied here, not its layout or hero rules.
+- Verified: 13 routes x 390/1024 px x light/dark with the iframe audit (no horizontal scroll, no control under 48 px, no contrast failure except decorative star glyphs), zero console errors, `npm run build` and `build:single` pass, offline demo flow (login, timeline, upload, FHIR sample, doctors map, console demo to approve) works, `smoke.py` 13/13.
+- Still true: `build:single` is about 870 kB (GSAP + Leaflet) and the offline map needs internet for tiles. The audit harness was a temporary script (served from `Frontend/public`, deleted); recreate it from the Gotchas description if needed.
 
 ## Contract
 
