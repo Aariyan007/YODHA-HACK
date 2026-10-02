@@ -269,6 +269,13 @@ class ToolOutputTests(Base_):
         self.assertIn("Type 2 diabetes", r.blocks[0]["text"])
         self.assertNotIn("{", r.blocks[0]["text"])
 
+    def test_symptom_is_checked_by_rules_and_emergency_says_call_108(self):
+        r = AgentExecutor().run(self.ctx(), "triage.check", {"text": "i have heart ache"})
+        w = r.blocks[0]
+        self.assertEqual((w["type"], w["emergency"]), ("warning", True))
+        self.assertIn("108", w["text"])
+        self.assertEqual(AgentExecutor().run(self.ctx(), "triage.check", {"text": "i have a mild headache"}).blocks[0]["type"], "text")
+
     def test_engine_end_to_end(self):
         out = AgentEngine(llm=NullLLM()).chat(self.ctx(), "what medicines am I on")
         self.assertEqual(out["intent"], "medications")

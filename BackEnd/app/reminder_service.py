@@ -25,6 +25,10 @@ from .models import Document, Medicine, Patient, ReminderSettings, SentDose, Sen
 
 IST = ZoneInfo("Asia/Kolkata")
 TICK_SECONDS = 30
+NUDGE_EVERY = timedelta(minutes=60)   # "you have not marked it taken" reminder, hourly
+MAX_NUDGES = 5                        # per dose, then it stops (the family missed-dose notice is separate)
+NUDGE_UNTIL_HOUR = 22                 # no nudges at night (IST)
+CATCH_UP = timedelta(minutes=20)      # a dose whose minute was missed (server restart) is still sent for 20 minutes
 REFILL_HOUR = 9  # refill / appointment notices go out from 09:00 IST
 
 Sender = Callable[[str | None, str], tuple[bool, str | None]]
@@ -160,7 +164,11 @@ def run_tick(now: datetime, send: Sender | None = None, session_factory=SessionL
                     if not in_course(m, today):
                         continue
                     for clock in (m.times or []):
-                        if clock != clock_now or _already_sent(db, m.id, clock, day):
+                        try:
+                            due_at = datetime.combine(today, datetime.strptime(clock, "%H:%M").time(), tzinfo=IST)
+                        except ValueError:
+                            continue  # a malformed time on a medicine must not stop everyone else's reminders
+                        if not (timedelta(0) <= now - due_at < CATCH_UP) or _already_sent(db, m.id, clock, day):
                             continue
                         ok, _err = send(settings.telegram_chat_id, dose_message(m))
                         if ok:
@@ -168,6 +176,10 @@ def run_tick(now: datetime, send: Sender | None = None, session_factory=SessionL
                             out["dose"] += 1
                         else:
                             print(f"[reminders] dose send failed for {m.name}")
+
+            # 1b. hourly "still to take" nudge: one message per patient listing every dose not marked taken
+            if settings.channel_telegram and settings.telegram_chat_id and now.hour < NUDGE_UNTIL_HOUR:
+                out["nudge"] = out.get("nudge", 0) + _nudge(db, settings, patient, meds, today, now, send)
 
             # 2. missed dose -> family
             if settings.channel_family:
@@ -216,6 +228,58 @@ def run_tick(now: datetime, send: Sender | None = None, session_factory=SessionL
                             if not ok:
                                 _unmark_notice(db, key)
     return out
+
+
+def _nudge(db: Session, settings: ReminderSettings, patient: Patient, meds: list[Medicine], today: date, now: datetime, send: Sender) -> int:
+    """Hourly reminder for doses already announced today and not marked taken. Stops by itself: once taken, after MAX_NUDGES,
+    when the medicine is stopped or its course ends, and never at night."""
+    by_id = {m.id: m for m in meds}
+    due: list[tuple[SentDose, Medicine]] = []
+    for row in db.scalars(select(SentDose).where(SentDose.patient_id == patient.id, SentDose.date == today.isoformat())):
+        m = by_id.get(row.medicine_id)
+        if m is None or not in_course(m, today) or is_taken(db, row) or (row.nudges or 0) >= MAX_NUDGES:
+            continue
+        last = row.last_nudge_at or row.sent_at
+        last = last if last.tzinfo else last.replace(tzinfo=IST)
+        if now - last >= NUDGE_EVERY:
+            due.append((row, m))
+    if not due:
+        return 0
+    due.sort(key=lambda x: x[0].clock)
+    lines = [f"- {med_label(m)} (was due {_fmt_12h(r.clock)})" for r, m in due]
+    pending = _pending_later(db, patient.id, meds, today, now, {r.id for r, _ in due})
+    text = "Reminder: these are not marked as taken yet:\n" + "\n".join(lines)
+    if pending:
+        text += "\nStill coming up today: " + ", ".join(pending) + "."
+    text += "\nIf you already took them, tap Taken in MediThread and I will stop reminding you."
+    claimed = []
+    for r, _m in due:  # claim first, so two scheduler passes can never both send
+        r.nudges = (r.nudges or 0) + 1
+        r.last_nudge_at = now
+        claimed.append(r)
+    db.commit()
+    ok, _err = send(settings.telegram_chat_id, text)
+    if not ok:
+        for r in claimed:
+            r.nudges = max(0, (r.nudges or 1) - 1)
+            r.last_nudge_at = None
+        db.commit()
+        print("[reminders] nudge send failed")
+        return 0
+    return 1
+
+
+def _pending_later(db: Session, patient_id: str, meds: list[Medicine], today: date, now: datetime, skip: set) -> list[str]:
+    """Doses later today that have not been announced yet, as 'Name at 9:00 PM'."""
+    sent = {(r.medicine_id, r.clock) for r in db.scalars(select(SentDose).where(SentDose.patient_id == patient_id, SentDose.date == today.isoformat()))}
+    out = []
+    for m in meds:
+        if not in_course(m, today):
+            continue
+        for clock in m.times or []:
+            if clock > now.strftime("%H:%M") and (m.id, clock) not in sent:
+                out.append((clock, f"{med_label(m)} at {_fmt_12h(clock)}"))
+    return [t for _, t in sorted(out)]
 
 
 def appointment_date(doc: Document) -> date | None:

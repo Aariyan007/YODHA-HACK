@@ -174,6 +174,9 @@ class SentDose(Base):
     taken: Mapped[bool] = mapped_column(Boolean, default=False)
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     missed_notified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Hourly "still to take" nudges (nullable so existing rows and databases need no migration step beyond ADD COLUMN).
+    nudges: Mapped[int | None] = mapped_column(default=0)
+    last_nudge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class SentNotice(Base):

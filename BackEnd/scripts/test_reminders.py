@@ -177,6 +177,101 @@ class ReminderTests(unittest.TestCase):
         self.assertEqual(self.tick(at("2026-10-02", "10:00"))["appointment"], 1)  # visit is 2026-10-03
         self.assertEqual(self.tick(at("2026-10-02", "11:00"))["appointment"], 0)
 
+    # ---- hourly "still to take" nudges
+    def day(self, hhmm, sec=5):
+        return at("2026-10-01", hhmm, sec)
+
+    def test_nudge_every_hour_until_taken(self):
+        self.tick(self.day("08:00"))                                   # the dose message
+        self.assertEqual(self.tick(self.day("08:59", 50)).get("nudge"), 0)   # not an hour yet
+        self.assertEqual(self.tick(self.day("09:00", 10)).get("nudge"), 1)
+        self.assertEqual(self.tick(self.day("09:30")).get("nudge"), 0)       # only once per hour
+        self.assertEqual(self.tick(self.day("10:01")).get("nudge"), 1)
+        text = self.out.sent[-1][1]
+        self.assertIn("Metformin 500 mg", text)
+        self.assertIn("8:00 AM", text)
+        self.assertIn("Still coming up today: Metformin 500 mg at 8:00 PM", text)  # what is left to have
+        svc.mark_taken(self.Session(), PID, "metf_0800", "2026-10-01")
+        self.assertEqual(self.tick(self.day("11:02")).get("nudge"), 0)       # taken: no more
+        self.assertEqual(self.tick(self.day("12:05")).get("nudge"), 0)
+
+    def test_one_message_lists_every_untaken_dose(self):
+        with self.Session() as db:
+            db.add(Medicine(id="stat", patient_id=PID, name="Atorvastatin", dose="10 mg", times=["08:00"], start_date="2026-09-01"))
+            db.commit()
+        self.tick(self.day("08:00"))
+        self.out.sent.clear()
+        self.assertEqual(self.tick(self.day("09:01")).get("nudge"), 1)
+        mine = [t for c, t in self.out.sent if c == "1001"]
+        self.assertEqual(len(mine), 1)
+        self.assertIn("Atorvastatin", mine[0])
+        self.assertIn("Metformin", mine[0])
+        svc.mark_taken(self.Session(), PID, "metf_0800", "2026-10-01")
+        self.out.sent.clear()
+        self.assertEqual(self.tick(self.day("10:02")).get("nudge"), 1)
+        mine = [t for c, t in self.out.sent if c == "1001"]
+        self.assertNotIn("Metformin 500 mg (was", mine[0])                    # the taken one is dropped from the list
+        self.assertIn("Atorvastatin", mine[0])
+
+    def test_nudges_stop_after_the_limit(self):
+        with self.Session() as db:
+            db.query(Medicine).delete()
+            db.add(Medicine(id="early", patient_id=PID, name="Thyronorm", dose="50 mcg", times=["06:00"], start_date="2026-09-01"))
+            db.commit()
+        self.tick(self.day("06:00"))
+        sent = sum(self.tick(self.day(f"{h:02d}:02")).get("nudge", 0) for h in range(7, 22))
+        self.assertEqual(sent, svc.MAX_NUDGES)
+        with self.Session() as db:
+            self.assertEqual(db.query(svc.SentDose).one().nudges, svc.MAX_NUDGES)
+
+    def test_no_nudges_at_night(self):
+        self.tick(self.day("20:00"))
+        self.assertEqual(self.tick(self.day("22:05")).get("nudge", 0), 0)
+        self.assertEqual(self.tick(at("2026-10-01", "23:30")).get("nudge", 0), 0)
+
+    def test_failed_nudge_is_not_counted_and_retries(self):
+        self.tick(self.day("08:00"))
+        self.out.fail = True
+        self.assertEqual(self.tick(self.day("09:01")).get("nudge"), 0)
+        self.out.fail = False
+        self.assertEqual(self.tick(self.day("09:02")).get("nudge"), 1)
+
+    def test_stopped_medicine_or_ended_course_is_not_nudged(self):
+        self.tick(self.day("08:00"))
+        with self.Session() as db:
+            db.get(Medicine, "metf").active = False
+            db.commit()
+        self.assertEqual(self.tick(self.day("09:01")).get("nudge"), 0)
+
+    def test_no_telegram_chat_means_no_nudge(self):
+        self.tick(self.day("08:00"))
+        with self.Session() as db:
+            db.get(ReminderSettings, PID).telegram_chat_id = None
+            db.commit()
+        self.out.sent.clear()
+        self.tick(self.day("09:01"))
+        self.assertEqual([c for c, _ in self.out.sent if c == "1001"], [])  # (the family chat has its own missed-dose notice)
+
+    def test_yesterdays_untaken_dose_is_not_nudged_today(self):
+        self.tick(at("2026-09-30", "20:00"))
+        self.assertEqual(self.tick(at("2026-10-01", "07:00")).get("nudge", 0), 0)
+
+    # ---- restart catch-up and bad data
+    def test_dose_missed_during_a_restart_is_sent_late_but_only_within_20_minutes(self):
+        self.assertEqual(self.tick(self.day("08:07"))["dose"], 1)       # server was down at 08:00
+        self.assertEqual(self.tick(self.day("08:08"))["dose"], 0)       # and never twice
+        store._memory.clear()
+        with self.Session() as db:
+            db.query(svc.SentDose).delete()
+            db.commit()
+        self.assertEqual(self.tick(self.day("08:25"))["dose"], 0)       # too late: no stale "time for" message
+
+    def test_a_malformed_time_does_not_stop_other_reminders(self):
+        with self.Session() as db:
+            db.add(Medicine(id="bad", patient_id=PID, name="Odd", times=["8am", ""], start_date="2026-09-01"))
+            db.commit()
+        self.assertEqual(self.tick(self.day("08:00"))["dose"], 1)       # Metformin still goes out
+
 
 if __name__ == "__main__":
     unittest.main()

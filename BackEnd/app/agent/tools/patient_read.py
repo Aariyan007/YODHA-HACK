@@ -328,3 +328,19 @@ def visit_prepare(ctx: AgentContext, args: dict) -> dict:
     if p.allergies:
         blocks.append(block("text", text="Tell them about your allergies: " + ", ".join(map(str, p.allergies)) + "."))
     return {"data": {"risks": len(hc["risks"]), "questions": len(rev.get("askDoctor", []))}, "blocks": blocks}
+
+
+# ---------------- symptoms: the app's own triage (rules first), never a diagnosis
+
+@tool("triage.check", "When the person describes a symptom or how they feel (pain, fever, breathless, dizzy...), check how urgent it sounds and which kind of doctor fits. Rules decide emergencies.",
+      {"type": "object", "properties": {"text": {"type": "string", "minLength": 2, "maxLength": 500}}, "required": ["text"], "additionalProperties": False},
+      permission="health:read", level=L2, audit_category="triage")
+def triage_check(ctx: AgentContext, args: dict) -> dict:
+    from ...routers.documents import TriageBody, triage
+    r = triage(TriageBody(text=args["text"]))
+    blocks = []
+    if r.get("urgency") == "emergency":
+        blocks.append(block("warning", severity="high", title="This may be an emergency", text=r["why"], emergency=True))
+    else:
+        blocks.append(block("text", text=f"{r['why']} A {r['specialist']} is a good fit. This is guidance on who to see, not a diagnosis."))
+    return {"data": {"urgency": r.get("urgency"), "specialist": r.get("specialist"), "emergency": bool(r.get("urgent"))}, "blocks": blocks}

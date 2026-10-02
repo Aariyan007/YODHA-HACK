@@ -51,6 +51,7 @@ R_DOC_REMOVE = re.compile(r"(?:remove|revoke|stop)\s+(?:access\s+(?:for|of|to)\s
 R_TOOK = re.compile(r"(?:mark|log|i (?:took|have taken|had))\s+(?:my\s+)?(?:dose of\s+)?([a-z][a-z0-9 -]{1,30}?)(?:\s+(?:as\s+)?(?:taken|done)|\s+tablet|\s+dose|\s+at\s+(\d{1,2}:\d{2}))?\s*$", re.I)
 R_LOG = _P(r"\b(log|add|record|enter|save|note down|note)\b")
 R_MED_CHANGE = _P(r"\b(stop|skip|quit|double|increase|reduce|lower|raise|change|switch|start)\b.{0,25}\b(medicine|medication|tablet|pill|dose|metformin|insulin|telma|atorva|amlodipine)", r"\bshould i (stop|take|skip|change|increase|reduce)\b")
+R_SYMPTOM = _P(r"\b(i have|i've got|i am having|i'm having|having|feeling|feel|my)\b.{0,25}\b(pain|ache|aching|hurts?|hurting|dizzy|dizziness|fever|breath|nausea|vomit|cough|chest|palpitation|weak)\b", r"\b(heart ?ache|chest pain|can'?t breathe)\b")
 R_NAV = re.compile(r"^\s*(?:please\s+)?(?:open|go to|take me to|show me the|navigate to)\s+(?:the\s+|my\s+)?(.+?)(?: page| tab| screen)?\s*$", re.I)
 R_MEDS = _P(r"medicin", r"tablet", r"\bpills?\b", r"prescri", r"മരുന്ന്", r"\bdrugs?\b")
 R_DUE = _P(r"\bleft\b.{0,25}\b(eat|take|taking|tablet|medicine|pill)", r"\b(still|remaining|yet)\b.{0,20}\b(take|eat|tablet|medicine|pill)", r"\bdue\b", r"reminder", r"dose", r"care.?loop", r"today'?s", r"missed", r"taken")
@@ -175,6 +176,8 @@ class AgentPlanner:
             return Plan("medicine_change", [Step("medications.list")],
                         clarify="I cannot start, stop or change a medicine, and I cannot tell you whether to. That is your doctor's decision. "
                                 "Here is your current list; I can also prepare questions for your next visit.")
+        if role == "patient" and R_SYMPTOM.search(low):
+            return Plan("symptom", [Step("triage.check", {"text": text[:500]})])
         if R_SHARE_STOP.search(low) and role == "patient":
             return Plan("share_stop", [Step("sharing.revoke", {"all": True})])
         if role == "patient" and (m := R_DOC_REMOVE.search(text)) and re.search(r"\bdr\b", m.group(1), re.I):

@@ -12,7 +12,7 @@ LEVELS = ["self_care", "routine", "urgent", "emergency"]  # low -> high
 
 EMERGENCY_PATTERNS: list[tuple[str, str]] = [
     # ---- English
-    (r"\bchest\s+(pain|pressure|tightness)\b|\bheart\s+attack\b|\bcrushing\s+chest\b", "chest pain"),
+    (r"\bchest\s+(pain|pressure|tightness|ache)\b|\bheart\s+attack\b|\bcrushing\s+chest\b|\bheart\s*ache\b|\bheart\s+(is\s+)?(pain\w*|hurt\w*|ach\w+)\b|\bpain\s+in\s+(my\s+)?(heart|chest)\b|\bmy\s+heart\s+hurts\b", "chest pain"),
     (r"\bcan'?t\s+(catch\s+(my|her|his)\s+)?breathe?\b|\bcannot\s+breathe\b|\bshort(ness)?\s+of\s+breath\b|\bbreathless\b|\bgasping\b|\blips?\s+(are\s+|look\s+|turning\s+)?blue\b|\bsuffocat\w+", "trouble breathing"),
     (r"\bface\s+droop(ing)?\b|\bslurred\s+speech\b|\bweak(ness)?\s+(on\s+)?one\s+side\b|\bstroke\b|\barm\s+weakness\b", "signs of stroke"),
     (r"\bfaint(ing|ed)?\b|\bunconscious\b|\bunresponsive\b|\bpassed\s+out\b|\bcollapsed\b|\bnot\s+waking\b|\bwon'?t\s+wake\b", "fainting"),
