@@ -45,6 +45,16 @@ Voice SOAP note and reminders are built. Not built: browser push for the phone c
 
 - Browser checks: Playwright is not in the repo, but Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in cloud sessions; `npm i playwright` in a scratch folder and launch with that `executablePath`.
 
+## Status after merging Phase 7 into Phase 6 (checked 2026-10-02)
+
+Verified on the merged tree against a live `DEMO_MODE=true` server: `test_trends` 9, `test_fhir` 8, `test_reminders` 13, `test_risk` 27, `test_doctors` 17 all pass; `scripts/smoke.py` 13/13 (reset still restores 8 records / 3 medicines / 3 alerts, so Phase 7 risk alerts do not fire on the clean seed); `scripts/security_sweep.py` all pass over the 12 `/api/patients/*` routes (new ones included); `/api/doctors/nearby|ask|recommend` and `/api/patients/me/health-check` return 401 without a login (`/api/doctors/cities` is public, fictional data). `npm run build` and `npm run build:single` both build.
+
+Known regressions from the v5 redesign (commit 6dc27b3) against the Phase 6 polish pass; not fixed yet:
+- Dark mode is gone. `styles.css` is light only (`color-scheme: light`); the `prefers-color-scheme` / `data-theme` blocks from Phase 6 were replaced.
+- Buttons are `height: 42px`, below the 48 px target (only `.toggle` keeps 48 px). The Phase 6 audit script (iframes at 390/1024 px) would flag them.
+- `build:single` now bundles GSAP and Leaflet (about 870 kB). The doctor map needs internet for OpenStreetMap tiles, so the offline file shows a grey map; the list and pins still work. Rerun the offline demo flow (login, timeline, upload, console) after UI changes.
+- `scripts/test_risk.py::test_fallback_without_groq` used to call Groq when `GROQ_API_KEY` was in `.env` (it passed only in sandboxes with no key). It now blanks the key with `mock.patch.dict`.
+
 ## Contract
 
 `Frontend/src/api/client.js` lists every endpoint. `Frontend/src/data/mockData.js` was generated from real backend responses; backend serializers in `BackEnd/app/schemas.py` must keep the same camelCase shapes.

@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+from unittest import mock
 from datetime import date
 from pathlib import Path
 
@@ -230,7 +231,8 @@ class ReviewGuardTests(unittest.TestCase):
     def test_fallback_without_groq(self):
         series = [{"code": "sbp", "name": "Systolic BP", "unit": "mmHg", "points": [{"date": "2026-03-01", "value": 128}, {"date": "2026-10-01", "value": 146}]}]
         risks = [{"title": "High blood pressure", "level": "high"}]
-        out = health_review.review({}, series, [], [], risks)
+        with mock.patch.dict(os.environ, {"GROQ_API_KEY": ""}):  # a real key in .env must not make this call Groq
+            out = health_review.review({}, series, [], [], risks)
         self.assertEqual(out["source"], "rules")
         self.assertEqual(out["points"][0]["kind"], "worse")
         self.assertIn("High blood pressure".lower(), out["headline"].lower())
