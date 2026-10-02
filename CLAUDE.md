@@ -161,3 +161,13 @@ Fine-tuning has NOT been run yet, so Laya is wired but gated off (the zero-shot 
 - `Frontend/src/components/charts.jsx` is the single chart engine: `LineChart` (monotone curve, gradient area, healthy-zone band, hover/touch/keyboard tooltip, pulsing latest dot, GSAP draw-in), `Sparkline`, `changeSummary`. HbA1c, per-test trend cards and the console history all use it.
 - Sage palette deepened (`--brand #3F7A67` light, `#86C7AB` dark); chart tokens `--chart-top/bottom/zone`. Skeleton loaders replace the spinner; `useScrollIn` (IntersectionObserver) reveals below-the-fold sections.
 - `VITE_PROXY_TARGET=http://localhost:8080 npm run dev` points the dev server at the Docker stack. Audit 390/1024 light+dark: no horizontal scroll, 48px targets; only Leaflet controls and decorative stars fail contrast (pre-existing).
+
+## Full test run (2026-10-02, after the UI refresh)
+
+All green: unit suites `test_auth`, `test_trends` 9, `test_fhir` 8, `test_reminders` 13, `test_risk` 27, `test_doctors`, `test_ddi`, `test_decision`, `test_extractor_errors`; `smoke.py` 15/15 (against Docker on :8080, `DEMO_MODE=true`); `security_sweep.py` ALL PASS; `test_nginx.py` 24/24.
+
+Harness notes:
+- `security_sweep.py` reads `/openapi.json`, which nginx does not proxy (it returns the SPA page). Run it against a backend reached directly (`BASE_URL=http://localhost:8000`), not `:8080`.
+- `test_nginx.py` fails "backend is not reachable around nginx" if any local uvicorn listens on :8000. Stop it first; it would also run a second scheduler and double-send reminders. Check with `lsof -nP -iTCP:8000 -sTCP:LISTEN`.
+- Unit-suite last lines can be log noise; grep for `^(OK|FAILED|Ran)`.
+- Not covered: Laya (gated off until fine-tuned). The Docker nginx image still serves the pre-refresh UI until `docker compose up -d --build`.
