@@ -149,7 +149,7 @@ function LoginTransition({ onDone }) {
       aria-hidden="true"
       style={{
         position: "fixed", inset: 0, zIndex: 8888,
-        background: "rgba(247,246,242,0.92)",
+        background: "var(--bg-glass)",
         backdropFilter: "blur(8px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         opacity: 0,

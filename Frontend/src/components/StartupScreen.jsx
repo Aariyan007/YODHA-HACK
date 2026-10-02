@@ -64,8 +64,8 @@ export default function StartupScreen({ onDone }) {
   const SAGE     = "#557A6A";
   const SAGE_LT  = "#8AB5A2";
   const SAGE_BG  = "#E6EEE9";
-  const TEXT_MED = "#4A5B66";
-  const TEXT_DIM = "#8A9BA5";
+  const TEXT_MED = "var(--text-2)";
+  const TEXT_DIM = "var(--text-3)";
 
   return (
     <div
@@ -74,7 +74,7 @@ export default function StartupScreen({ onDone }) {
         position: "fixed",
         inset: 0,
         zIndex: 9999,
-        background: "#F7F6F2",
+        background: "var(--bg)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -175,7 +175,7 @@ export default function StartupScreen({ onDone }) {
               fontFamily: "Inter, system-ui, sans-serif",
               fontSize: "clamp(1.6rem, 5vw, 2.2rem)",
               fontWeight: 700,
-              color: SAGE,
+              color: "var(--brand)",
               letterSpacing: "-0.03em",
               lineHeight: 1,
             }}
