@@ -73,3 +73,13 @@ def public(t: AgentTask) -> dict:
     return {"taskId": t.id, "status": t.status, "intent": t.intent, "error": t.error,
             "steps": [{"tool": s["tool"], "label": s["label"], "status": s["status"]} for s in t.steps],
             "result": t.result if t.status in TERMINAL or t.status == "waiting_for_confirmation" else None}
+
+
+def purge_old(days: int = 30) -> int:
+    """Stored task results hold record text for the person's own convenience; drop them after `days`. The audit log stays."""
+    from datetime import timedelta
+    from sqlalchemy import delete
+    with SESSION() as db:
+        n = db.execute(delete(AgentTask).where(AgentTask.created_at < now() - timedelta(days=days))).rowcount or 0
+        db.commit()
+    return n

@@ -55,7 +55,7 @@ class AgentEngine:
         if not plan.steps:  # a question back to the person, or nothing to do: no task needed
             out = self.formatter.format(plan, [])
             out.update(steps=[], conversationId=conv, planSource=plan.source, status="completed")
-            self.memory.add_turn(ctx.role, ctx.actor_id, conv, text, f"{plan.intent}: {out['blocks'][0].get('text', '')}")
+            self.memory.add_turn(ctx.role, ctx.actor_id, conv, text, plan.intent)
             return out
         specs = [REGISTRY.get(s.tool) for s in plan.steps]
         task = tasks.create(ctx, plan.intent, [{"tool": s.tool, "args": s.args, "label": _label(sp)} for s, sp in zip(plan.steps, specs)])
@@ -127,9 +127,9 @@ class AgentEngine:
         task.result = {**(task.result or {}), **{k: out[k] for k in ("blocks", "evidence", "confirmation", "disclaimer", "steps")}}
         ctx.db.commit()
         if task.status in tasks.TERMINAL:
-            first = next((b.get("text") for b in out["blocks"] if b["type"] == "text"), "")
-            user_text = (task.result or {}).get("userText", "")
-            self.memory.add_turn(ctx.role, ctx.actor_id, conv, user_text, f"{intent}: {first or ''}")
+            # Memory holds the person's own words and the intent label, never text that came out of a record or a document,
+            # so a document cannot plant instructions that the planner later reads as conversation history.
+            self.memory.add_turn(ctx.role, ctx.actor_id, conv, (task.result or {}).get("userText", ""), intent)
         return out
 
     # ------------------------------------------------------------------ confirmation

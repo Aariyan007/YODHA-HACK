@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import delete, or_, select
 
 from app.database import SessionLocal
-from app.models import (AccessLog, AgentAudit, Alert, CareLink, Consultation, Document, InviteCode, Medicine, Observation, Patient,
+from app.models import (AccessLog, AgentAudit, AgentFile, AgentTask, Alert, CareLink, Consultation, Document, InviteCode, Medicine, Observation, Patient,
                         ReminderSettings, SentDose, SentNotice, ShareLink, User)
 
 PREFIXES = ("smoke-", "sweep-", "edge-")
@@ -24,16 +24,19 @@ PREFIXES = ("smoke-", "sweep-", "edge-")
 
 def cleanup(extra_emails: tuple[str, ...] = ()) -> int:
     with SessionLocal() as db:
-        cond = [User.email.like(f"{p}%@example.com") for p in PREFIXES] + ([User.email.in_([e.lower() for e in extra_emails])] if extra_emails else [])
+        cond = [User.email.like(f"{p}%@example.{tld}") for p in PREFIXES for tld in ("com", "test")] + ([User.email.in_([e.lower() for e in extra_emails])] if extra_emails else [])
         users = list(db.scalars(select(User).where(or_(*cond))))
         uids = [u.id for u in users]
         pids = [u.patient_id for u in users if u.patient_id]
         if not users:
             return 0
+        from app import vault
+        for sk in db.scalars(select(AgentFile.storage_key).where(AgentFile.patient_id.in_(pids))):
+            vault.delete(sk)
         db.execute(delete(CareLink).where(or_(CareLink.doctor_user_id.in_(uids), CareLink.patient_id.in_(pids))))
         db.execute(delete(ShareLink).where(or_(ShareLink.doctor_user_id.in_(uids), ShareLink.patient_id.in_(pids))))
         db.execute(delete(InviteCode).where(InviteCode.patient_id.in_(pids)))
-        for model in (SentDose, SentNotice, Consultation, Observation, Medicine, Alert, AccessLog, AgentAudit, Document, ReminderSettings):
+        for model in (SentDose, SentNotice, Consultation, Observation, Medicine, Alert, AccessLog, AgentAudit, AgentTask, AgentFile, Document, ReminderSettings):
             col = model.patient_id
             db.execute(delete(model).where(col.in_(pids)))
         db.execute(delete(User).where(User.id.in_(uids)))

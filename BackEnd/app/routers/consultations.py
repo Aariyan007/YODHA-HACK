@@ -672,6 +672,10 @@ def approve(
         source_lines=[f"{ln['speaker']}: {ln['text']}" for ln in lines],
         source_highlight=list(range(min(len(lines), 20))),
     ))
+    # Postgres enforces the foreign keys (observations, medicines and this consultation point at the new document), and the
+    # unit of work does not order inserts across tables that have no relationship(). Without this flush, a visit that left no
+    # open flags tried to UPDATE the consultation before the document existed and answered 500.
+    db.flush()
 
     for v in said:
         db.add(Observation(patient_id=c.patient_id, document_id=doc_id, date=date_s, code=v["code"],

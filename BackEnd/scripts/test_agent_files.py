@@ -284,6 +284,14 @@ class ExtractionApiTests(ExtractBase):
         self.assertTrue(any("instructions" in b.get("title", "").lower() for b in r["blocks"] if b["type"] == "warning"))
         self.assertEqual([s["tool"] for s in r["steps"]], ["documents.extract", "documents.summarize"])  # nothing extra ran
 
+    def test_document_text_never_enters_conversation_memory(self):
+        """A document must not be able to plant text the planner later reads as conversation history."""
+        self.chat("summarise this", self.fid())
+        kept = " ".join(str(v) for v in store._memory.values())
+        self.assertIn("file_summary", kept)           # the intent label is kept
+        self.assertNotIn("Ignore previous", kept)
+        self.assertNotIn("HbA1c 8.2", kept)
+
     def test_nothing_is_written_to_the_health_thread(self):
         self.chat("what is in this file", self.fid())
         with self.Session() as db:

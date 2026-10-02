@@ -42,6 +42,14 @@ def reset_demo() -> dict:
         def wipe(model, key="patient_id"):
             return db.execute(delete(model).where(getattr(model, key) == DEMO_ID)).rowcount or 0
 
+        # Agent files may point at timeline documents (document_id), so they go first; their encrypted bytes go too.
+        from . import vault
+        from .models import AgentAudit, AgentFile, AgentTask
+        for sk in db.scalars(select(AgentFile.storage_key).where(AgentFile.patient_id == DEMO_ID)):
+            vault.delete(sk)
+        deleted["agentFiles"] = wipe(AgentFile)
+        deleted["agentTasks"] = wipe(AgentTask)
+        deleted["agentAudit"] = wipe(AgentAudit)
         deleted["sentDoses"] = wipe(SentDose)
         deleted["sentNotices"] = wipe(SentNotice)
         deleted["consultations"] = wipe(Consultation)

@@ -26,6 +26,11 @@ async def lifespan(app: FastAPI):
         if seed_if_empty(db):
             print("[seed] Loaded demo patient Ammini Varghese")
         ensure_demo_reminder_settings(db)
+    try:
+        from .agent import tasks as agent_tasks
+        agent_tasks.purge_old()
+    except Exception as e:  # housekeeping must never stop the server
+        print(f"[agent] task purge skipped: {type(e).__name__}")
     reminder_service.start()
     try:
         yield
