@@ -21,6 +21,7 @@ import DoctorConsole from "./pages/DoctorConsole.jsx";
 // The map page pulls in Leaflet; load it only when opened.
 const Doctors = lazy(() => import("./pages/Doctors.jsx"));
 import Profile from "./pages/Profile.jsx";
+import Admin from "./pages/Admin.jsx";
 import DoctorHome from "./pages/doctor/DoctorHome.jsx";
 
 const PROFILE_KEY = "medithread_profile";
@@ -302,6 +303,7 @@ export default function App() {
           <Route path="sharing"       element={<Sharing />} />
           <Route path="doctors"       element={<Suspense fallback={<div className="loading-state"><div className="spinner" /></div>}><Doctors /></Suspense>} />
           <Route path="profile"       element={<Profile />} />
+          <Route path="admin"         element={<Admin />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

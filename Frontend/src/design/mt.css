@@ -628,3 +628,16 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-refine-sel select { width: auto; min-width: 170px; flex: 0 1 220px; }
 .mt-share-controls select { width: auto; min-width: 150px; }
 .mt-seg button { width: auto; }
+
+/* admin (operator) page */
+.adm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--u3); }
+.adm-stat { padding: var(--u3); border-radius: var(--rad-m); background: var(--mt-paper); border: 1px solid var(--mt-line); }
+.adm-n { font-family: var(--font-display, serif); font-size: 2rem; line-height: 1; }
+.adm-l { font-size: 0.85rem; color: var(--mt-ink-2); margin-top: var(--u1); } .adm-s { font-size: 0.75rem; color: var(--mt-ink-3); margin-top: 2px; }
+.adm-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; margin-bottom: var(--u3); }
+.adm-bar { flex: 1; min-width: 14px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; font-size: 0.65rem; color: var(--mt-ink-3); }
+.adm-bar i { display: block; width: 100%; background: var(--mt-deep); border-radius: 4px 4px 0 0; }
+.adm-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; display: block; overflow-x: auto; }
+.adm-table th, .adm-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--mt-line); white-space: nowrap; } .adm-table .bad { color: var(--rust-ink); font-weight: 600; }
+.adm-svc { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--u1); margin: 0 0 var(--u3); }
+.adm-svc li { padding: 6px 12px; border-radius: 999px; background: var(--mt-paper); border: 1px solid var(--mt-line); font-size: 0.85rem; } .adm-svc .off { color: var(--rust-ink); }

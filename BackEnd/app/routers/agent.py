@@ -264,3 +264,36 @@ def delete_file(file_id: str, patient: Patient = Depends(current_patient), db: S
     AgentAuditLogger().record(patient_ctx(patient, db), None, "files.delete", "ok", target=f.id)
     db.commit()
     return {"ok": True}
+
+
+# ---------- voice ----------
+
+MAX_AUDIO = 6 * 1024 * 1024
+
+
+def voice_to_text(db: Session, ctx: AgentContext, data: bytes, language: str | None) -> dict:
+    """Shared by both agents. Returns only text for the person to read and edit: speech never creates a fact or runs a tool."""
+    from .. import speech
+    from .consultations import _sniff_audio
+    if not data:
+        raise HTTPException(400, "No audio was received.")
+    if len(data) > MAX_AUDIO:
+        raise HTTPException(413, "That recording is too long. Please keep it under a minute.")
+    kind = _sniff_audio(data[:16])
+    if kind is None:
+        raise HTTPException(415, "That does not look like a recording this server can read.")
+    mime, ext = kind
+    try:
+        out = speech.transcribe(data, f"voice.{ext}", mime, language if language in ("en", "ml", "hi", "ta") else None)
+    except speech.SpeechError as e:
+        raise HTTPException(e.status, str(e))
+    AgentAuditLogger().record(ctx, None, "voice.transcribe", "ok", detail=f"{out['engine']} {len(data)}B {'empty' if not out['text'] else 'text'}")
+    db.commit()
+    return {"text": out["text"], "language": out["language"], "engine": out["engine"]}
+
+
+@router.post("/voice")
+async def voice(file: UploadFile = File(...), language: str | None = None, patient: Patient = Depends(current_patient),
+                db: Session = Depends(get_db)):
+    _limit(patient.id)
+    return voice_to_text(db, patient_ctx(patient, db), await file.read(MAX_AUDIO + 1), language)

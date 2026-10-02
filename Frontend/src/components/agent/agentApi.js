@@ -10,9 +10,10 @@ export function apiFor(ctx, patientId) {
       confirm: (id, approve) => C.doctorAgentConfirm(id, patientId, approve),
       upload: (file) => C.doctorAgentUpload(patientId, file),
       download: (f) => C.doctorAgentDownload(patientId, f.fileId, f.name),
+      voice: (blob) => C.doctorAgentVoice(patientId, blob),
       setType: null, // the doctor agent reads a document and tells the doctor when it is unsure
     };
   }
-  return { ready: C.agentAvailable(), chat: C.agentChat, task: C.agentTask, confirm: C.agentConfirm, upload: C.agentUploadFile,
+  return { ready: C.agentAvailable(), voice: C.agentVoice, chat: C.agentChat, task: C.agentTask, confirm: C.agentConfirm, upload: C.agentUploadFile,
            download: (f) => C.agentDownload(f.fileId, f.name), setType: C.agentSetFileType };
 }

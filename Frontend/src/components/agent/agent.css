@@ -110,3 +110,10 @@
 .ag-qr { margin: var(--u2) 0; display: grid; justify-items: center; gap: var(--u1); }
 .ag-qr svg { background: #fff; padding: var(--u1); border-radius: var(--rad-m); border: 1px solid var(--mt-line-2); }
 .ag-qr figcaption { font-size: 0.8rem; color: var(--mt-ink-3); text-align: center; }
+
+.ag-input { flex-wrap: wrap; }
+.ag-input .ag-mic.listening { background: var(--mt-deep); color: var(--mt-paper); animation: ag-rec 1.2s ease-in-out infinite; }
+.ag-input .ag-mic.transcribing { opacity: 0.6; }
+@keyframes ag-rec { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mt-sage) 60%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+.ag-voice-err { flex-basis: 100%; margin: 0; font-size: 0.8rem; color: var(--rust-ink); }
+@media (prefers-reduced-motion: reduce) { .ag-input .ag-mic.listening { animation: none; } }

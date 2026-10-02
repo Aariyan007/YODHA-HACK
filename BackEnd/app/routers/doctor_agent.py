@@ -98,6 +98,14 @@ async def upload_file(patientId: str = Query(min_length=1, max_length=32), file:
     return A.ingest_upload(db, ctx, data, file.filename)
 
 
+@router.post("/voice")
+async def voice(patientId: str = Query(min_length=1, max_length=32), language: str | None = None, file: UploadFile = File(...),
+                doctor: User = Depends(current_doctor), db: Session = Depends(get_db)):
+    ctx = doctor_ctx(doctor, patientId, db)
+    A._limit(doctor.id)
+    return A.voice_to_text(db, ctx, await file.read(A.MAX_AUDIO + 1), language)
+
+
 @router.get("/files/{file_id}/content")
 def download(file_id: str, patientId: str = Query(min_length=1, max_length=32), doctor: User = Depends(current_doctor), db: Session = Depends(get_db)):
     ctx = doctor_ctx(doctor, patientId, db)

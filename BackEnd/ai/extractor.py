@@ -21,6 +21,7 @@ PROMPT = """You are reading an Indian medical document (prescription, lab report
 Return STRICTLY a single JSON object with these keys. Use null when a value is not visible.
 {
   "is_medical": true|false,     // false if the image is clearly not a medical document
+  "handwritten": true|false,    // true if the main content (medicines, notes) is handwritten rather than printed
   "date_of_record": "YYYY-MM-DD",
   "doctor": "Dr Full Name" | null,
   "hospital": "Clinic / Hospital name" | null,
@@ -64,7 +65,7 @@ def _strip_fences(text: str) -> str:
     return text
 
 
-def _call(client: genai.Client, data: bytes, mime: str) -> str:
+def _call(client: genai.Client, data: bytes, mime: str, prompt: str | None = None) -> str:
     cfg = types.GenerateContentConfig(
         response_mime_type="application/json",
         temperature=0.2,
@@ -76,7 +77,7 @@ def _call(client: genai.Client, data: bytes, mime: str) -> str:
             try:
                 r = client.models.generate_content(
                     model=model,
-                    contents=[part, PROMPT],
+                    contents=[part, prompt or PROMPT],
                     config=cfg,
                 )
                 return r.text or ""
@@ -157,4 +158,8 @@ def extract(data: bytes, mime: str = "image/png") -> dict:
     obj.setdefault("vitals", {})
     obj.setdefault("follow_up", None)
     obj.setdefault("source_lines", [])
+    obj.setdefault("uncertain_medicines", [])
+    if obj.get("handwritten"):  # doctors' handwriting: read again, compare, and never trust a guessed drug name
+        from . import handwriting
+        handwriting.second_pass(client, _call, data, mime, obj)
     return obj

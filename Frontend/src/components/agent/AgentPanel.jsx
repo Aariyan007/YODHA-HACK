@@ -161,7 +161,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
           <AgentResult result={view.result} onBack={() => setView({ kind: "home" })} onGo={go} ctxActions={ctx.actions} onRun={run} onType={chooseType} onAnswer={answer} onDownload={download} />
         )}
       </div>
-      <AgentInput onSubmit={submit} onFile={api.ready ? attach : undefined} disabled={busy} />
+      <AgentInput onSubmit={submit} onFile={api.ready ? attach : undefined} onVoice={api.ready ? api.voice : undefined} disabled={busy} />
     </div>
   );
 }

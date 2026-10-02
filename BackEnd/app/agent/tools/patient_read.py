@@ -2,6 +2,7 @@
 exactly what the app sees. Scope is applied here too: a labs-only share can never read prescriptions through the agent."""
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -265,18 +266,40 @@ PATIENT_ROUTES = {"/": "Home", "/timeline": "Health thread", "/medicines": "Medi
 DOCTOR_ROUTES = {"/doctor": "Your patients"}
 
 
-@tool("navigation.navigate", "Take the person to a screen of the app. Only listed routes work.",
-      {"type": "object", "properties": {"route": {"type": "string", "maxLength": 60},
-                                        "focus": {"type": "string", "maxLength": 32}}, "required": ["route"],
+ROUTE_WORDS = {"home": "/", "dashboard": "/", "timeline": "/timeline", "thread": "/timeline", "health thread": "/timeline", "records": "/timeline",
+               "medicines": "/medicines", "medicine": "/medicines", "medications": "/medicines", "reminders": "/reminders",
+               "health check": "/insights", "health": "/insights", "insights": "/insights", "upload": "/upload", "add": "/upload",
+               "sharing": "/sharing", "share": "/sharing", "doctors": "/doctors", "doctor": "/doctors", "profile": "/profile",
+               "which doctor": "/triage", "triage": "/triage", "patients": "/doctor"}
+
+
+def _route(raw: str, routes: dict) -> str | None:
+    """Accept '/sharing', 'sharing', 'Sharing page', 'health thread' and the like; only a known screen of this role comes out."""
+    r = (raw or "").strip().lower().split("?")[0].split("#")[0]
+    if r.startswith("http"):
+        return None
+    if ("/" + r.strip("/")) in routes:
+        return "/" + r.strip("/") if r.strip("/") else "/"
+    if r in ("/", ""):
+        return "/" if "/" in routes else None
+    if r.startswith("/"):  # a path must be exact; only plain words get the friendly mapping
+        return None
+    word = re.sub(r"\b(page|tab|screen|the|my)\b", "", r.replace("/", " ")).strip()
+    word = re.sub(r"\s+", " ", word)
+    target = ROUTE_WORDS.get(word)
+    return target if target in routes else None
+
+
+@tool("navigation.navigate", "Take the person to a screen of the app. Routes: / (home), /timeline, /medicines, /reminders, /insights (health check), /upload, /sharing, /doctors, /profile, /triage; doctors: /doctor.",
+      {"type": "object", "properties": {"route": {"type": "string", "maxLength": 60}, "focus": {"type": "string", "maxLength": 32}}, "required": ["route"],
        "additionalProperties": False},
       permission="nav:use", roles=ROLES, level=L2, audit_category="navigation")
 def navigation_navigate(ctx: AgentContext, args: dict) -> dict:
     routes = PATIENT_ROUTES if ctx.role == "patient" else DOCTOR_ROUTES
-    route = args["route"]
-    if route not in routes:
+    route = _route(args["route"], routes)
+    if route is None:
         raise ToolError("I cannot open that screen.")
-    nav = block("navigation", route=route, label=routes[route], focus=args.get("focus"))
-    return {"data": {"route": route}, "blocks": [nav], "target": route}
+    return {"data": {"route": route}, "blocks": [block("navigation", route=route, label=routes[route], focus=args.get("focus"))], "target": route}
 
 
 # ---------------- visit preparation (L2: a draft the person reads, nothing is saved)

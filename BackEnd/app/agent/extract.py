@@ -108,6 +108,12 @@ def verify(doc: dict, lines: list[dict]) -> dict:
                                       "evidence": _ev(hit)})
         clean["observations"].append(o)
 
+    for u in doc.get("uncertain_medicines") or []:  # handwriting the two readings could not agree on: listed, never written
+        alt = f" (the other reading saw: {u['alternative']})" if u.get("alternative") else ""
+        unverified.append({"kind": "medicine", "text": f"{str(u.get('name'))[:80]}{alt}: {u.get('reason')}. Please check with the doctor or pharmacist."})
+    if doc.get("handwritten"):
+        warnings.append("This looks handwritten. I read it twice; anything the readings did not agree on is listed as unclear instead of being guessed.")
+
     v = doc.get("vitals") or {}
     for key, label in (("bp", "BP"), ("pulse", "Pulse"), ("spo2", "SpO2"), ("weight_kg", "Weight"), ("temp_f", "Temperature")):
         if v.get(key) in (None, ""):

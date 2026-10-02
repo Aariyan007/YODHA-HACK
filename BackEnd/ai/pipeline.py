@@ -244,6 +244,10 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
 
     # explain
     bus.send({"stage": "explain"})
+    for u in doc.get("uncertain_medicines") or []:  # handwriting that could not be read for sure: never a medicine, always a visible note
+        analysis["alerts"].append({"severity": "medium", "kind": "handwriting", "title": f"Handwriting unclear: {str(u.get('name'))[:60]}",
+                                   "message": f"I could not read this medicine name with confidence ({u.get('reason')}). It was not added to your medicines. "
+                                              "Please check it with your doctor or pharmacist."})
     summary = summarise(doc, analysis["alerts"])
 
     # check: reminders + persistence

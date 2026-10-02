@@ -689,3 +689,20 @@ export const doctorAgentDownload = async (patientId, fileId, name) => {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 };
+
+// ---------- voice: audio in, TEXT out (the person edits it before sending; speech never runs a tool by itself) ----------
+const postAudio = async (path, blob) => {
+  const fd = new FormData();
+  fd.append("file", blob, "voice.webm");
+  const res = await fetch(`${BASE}${path}`, { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: fd });
+  if (res.status === 401) { setToken(null); goLogin(); }
+  if (!res.ok) {
+    let d = res.statusText;
+    try { d = (await res.json()).detail ?? d; } catch {}
+    throw new Error(typeof d === "string" ? d : "Voice failed");
+  }
+  return res.json();
+};
+export const agentVoice = (blob) => postAudio("/api/agent/voice", blob);
+export const doctorAgentVoice = (patientId, blob) => postAudio(`/api/doctor-agent/voice?patientId=${encodeURIComponent(patientId)}`, blob);
+export const getAdminMetrics = (days = 7) => request(`/api/admin/metrics?days=${days}`);
