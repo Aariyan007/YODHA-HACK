@@ -84,12 +84,15 @@ def _share_preview(ctx: AgentContext, args: dict) -> list[dict]:
     scope = args.get("scope", "full")
     what = {"full": "all your records", "labs": "your lab reports only", "medicines": "your prescriptions only"}[scope]
     return [{"label": "Shares", "value": what}, {"label": "For", "value": f"{args.get('hours', 24)} hours"},
+            {"label": "Shown as", "value": {"link": "a link to copy", "qr": "a QR code", "both": "a link and a QR code"}[args.get("show", "both")]},
             {"label": "Who can open it", "value": "Anyone who scans the QR code or has the link, until it expires or you stop it."}]
 
 
-@tool("sharing.create", "Create a share link and QR code for a doctor to scan.",
+@tool("sharing.create", "Create a share link and/or QR code for a doctor. Use show=link when the person wants only a link, show=qr for only a QR.",
       {"type": "object", "properties": {"scope": {"type": "string", "enum": ["full", "labs", "medicines"]},
-                                        "hours": {"type": "integer", "minimum": 1, "maximum": 72}}, "additionalProperties": False},
+                                        "hours": {"type": "integer", "minimum": 1, "maximum": 72},
+                                        "show": {"type": "string", "enum": ["link", "qr", "both"], "description": "link = only a link to copy; qr = only a QR code; both (default). Follow what the person asked for."}},
+       "additionalProperties": False},
       permission="sharing:write", level=L3, confirmation_required=True, audit_category="sharing", preview=_share_preview,
       verify=lambda ctx, a, out: ctx.db.scalar(select(ShareLink).where(ShareLink.patient_id == ctx.patient_id, ShareLink.token == out["_token"])) is not None)
 def sharing_create(ctx: AgentContext, args: dict) -> dict:
@@ -101,7 +104,7 @@ def sharing_create(ctx: AgentContext, args: dict) -> dict:
     store.set_value(f"agent:qr:{ctx.patient_id}:{ref}", json.dumps({"url": f"/share/{link.token}", "scope": link.scope, "expiresAt": iso(link.expires_at)}), ttl=15 * 60)
     ctx.db.add(AccessLog(patient_id=ctx.patient_id, who=ctx.actor_name, role="Patient", action=f"Made a {link.scope} share link", via="Agent"))
     return {"data": {"ref": ref, "scope": link.scope}, "_token": link.token, "target": ref, "ref": ref,
-            "blocks": [block("action", kind="show_qr", ref=ref, scope=link.scope, expiresAt=iso(link.expires_at))]}
+            "blocks": [block("action", kind="show_qr", ref=ref, scope=link.scope, show=args.get("show", "both"), expiresAt=iso(link.expires_at))]}
 
 
 def _active_links(ctx: AgentContext) -> list[ShareLink]:

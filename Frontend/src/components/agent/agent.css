@@ -117,3 +117,5 @@
 @keyframes ag-rec { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mt-sage) 60%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
 .ag-voice-err { flex-basis: 100%; margin: 0; font-size: 0.8rem; color: var(--rust-ink); }
 @media (prefers-reduced-motion: reduce) { .ag-input .ag-mic.listening { animation: none; } }
+
+.ag-link { display: flex; gap: var(--u1); width: 100%; } .ag-link input { flex: 1; min-width: 0; min-height: 44px; padding: 0 var(--u2); border-radius: var(--rad-m); border: 1px solid var(--mt-line-2); background: var(--mt-paper-2); color: var(--mt-ink); font-size: 0.8rem; }

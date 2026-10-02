@@ -181,7 +181,10 @@ class AgentPlanner:
             return Plan("doctor_remove", [Step("care.revoke_doctor", {"name": m.group(1).strip()[:80]})])
         if R_SHARE_NEW.search(low) and role == "patient":
             scope = "labs" if re.search(r"\blabs?\b|lab report", low) else "medicines" if re.search(r"medicin|prescri", low) else "full"
-            return Plan("share_create", [Step("sharing.create", {"scope": scope})])
+            show = "link" if re.search(r"\blink\b|url", low) and not re.search(r"\bqr\b", low) else "qr" if re.search(r"\bqr\b", low) and not re.search(r"\blink\b|url", low) else "both"
+            if re.search(r"(no|not|without|don'?t want|dont want)\s+(a\s+)?qr", low):
+                show = "link"
+            return Plan("share_create", [Step("sharing.create", {"scope": scope, "show": show})])
         if role == "patient" and R_SEND.search(low):  # delivery is never faked: say what is really possible
             return Plan("send_to_doctor", clarify="I cannot send anything to a doctor myself, so I will not pretend to. I can make a PDF summary "
                                                   "for you to hand over, or a share link and QR code your doctor can scan. Which would you like?")
