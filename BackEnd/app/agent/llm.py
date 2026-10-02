@@ -23,3 +23,42 @@ class NullLLM(LLMService):
     """No model: the planner uses rules only. Used in tests and when GROQ_API_KEY is missing."""
     def complete_json(self, system: str, user: str, max_tokens: int = 700) -> dict | None:
         return None
+
+
+# ---------------------------------------------------------------- native tool calling (the agent loop)
+
+def _groq_chat(messages: list[dict], tools: list[dict], max_tokens: int) -> dict | None:
+    """One chat turn with function calling. Fails fast (no SDK retries); on a rate limit, tries the smaller model once."""
+    import os
+    from groq import Groq
+    from ai.consultation import FALLBACK_MODEL, MODEL
+    key = os.getenv("GROQ_API_KEY")
+    if not key:
+        return None
+    client = Groq(api_key=key, timeout=25.0, max_retries=0)
+    for model in (MODEL, FALLBACK_MODEL):
+        try:
+            r = client.chat.completions.create(model=model, messages=messages, tools=tools or None, tool_choice="auto" if tools else None,
+                                               max_tokens=max_tokens, temperature=0.2, reasoning_effort="low")
+        except Exception as e:
+            if type(e).__name__ == "RateLimitError":
+                continue
+            return None
+        m = r.choices[0].message
+        calls = [{"id": c.id, "name": c.function.name, "arguments": c.function.arguments or "{}"} for c in (m.tool_calls or [])]
+        return {"content": (m.content or "").strip(), "tool_calls": calls, "model": model}
+    return None
+
+
+def _base_available(self) -> bool:
+    return False
+
+
+def _base_chat_tools(self, messages: list[dict], tools: list[dict], max_tokens: int = 600) -> dict | None:
+    return None
+
+
+LLMService.available = _base_available
+LLMService.chat_tools = _base_chat_tools
+GroqLLM.available = lambda self: bool(__import__("os").getenv("GROQ_API_KEY"))
+GroqLLM.chat_tools = lambda self, messages, tools, max_tokens=600: _groq_chat(messages, tools, max_tokens)

@@ -1,6 +1,7 @@
 // Turns the Agent Engine's structured blocks into the result shape AgentResult already renders.
 // Presentation only: every value shown here came from the server's tool results.
 const TITLES = {
+  agent: "MediThread",
   latest_records: "Your latest records", search: "Matching records", medications: "Your medicines", care_loop: "Today's doses",
   labs: "Your latest results", alerts: "What needs attention", find_doctor: "Doctors (sample directory)", sharing_status: "Sharing",
   trend: "How it has changed", pdf: "Your PDF", share_create: "Share link ready", share_stop: "Sharing stopped", log_reading: "Reading added", mark_taken: "Dose marked", file_add: "Added to your thread", medicine_change: "About your medicines", send_to_doctor: "Sending to a doctor", doctor_remove: "Access removed", file_summary: "About this file", file_entities: "What the file contains", file_compare: "Compared with your thread", file_evidence: "Where it says that", allergies: "Allergies", conditions: "Conditions", navigate: "Opening",
@@ -18,7 +19,7 @@ function item(b) {
     case "pdf": return { label: b.name, value: `${b.pages || 1} page${(b.pages || 1) > 1 ? "s" : ""}`, sub: `Private. Available for ${b.expiresInHours} hours.`, tone: "good" };
     case "evidence": return { label: b.label || "Line", value: b.quote || "", sub: `Page ${b.page || 1}, line ${(b.lines || []).join(", ")}`, tone: "steady" };
     case "comparison": return { label: b.name, value: `${b.before.value} → ${b.after.value}${b.unit ? ` ${b.unit}` : ""}`, sub: `${b.points} results, ${when(b.before.date)} to ${when(b.after.date)}`, glyph: b.change > 0 ? "↑" : b.change < 0 ? "↓" : "→", tone: "steady" };
-    case "care_item": return { label: b.name, value: b.time || "", sub: b.taken === undefined ? undefined : b.taken ? "Marked taken" : "Not marked taken yet", tone: b.taken ? "good" : "steady" };
+    case "care_item": return { label: b.name, value: /^\d{4}-\d{2}-\d{2}T/.test(b.time || "") ? `until ${new Date(b.time).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : b.time || "", sub: b.taken === undefined ? undefined : b.taken ? "Marked taken" : "Not marked taken yet", tone: b.taken ? "good" : "steady" };
     case "warning": return { label: b.title || "Note", value: b.severity || "", sub: b.text, tone: tone(b.severity) };
     case "doctor_match": return { label: b.name, value: Array.isArray(b.specialty) ? b.specialty[0] : b.specialty || "", sub: [b.hospital, b.distanceKm != null && `${b.distanceKm} km`, "sample listing"].filter(Boolean).join(" · "), tone: "steady" };
     default: return null;

@@ -64,6 +64,13 @@ def set_step(db: Session, t: AgentTask, i: int, **fields) -> None:
     db.commit()
 
 
+def add_step(db: Session, t: AgentTask, tool: str, label: str, status: str = "running") -> int:
+    t.steps = [*t.steps, {"tool": tool, "args": {}, "label": label, "status": status}]
+    t.updated_at = now()
+    db.commit()
+    return len(t.steps) - 1
+
+
 def owned(db: Session, actor_id: str, role: str, task_id: str) -> AgentTask | None:
     return db.scalar(select(AgentTask).where(AgentTask.id == task_id, AgentTask.user_id == actor_id, AgentTask.agent_type == role))
 

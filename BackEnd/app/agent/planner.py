@@ -45,7 +45,7 @@ _P = lambda *words: re.compile("|".join(words), re.I)  # noqa: E731
 R_PDF = _P(r"\bpdf\b", r"printable", r"hand ?out", r"doctor summary", r"health summary", r"download .*(summary|report)")
 R_SEND = _P(r"send .*(doctor|dr\b)", r"(email|whatsapp|forward|mail) .*(doctor|dr\b)")
 R_SHARE_STATUS = _P(r"who can see", r"who has access", r"active shar", r"share status", r"shared with")
-R_SHARE_NEW = _P(r"(make|create|generate|give me|get me|new|show me).{0,25}(\bqr\b|share link|sharing link)", r"share my (records|reports|labs|lab reports|medicines|prescriptions)")
+R_SHARE_NEW = _P(r"\b(show|display|get|open|need)\b.{0,12}\bqr\b", r"(make|create|generate|give me|get me|new|show me).{0,25}(\bqr\b|share link|sharing link)", r"share my (records|reports|labs|lab reports|medicines|prescriptions)")
 R_SHARE_STOP = _P(r"stop sharing", r"revoke (all |my |the )?(share|link|qr)", r"turn off (sharing|the share)", r"cancel (the |my )?(share|link|qr)")
 R_DOC_REMOVE = re.compile(r"(?:remove|revoke|stop)\s+(?:access\s+(?:for|of|to)\s+|(?:dr\.?\s+)?)?(dr\.?\s+[a-z .]{2,40}?)(?:'s)?\s*(?:access|from my record)?\s*$", re.I)
 R_TOOK = re.compile(r"(?:mark|log|i (?:took|have taken|had))\s+(?:my\s+)?(?:dose of\s+)?([a-z][a-z0-9 -]{1,30}?)(?:\s+(?:as\s+)?(?:taken|done)|\s+tablet|\s+dose|\s+at\s+(\d{1,2}:\d{2}))?\s*$", re.I)
@@ -87,6 +87,17 @@ class AgentPlanner:
             p.steps = kept
         return p or Plan("unknown", clarify="I am not sure what you need. Try 'latest records', 'my medicines', or 'what is due today'.",
                          source="none")
+
+    def guard(self, role: str, text: str) -> Plan | None:
+        """Fixed answers that hold whatever a model would say: medicine changes (L4) and delivery to a doctor."""
+        if role != "patient":
+            return None
+        low = text.lower()
+        if R_MED_CHANGE.search(low) and not R_NAV.match(text):
+            return self._rules(role, text)
+        if R_SEND.search(low):
+            return self._rules(role, text)
+        return None
 
     # ---- the doctor's agent
     def _doctor_rules(self, text: str, session: dict) -> Plan | None:
