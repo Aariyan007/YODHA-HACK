@@ -15,6 +15,7 @@ import { RecordingPanel } from "../components/console/RecordingPanel.jsx";
 import { ReviewPanel } from "../components/console/ReviewPanel.jsx";
 import { ApprovedPanel } from "../components/console/ApprovedPanel.jsx";
 import { useT } from "../i18n.js";
+import MediThreadAgent from "../components/agent/MediThreadAgent.jsx";
 
 const PHASE_LABELS = {
   recording: "Recording",
@@ -240,6 +241,7 @@ export default function DoctorConsole() {
           />
         )}
       </main>
+      <MediThreadAgent />
     </div>
   );
 }

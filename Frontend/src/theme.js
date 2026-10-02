@@ -1,19 +1,12 @@
-// Theme control. Two themes: "glass" (deep-navy glassmorphism, default) and "light" (clinical sage).
-// Applied to <html data-theme>, persisted in localStorage, set pre-paint by the inline script in index.html.
+// MediThread has one look: the sage palette on a pale ground. (An earlier dark "glass" theme was retired.)
+// The attribute is still set so any legacy CSS keyed on [data-theme] resolves to the light/default branch.
 const KEY = "medithread_theme";
-export const THEMES = ["light", "glass"];
 
-export function getTheme() {
-  try { return localStorage.getItem(KEY) || "light"; } catch { return "light"; }
-}
-export function setTheme(t) {
-  document.documentElement.setAttribute("data-theme", t);
-  try { localStorage.setItem(KEY, t); } catch { /* private mode */ }
+export function getTheme() { return "light"; }
+export function setTheme() {
+  document.documentElement.setAttribute("data-theme", "light");
+  try { localStorage.setItem(KEY, "light"); } catch { /* private mode */ }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", t === "glass" ? "#0a0e1a" : "#e8f1e1");
+  if (meta) meta.setAttribute("content", "#e6f2dd");
 }
-export function toggleTheme() {
-  const next = getTheme() === "light" ? "glass" : "light";
-  setTheme(next);
-  return next;
-}
+export const toggleTheme = () => "light";

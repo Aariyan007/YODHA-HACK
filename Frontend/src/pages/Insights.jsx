@@ -1,10 +1,13 @@
-import { getHealthCheck, getInsights } from "../api/client.js";
+import { useState } from "react";
+import { getHealthCheck, getInsights, getTimeline } from "../api/client.js";
 import { useReveal, useScrollIn } from "../anim.js";
 import { HealthCheckPanel, TrendChart, VitalsForm, useChartSeries } from "../components/health.jsx";
 import { LineChart, Sparkline, changeSummary } from "../components/charts.jsx";
 import { Loading, Status, formatDate } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 import { useApi } from "../useApi.js";
+import { Chapter, RV } from "../design/primitives.jsx";
+import ThreadExplorer from "../design/ThreadExplorer.jsx";
 
 // ── Lab result row ────────────────────────────────────────────
 function LabRow({ l, series }) {
@@ -127,32 +130,48 @@ export default function Insights() {
   const ml = lang === "ml";
   const { data, loading, error, reload } = useApi(getInsights);
   const health = useApi(getHealthCheck);
-  // Only block on the first load; background reloads (after saving a reading)
-  // must not unmount the form and lose its comparison result.
+  const timeline = useApi(getTimeline);
+  const [newId, setNewId] = useState(null);
+
+  // After a reading is saved: refresh what depends on it, and find the record that was just added to the thread.
+  const onSaved = async () => {
+    const before = new Set((timeline.data || []).map((d) => d.id));
+    reload();
+    health.reload();
+    try {
+      const next = await getTimeline();
+      timeline.setData(next);
+      setNewId(next.find((d) => !before.has(d.id))?.id || null);
+    } catch { /* the thread refreshes on the next visit */ }
+  };
+
+  // Only block on the first load; background reloads after saving must not unmount the form and lose its result.
   if (!data) return <Loading error={error} onRetry={reload} />;
   return (
-    <>
-      <header className="ph" style={{ paddingTop: "clamp(20px,4vw,40px)" }}>
-        <div className="ed-kicker">{ml ? "ആരോഗ്യ പരിശോധന" : "Health check"}</div>
-        <h1 className="ph-greet">{ml ? "ഇന്ന്, നിങ്ങളുടെ " : "Today, against your "}<span className="nm">{ml ? "കഥയോട് ചേർത്ത്" : "story"}</span>.</h1>
-        <p className="ph-sub" style={{ marginTop: "var(--sp-3)" }}>
-          {ml ? "ഇന്നത്തെ അളവ് നിങ്ങളുടെ ഹെൽത്ത് ത്രെഡുമായി MediThread താരതമ്യം ചെയ്യുന്നു."
-              : "MediThread connects today's measurement to your health thread."}
-        </p>
-      </header>
-
-      <section className="ed-section" style={{ marginTop: "clamp(28px,4vw,44px)" }}>
-        <VitalsForm onSaved={() => { reload(); health.reload(); }} insights={data} />
-      </section>
-
-      <section className="ed-section">
-        <div className="ed-section-head">
-          <div><div className="ed-kicker">{ml ? "ഇത് എന്ത് അർത്ഥമാക്കുന്നു" : "What it means"}</div><h3>{t("healthCheck")}</h3></div>
+    <div className="mt-page">
+      <Chapter tone="ground">
+        <RV className="mt-opening">
+          <div className="mt-label">{ml ? "ആരോഗ്യ പരിശോധന" : "Health check"}</div>
+          <h1 className="mt-display">{ml ? "ഇന്ന്, നിങ്ങളുടെ " : "Today, against your "}<em>{ml ? "കഥയോട് ചേർത്ത്" : "story"}</em>.</h1>
+          <p className="mt-lede">{ml ? "ഇന്നത്തെ അളവ് നിങ്ങളുടെ ഹെൽത്ത് ത്രെഡുമായി MediThread താരതമ്യം ചെയ്യുന്നു."
+            : "Add a reading. MediThread compares it with your previous record, explains the change, and adds it to your thread."}</p>
+        </RV>
+        <div className="mt-grid mt-gap-top">
+          <RV className="c-7"><VitalsForm onSaved={onSaved} insights={data} /></RV>
+          <RV className="c-5 mt-thread-side">
+            <div className="mt-label mt-col-label">{ml ? "നിങ്ങളുടെ ത്രെഡ്" : "Your thread so far"}</div>
+            {timeline.data ? <ThreadExplorer docs={timeline.data} limit={4} panel={false} newId={newId} moreHref="/timeline" moreLabel={ml ? "മുഴുവൻ ത്രെഡ്" : "Open the thread"} /> : <Loading />}
+          </RV>
         </div>
-        {health.loading || health.error ? <Loading error={health.error} onRetry={health.reload} /> : <HealthCheckPanel data={health.data} />}
-      </section>
+      </Chapter>
 
-      <InsightsView data={data} />
-    </>
+      <Chapter tone="soft" no="01" kicker={ml ? "ഇത് എന്ത് അർത്ഥമാക്കുന്നു" : "What it means"} title={t("healthCheck")}>
+        {health.loading && !health.data ? <Loading error={health.error} onRetry={health.reload} /> : <HealthCheckPanel data={health.data} />}
+      </Chapter>
+
+      <Chapter tone="warm" no="02" kicker={ml ? "ഫലങ്ങൾ" : "Results"} title={ml ? "ട്രെൻഡുകളും ഫലങ്ങളും" : "Trends and results"} last>
+        <InsightsView data={data} />
+      </Chapter>
+    </div>
   );
 }

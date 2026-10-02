@@ -5,6 +5,7 @@ import { SINGLE } from "./routing.js";
 import App from "./App.jsx";
 import "./styles.css";
 import "./redesign.css";
+import "./design/mt.css";
 
 const Router = SINGLE ? HashRouter : BrowserRouter;
 

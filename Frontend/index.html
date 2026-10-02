@@ -2,22 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="MediThread — your health records, in one thread. A calm, intelligent healthcare continuity platform." />
-    <meta name="theme-color" content="#e8f1e1" />
+    <meta name="theme-color" content="#e6f2dd" />
     <title>MediThread</title>
     <script>
-      // Apply the saved theme before first paint to avoid a flash.
-      // Default is the editorial "light" (warm paper) theme; "glass" stays available.
-      (function () {
-        try {
-          var t = localStorage.getItem("medithread_theme") || "light";
-          document.documentElement.setAttribute("data-theme", t);
-        } catch (e) {
-          document.documentElement.setAttribute("data-theme", "light");
-        }
-      })();
+      // MediThread has one look. Set it before first paint so no other theme can flash.
+      document.documentElement.setAttribute("data-theme", "light");
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

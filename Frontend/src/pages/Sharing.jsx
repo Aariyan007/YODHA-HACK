@@ -1,235 +1,128 @@
 import { useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { createInvite, createShare, getAccessLog, getFamily, listMyDoctors, removeDoctor } from "../api/client.js";
 import { Empty, Loading } from "../components/ui.jsx";
-import { EdSection } from "../components/editorial.jsx";
 import { useT } from "../i18n.js";
 import { appPath, appUrl } from "../routing.js";
 import { useApi } from "../useApi.js";
+import { Chapter, RV } from "../design/primitives.jsx";
+import { AccessRow, ActivityItem, SharePanel } from "../design/share.jsx";
 
-// ── Invite your doctor (Phase 8) ──────────────────────────────
-function InviteDoctor() {
-  const { lang } = useT();
-  const ml = lang === "ml";
-  const doctors = useApi(listMyDoctors);
+// ── Invite your doctor: a one-time code for a doctor's MediThread account ───
+function InviteCode({ ml }) {
   const [invite, setInvite] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState(null); // { kind, text }
-
+  const [note, setNote] = useState(null);
   const make = async () => {
-    setBusy(true);
-    setNote(null);
-    try {
-      setInvite(await createInvite());
-    } catch (e) {
-      setNote({ kind: "error", text: e.message });
-    } finally {
-      setBusy(false);
-    }
+    setBusy(true); setNote(null);
+    try { setInvite(await createInvite()); } catch (e) { setNote({ kind: "error", text: e.message }); } finally { setBusy(false); }
   };
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(invite.code);
-      setNote({ kind: "ok", text: ml ? "പകർത്തി." : "Copied." });
-    } catch {
-      setNote({ kind: "error", text: ml ? "പകർത്താനായില്ല. കോഡ് തൊട്ട് തിരഞ്ഞെടുക്കുക." : "Could not copy. Tap the code to select it." });
-    }
+    try { await navigator.clipboard.writeText(invite.code); setNote({ kind: "ok", text: ml ? "പകർത്തി." : "Copied." }); }
+    catch { setNote({ kind: "error", text: ml ? "പകർത്താനായില്ല." : "Could not copy. Tap the code to select it." }); }
   };
-  const remove = async (d) => {
-    setNote(null);
-    try {
-      await removeDoctor(d.linkId);
-      await doctors.reload();
-    } catch (e) {
-      setNote({ kind: "error", text: e.message });
-    }
-  };
-
   return (
-    <div className="section stagger-1" style={{ marginTop: 0 }}>
-      <h3>{ml ? "നിങ്ങളുടെ ഡോക്ടറെ ക്ഷണിക്കുക" : "Invite your doctor"}</h3>
-      <div className="card">
-        <p className="text-sm text-muted" style={{ marginBottom: "var(--sp-4)" }}>
-          {ml
-            ? "ഡോക്ടർ അവരുടെ MediThread ഡോക്ടർ അക്കൗണ്ടിൽ ഈ കോഡ് നൽകണം. കോഡ് ഒരു തവണ മാത്രം, 24 മണിക്കൂർ."
-            : "Give this code to your doctor. They enter it in their MediThread doctor account to see your record. It works once and expires after 24 hours."}
-        </p>
-        <button className="primary" onClick={make} disabled={busy}>
-          {busy ? "…" : invite ? (ml ? "പുതിയ കോഡ്" : "New code") : ml ? "കോഡ് ഉണ്ടാക്കുക" : "Make a code"}
-        </button>
-        {invite && (
-          <div style={{ marginTop: "var(--sp-4)", display: "grid", gap: "var(--sp-3)" }}>
-            <div className="invite-code" aria-label={`Invite code ${invite.code}`}>{invite.code}</div>
-            <div className="row between">
-              <span className="text-dim text-xs">{ml ? "കാലാവധി" : "Expires"}: {new Date(invite.expiresAt).toLocaleString("en-IN")}</span>
-              <button onClick={copy}>{ml ? "പകർത്തുക" : "Copy"}</button>
-            </div>
+    <div className="mt-invite">
+      <div className="mt-label">{ml ? "അക്കൗണ്ട് ക്ഷണം" : "Invite by code"}</div>
+      <h3 className="mt-share-title">{ml ? "ഡോക്ടറുടെ അക്കൗണ്ടിലേക്ക്" : "For a doctor's account"}</h3>
+      <p className="mt-share-help">
+        {ml ? "ഡോക്ടർ അവരുടെ MediThread ഡോക്ടർ അക്കൗണ്ടിൽ ഈ കോഡ് നൽകണം. കോഡ് ഒരു തവണ മാത്രം, 24 മണിക്കൂർ."
+            : "They enter this code in their MediThread doctor account to see your record. It works once and expires after 24 hours."}
+      </p>
+      <button type="button" className="mt-btn secondary" onClick={make} disabled={busy}>
+        {busy ? "…" : invite ? (ml ? "പുതിയ കോഡ്" : "New code") : ml ? "കോഡ് ഉണ്ടാക്കുക" : "Make a code"}
+      </button>
+      {invite && (
+        <div className="mt-invite-code">
+          <div className="invite-code" aria-label={`Invite code ${invite.code}`}>{invite.code}</div>
+          <div className="row between">
+            <span className="mt-small">{ml ? "കാലാവധി" : "Expires"}: {new Date(invite.expiresAt).toLocaleString("en-IN")}</span>
+            <button type="button" className="mt-btn secondary sm" onClick={copy}>{ml ? "പകർത്തുക" : "Copy"}</button>
           </div>
-        )}
-        {note && (
-          <p className={note.kind === "error" ? "error text-sm" : "text-sm"} role={note.kind === "error" ? "alert" : "status"}>{note.text}</p>
-        )}
-
-        <h4 style={{ marginTop: "var(--sp-5)" }}>{ml ? "നിങ്ങളുടെ രേഖ കാണാൻ കഴിയുന്നവർ" : "Doctors who can see your record"}</h4>
-        {doctors.loading || doctors.error ? (
-          <Loading error={doctors.error} onRetry={doctors.reload} />
-        ) : doctors.data.length === 0 ? (
-          <Empty>{ml ? "ഇതുവരെ ആരുമില്ല." : "No doctors yet."}</Empty>
-        ) : (
-          <div className="list">
-            {doctors.data.map((d) => (
-              <div key={d.linkId} className="row between">
-                <div style={{ minWidth: 0 }}>
-                  <strong>{d.name}</strong>
-                  <div className="text-dim text-xs">{[d.specialty, d.hospital].filter(Boolean).join(" · ")}</div>
-                </div>
-                <button onClick={() => remove(d)}>{ml ? "നീക്കം ചെയ്യുക" : "Remove access"}</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
+      {note && <p className={note.kind === "error" ? "mt-error" : "mt-small"} role={note.kind === "error" ? "alert" : "status"}>{note.text}</p>}
     </div>
-  );
-}
-
-// ── Family member row ─────────────────────────────────────────
-function FamilyRow({ f }) {
-  const { t } = useT();
-  return (
-    <div className="card" style={{ display: "flex", alignItems: "center", gap: "var(--sp-4)", padding: "var(--sp-3) var(--sp-4)" }}>
-      <div
-        style={{
-          width: 36, height: 36, borderRadius: "50%",
-          background: "var(--accent-subtle)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "1rem", flexShrink: 0,
-        }}
-        aria-hidden="true"
-      >
-        👤
-      </div>
-      <div className="grow">
-        <div className="font-medium">{f.name}</div>
-        <div className="text-dim text-xs">{f.relation} · {f.phone}</div>
-      </div>
-      <div style={{ display: "flex", gap: "var(--sp-1)", flexWrap: "wrap" }}>
-        {f.canView && <span className="pill good">{t("canView")}</span>}
-        {f.notify  && <span className="pill watch">{t("notify")}</span>}
-      </div>
-    </div>
-  );
-}
-
-// ── Access log row ────────────────────────────────────────────
-function AccessRow({ a }) {
-  return (
-    <tr>
-      <td style={{ padding: "var(--sp-3) var(--sp-3)", borderBottom: "1px solid var(--border)" }}>
-        <div className="font-medium text-sm">{a.who}</div>
-        <div className="text-dim text-xs">{a.role}</div>
-      </td>
-      <td style={{ padding: "var(--sp-3) var(--sp-2)", borderBottom: "1px solid var(--border)", fontSize: "var(--font-size-sm)", color: "var(--text-2)" }}>{a.action}</td>
-      <td style={{ padding: "var(--sp-3) var(--sp-2)", borderBottom: "1px solid var(--border)", fontSize: "var(--font-size-xs)", color: "var(--text-3)" }}>{a.via}</td>
-      <td style={{ padding: "var(--sp-3) var(--sp-2)", borderBottom: "1px solid var(--border)", fontSize: "var(--font-size-xs)", color: "var(--text-3)" }}>
-        {new Date(a.at).toLocaleDateString("en-IN")}
-      </td>
-    </tr>
   );
 }
 
 export default function Sharing() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const ml = lang === "ml";
   const family = useApi(getFamily);
-  const log    = useApi(getAccessLog);
+  const log = useApi(getAccessLog);
+  const doctors = useApi(listMyDoctors);
   const [share, setShare] = useState(null);
   const [hours, setHours] = useState(24);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [removeNote, setRemoveNote] = useState(null);
 
   const create = async () => {
-    setError(null);
-    setCreating(true);
-    try {
-      setShare(await createShare(hours));
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setCreating(false);
-    }
+    setError(null); setCreating(true);
+    try { setShare(await createShare(hours)); } catch (e) { setError(e.message); } finally { setCreating(false); }
+  };
+  const remove = async (d) => {
+    setRemoveNote(null);
+    try { await removeDoctor(d.linkId); await doctors.reload(); } catch (e) { setRemoveNote(e.message); }
   };
 
   const fullUrl = share ? appUrl(share.url) : "";
-  const { lang } = useT();
-  const ml = lang === "ml";
   const hasFamily = (family.data?.length ?? 0) > 0;
+  const nAccess = doctors.data?.length ?? 0;
 
   return (
-    <div className="share-page">
-      <header className="ph" style={{ paddingTop: "clamp(20px,4vw,40px)" }}>
-        <div className="ed-kicker">{t("sharing")}</div>
-        <h1 className="ph-greet">{ml ? "നിങ്ങളുടെ കഥ " : "Share your "}<span className="nm">{ml ? "പങ്കിടുക" : "health story"}</span>.</h1>
-        <p className="share-lead">{ml ? "ആർക്കൊക്കെ, എങ്ങനെ നിങ്ങളുടെ ആരോഗ്യ രേഖ കാണാമെന്ന് തീരുമാനിക്കുക." : "Choose how someone can access your health story."}</p>
-      </header>
-
-      {/* SHARE WITH A DOCTOR — QR is the primary mechanism */}
-      <EdSection kicker={ml ? "ഒറ്റത്തവണ ലിങ്ക്" : "One-time link"} title={t("shareTitle")}>
-        <div className="card" style={{ padding: "var(--sp-6)" }}>
-          <p className="text-sm text-muted" style={{ marginBottom: "var(--sp-4)" }}>{t("shareHelp")}</p>
-          <div className="row" style={{ gap: "var(--sp-3)", flexWrap: "wrap" }}>
-            <select id="share-hours-select" value={hours} onChange={(e) => setHours(Number(e.target.value))} style={{ flexShrink: 0 }}>
-              <option value={1}>1 hour</option>
-              <option value={24}>24 hours</option>
-              <option value={72}>3 days</option>
-            </select>
-            <button id="create-share-btn" className="ed-cta" onClick={create} disabled={creating}>
-              {creating ? "Creating…" : t("createLink")}
-            </button>
-          </div>
-          {error && <p className="error text-sm mt-3" role="alert">{error}</p>}
-          {share && (
-            <div className="qr animate-in" style={{ marginTop: "var(--sp-6)" }}>
-              <div style={{ background: "white", padding: "var(--sp-3)", borderRadius: "var(--r-md)", display: "inline-block", boxShadow: "var(--shadow-md)" }}>
-                <QRCodeSVG value={fullUrl} size={180} />
-              </div>
-              <a href={appPath(share.url)} target="_blank" rel="noreferrer" className="qr-url text-xs text-dim" style={{ maxWidth: 300, wordBreak: "break-all", textAlign: "center" }}>
-                {fullUrl}
-              </a>
-              <span className="text-xs text-dim">{t("expires")}: {new Date(share.expiresAt).toLocaleString("en-IN")}</span>
-              <div className="row qr-actions">
-                <a className="btn" href={appPath(share.url)} target="_blank" rel="noreferrer">Preview patient view</a>
-                <a className="btn primary" href={appPath(`/console/${share.token}`)} target="_blank" rel="noreferrer">Open doctor console</a>
-              </div>
-            </div>
-          )}
+    <div className="mt-page">
+      <Chapter tone="ground">
+        <RV className="mt-opening">
+          <div className="mt-label">{t("sharing")}</div>
+          <h1 className="mt-display">{ml ? "നിങ്ങളുടെ ആരോഗ്യ കഥ " : "Share your "}<em>{ml ? "പങ്കിടുക" : "health story"}</em>.</h1>
+          <p className="mt-lede">{ml ? "ആർക്കൊക്കെ, എങ്ങനെ നിങ്ങളുടെ രേഖകൾ കാണാമെന്ന് തീരുമാനിക്കുക." : "Choose how someone can see your health story, for how long, and take that access back whenever you want."}</p>
+        </RV>
+        <div className="mt-grid mt-gap-top">
+          <RV className="c-7"><SharePanel share={share} fullUrl={fullUrl} hours={hours} setHours={setHours} creating={creating} error={error}
+            onCreate={create} previewHref={share ? appPath(share.url) : "#"} consoleHref={share ? appPath(`/console/${share.token}`) : "#"} t={t} ml={ml} /></RV>
+          <RV className="c-5"><InviteCode ml={ml} /></RV>
         </div>
-      </EdSection>
+      </Chapter>
 
-      {/* CURRENT ACCESS — invite a doctor account + who can see */}
-      <InviteDoctor />
+      <Chapter tone="soft" no="01" kicker={ml ? "ഇപ്പോൾ" : "Current access"}
+        title={ml ? "നിങ്ങളുടെ രേഖ കാണാൻ കഴിയുന്നവർ" : "Who can see your record now"}>
+        {doctors.loading || doctors.error ? <Loading error={doctors.error} onRetry={doctors.reload} />
+          : nAccess === 0 ? (
+            <Empty>{ml ? "ഇതുവരെ ആരുമില്ല." : "No doctors are connected yet. Share a link or an invite code above."}</Empty>
+          ) : (
+            <RV as="ul" className="mt-acc-list" stagger={0.08} selector=":scope > li">
+              {doctors.data.map((d) => <AccessRow key={d.linkId} d={d} onRemove={remove} ml={ml} />)}
+            </RV>
+          )}
+        {removeNote && <p className="mt-error" role="alert">{removeNote}</p>}
+      </Chapter>
 
-      {/* ACCESS HISTORY */}
-      <EdSection kicker={ml ? "പ്രവർത്തനം" : "Activity"} title={t("accessLog")}>
-        {log.loading || log.error ? (
-          <Loading error={log.error} onRetry={log.reload} />
-        ) : log.data.length === 0 ? (
-          <p className="ed-meta">{ml ? "ഇതുവരെ ആരും കണ്ടിട്ടില്ല." : "No one has viewed your records yet."}</p>
-        ) : (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>{log.data.map((a) => <AccessRow key={a.id} a={a} />)}</tbody>
-            </table>
-          </div>
-        )}
-      </EdSection>
+      <Chapter tone="warm" no="02" kicker={ml ? "പ്രവർത്തനം" : "Activity"} title={t("accessLog")} last={!hasFamily}>
+        {log.loading || log.error ? <Loading error={log.error} onRetry={log.reload} />
+          : log.data.length === 0 ? <p className="mt-quiet">{ml ? "ഇതുവരെ ആരും കണ്ടിട്ടില്ല." : "No one has viewed your records yet."}</p>
+          : (
+            <RV as="ul" className="mt-act-list" stagger={0.05} selector=":scope > li">
+              {log.data.slice(0, 12).map((a) => <ActivityItem key={a.id} a={a} />)}
+            </RV>
+          )}
+      </Chapter>
 
-      {/* FAMILY / CAREGIVERS — only when it has content */}
       {hasFamily && (
-        <EdSection kicker={ml ? "പരിചരണം" : "Caregivers"} title={t("family")}>
-          <div className="share-fam-grid">
-            {family.data.map((f) => <FamilyRow key={f.id} f={f} />)}
-          </div>
-        </EdSection>
+        <Chapter tone="neutral" no="03" kicker={ml ? "പരിചരണം" : "Caregivers"} title={t("family")} last>
+          <RV as="ul" className="mt-acc-list" stagger={0.08} selector=":scope > li">
+            {family.data.map((f) => (
+              <li key={f.id} className="mt-acc">
+                <span className="av" aria-hidden="true">{(f.name || "?").charAt(0).toUpperCase()}</span>
+                <div className="who"><strong>{f.name}</strong><span>{f.relation} · {f.phone}</span></div>
+                <div className="can">
+                  <span className="mt-label">{ml ? "അനുമതി" : "Access"}</span>
+                  <span>{[f.canView && t("canView"), f.notify && t("notify")].filter(Boolean).join(" · ")}</span>
+                </div>
+              </li>
+            ))}
+          </RV>
+        </Chapter>
       )}
     </div>
   );

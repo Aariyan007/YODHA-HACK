@@ -1,141 +1,104 @@
-import { CountUp, formatDate } from "../ui.jsx";
-import { EdSection, WhatChanged, Attention } from "../editorial.jsx";
-import HealthThread from "../thread.jsx";
-import { HbA1cChart } from "../ui.jsx";
+import { Arrow, Chapter, RV } from "../../design/primitives.jsx";
+import { deltaList, eventTime, shortDate } from "../../design/data.js";
+import { ChangeBlock, HealthSnapshot, OpenItems } from "../../design/home.jsx";
+import ThreadExplorer from "../../design/ThreadExplorer.jsx";
+import { MedicationList } from "../../design/medication.jsx";
+import { useT } from "../../i18n.js";
+
+// A health-check risk shown as an open care item (same row design as an alert).
+const riskItem = (r) => ({
+  id: `risk-${r.key}`, severity: r.level === "watch" ? "medium" : "high", kind: "risk",
+  title: r.title, message: r.message, messageMl: r.messageMl, cta: null,
+});
 
 export function HistoryPanel({ snapshot, doctorName, setDoctorName, onStart, onDemo, busy }) {
+  const { t } = useT();
   const { patient, alerts = [], medicines = [], insights, timeline = [], expiresAt } = snapshot;
-  const openAlerts = alerts.filter((a) => !a.resolved && a.kind !== "risk");
   const expiresText = expiresAt ? new Date(expiresAt).toLocaleString("en-IN") : "unknown";
-
-  const lab = (code) => insights?.labs?.find((l) => l.code === code);
-  const hba1cLab = lab("hba1c");
-  const sugarLab = lab("fbs") || lab("rbs") || lab("ppbs");
-  const sbp = lab("sbp"), dbp = lab("dbp");
-  const hba1c = hba1cLab ? hba1cLab.value : "--";
-  const sugar = sugarLab ? sugarLab.value : "--";
-  const bp = sbp && dbp && sbp.date === dbp.date ? `${sbp.value}/${dbp.value}` : "--";
-  const risks = snapshot.risks || [];
+  const deltas = deltaList(insights);
+  const items = [
+    ...alerts.filter((a) => !a.resolved && a.kind !== "risk"),
+    ...(snapshot.risks || []).map(riskItem),
+  ];
+  const abnormal = (insights?.labs || []).filter((l) => l.status === "alert").length;
+  const changed = deltas.filter((d) => d.dir !== "steady").length;
   const demographics = [patient.gender, patient.age ? `${patient.age} yrs` : null, patient.bloodGroup].filter(Boolean).join(" · ");
-  const attnCount = openAlerts.length + risks.length;
+  const encounters = timeline.filter((d) => ["visit", "consultation", "prescription"].includes(d.type)).slice(0, 5);
 
   return (
-    <div style={{ paddingBottom: "var(--sp-16)" }}>
-      {/* Patient identity */}
-      <header className="ph" style={{ paddingTop: "var(--sp-8)" }}>
-        <div className="ed-kicker">Patient</div>
-        <div className="ph-top">
-          <h1 className="ph-greet" style={{ fontSize: "clamp(1.9rem,1.4rem+2.4vw,3rem)" }}>{patient.name || "Patient"}</h1>
-          {attnCount > 0 && <span className="ph-status alert">{attnCount} to review</span>}
-        </div>
-        <p className="ph-sub" style={{ fontSize: "1.05rem", marginTop: 8 }}>
-          {demographics}{demographics && patient.phone ? " · " : ""}{patient.phone}
-        </p>
-        {patient.allergies?.length > 0 && (
-          <div className="snapshot-allergy" style={{ marginTop: "var(--sp-4)", display: "inline-flex" }}>
-            <span aria-hidden="true">⚠</span>
-            <strong>Allergies:</strong> {patient.allergies.join(", ")}
+    <div className="mt-page mt-console">
+      {/* PATIENT */}
+      <Chapter tone="ground">
+        <div className="mt-grid mt-opening-grid">
+          <RV className="c-8 mt-opening">
+            <div className="mt-label">Patient</div>
+            <h1 className="mt-display">{patient.name || "Patient"}</h1>
+            <p className="mt-lede">{demographics}{demographics && patient.phone ? " · " : ""}{patient.phone}</p>
+            {patient.allergies?.length > 0 && (
+              <p className="mt-allergy"><b>Allergies</b> {patient.allergies.join(", ")}</p>
+            )}
+          </RV>
+          <div className="c-4 mt-snap-col">
+            <HealthSnapshot insights={insights} timeline={timeline} openCount={items.length} />
           </div>
-        )}
-      </header>
-
-      {/* Snapshot metrics */}
-      <div className="console-metrics" style={{ marginTop: "var(--sp-6)" }}>
-        <div className="cm">
-          <div className="cm-l">HbA1c</div>
-          <div className="cm-v"><CountUp value={hba1c} />{hba1c !== "--" ? "%" : ""}</div>
-          <div className="cm-s">{hba1cLab ? hba1cLab.date : "No result"}</div>
         </div>
-        <div className="cm">
-          <div className="cm-l">Blood pressure</div>
-          <div className="cm-v">{bp}</div>
-          <div className="cm-s">{bp !== "--" ? `mmHg · ${sbp.date}` : "No reading"}</div>
+      </Chapter>
+
+      {/* WHAT CHANGED */}
+      <Chapter tone="soft" no="01" kicker="Since the last records" title="What changed since last visit?">
+        <RV className="mt-tally-line">
+          <span><b>{changed}</b> measurable {changed === 1 ? "change" : "changes"}</span>
+          <span><b>{items.length}</b> open care {items.length === 1 ? "item" : "items"}</span>
+          <span><b>{abnormal}</b> {abnormal === 1 ? "result" : "results"} out of range</span>
+        </RV>
+        <div className="mt-grid">
+          <div className="c-8"><ChangeBlock deltas={deltas} /></div>
+          <div className="c-4 mt-open-col">
+            <div className="mt-label mt-col-label">Open care items</div>
+            <OpenItems alerts={items} limit={3} />
+          </div>
         </div>
-        <div className="cm">
-          <div className="cm-l">{sugarLab ? sugarLab.name : "Blood sugar"}</div>
-          <div className="cm-v"><CountUp value={sugar} /></div>
-          <div className="cm-s">{sugarLab ? `mg/dL · ${sugarLab.date}` : "No result"}</div>
-        </div>
-        <div className="cm">
-          <div className="cm-l">Active meds</div>
-          <div className="cm-v"><CountUp value={medicines.length} /></div>
-          <div className="cm-s">Prescribed</div>
-        </div>
-      </div>
+      </Chapter>
 
-      {/* What changed */}
-      {insights?.series?.length > 0 && (
-        <EdSection kicker="Since last records" title="What changed">
-          <WhatChanged insights={insights} review={null} />
-        </EdSection>
-      )}
+      {/* THREAD */}
+      <Chapter tone="warm" no="02" kicker="Their record" title="Health thread" aside={<span className="mt-meta">{timeline.length} records</span>}>
+        <ThreadExplorer docs={timeline} limit={6} />
+      </Chapter>
 
-      {/* Needs review */}
-      {attnCount > 0 && (
-        <EdSection kicker="Clinical" title="Needs review">
-          {risks.length > 0 && (
-            <div className="list" style={{ marginBottom: openAlerts.length ? "var(--sp-5)" : 0 }}>
-              {risks.map((r) => (
-                <div key={r.key} className={`risk-card lvl-${r.level}`}>
-                  <div className="row between"><strong className="risk-title">{r.title}</strong><span className={`risk-level ${r.level}`}>{r.level}</span></div>
-                  <p className="risk-msg">{r.message}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          {openAlerts.length > 0 && <Attention alerts={openAlerts} />}
-        </EdSection>
-      )}
+      {/* MEDICATIONS */}
+      <Chapter tone="ground" no="03" kicker="Current" title="Medications" aside={<span className="mt-meta">{medicines.length} active</span>}>
+        {medicines.length ? <MedicationList medicines={medicines} /> : <p className="mt-quiet">No active medicines on record.</p>}
+      </Chapter>
 
-      {/* Trend */}
-      {insights?.hba1c?.length > 1 && (
-        <EdSection kicker="Trend" title="HbA1c over time">
-          <div className="card" style={{ padding: "var(--sp-5)" }}><HbA1cChart points={insights.hba1c} /></div>
-        </EdSection>
-      )}
-
-      {/* Medications */}
-      {medicines.length > 0 && (
-        <EdSection kicker="Current" title="Medications" meta={`${medicines.length} active`}>
-          <div className="care-loop">
-            {medicines.map((m) => (
-              <div key={m.id} className="care-step done" style={{ gridTemplateColumns: "1fr auto" }}>
-                <div>
-                  <span className="care-label" style={{ fontWeight: 600 }}>{m.name}</span>
-                  {m.generic && <span className="ed-meta" style={{ marginLeft: 8 }}>{m.generic}</span>}
-                </div>
-                <span className="care-when">{[m.dose, m.frequency].filter(Boolean).join(" · ")}</span>
-              </div>
+      {/* RECENT ENCOUNTERS */}
+      <Chapter tone="neutral" no="04" kicker="History" title="Recent encounters">
+        {encounters.length === 0 ? <p className="mt-quiet">No encounters yet.</p> : (
+          <RV as="ul" className="mt-enc" stagger={0.07} selector=":scope > li">
+            {encounters.map((d) => (
+              <li key={d.id}>
+                <span className="when"><b>{shortDate(d.date)}</b>{eventTime(d) ? <i>{eventTime(d)}</i> : null}</span>
+                <span className="what"><span className="mt-label">{t(d.type)}</span><strong>{d.title}</strong>{(d.source || d.doctor) && <em>{d.source || d.doctor}</em>}</span>
+                <span className="how">{(d.items || []).slice(0, 3).map((it) => ("value" in it ? `${it.name} ${it.value}${it.unit ? ` ${it.unit}` : ""}` : [it.name, it.dose].filter(Boolean).join(" "))).join(" · ")}</span>
+              </li>
             ))}
-          </div>
-        </EdSection>
-      )}
-
-      {/* Recent encounters as the thread */}
-      <EdSection kicker="History" title="Recent encounters">
-        {timeline.length === 0 ? (
-          <p className="ed-meta">No encounters yet.</p>
-        ) : (
-          <HealthThread docs={timeline} limit={5} />
+          </RV>
         )}
-      </EdSection>
+      </Chapter>
 
-      {/* Consultation */}
-      <EdSection kicker="Visit" title="Start a consultation">
-        <div className="card" style={{ padding: "var(--sp-6)" }}>
-          <label style={{ marginBottom: "var(--sp-4)", display: "block" }}>
-            Doctor name
-            <input value={doctorName} onChange={(e) => setDoctorName(e.target.value)} placeholder="Dr. Suresh Menon" aria-label="Doctor name" style={{ marginTop: "var(--sp-2)" }} />
+      {/* CONSULTATION */}
+      <Chapter tone="warm" no="05" kicker="Visit" title="Start a consultation" last>
+        <RV className="mt-consult">
+          <label className="mt-field">
+            <span className="mt-label">Doctor name</span>
+            <input value={doctorName} onChange={(e) => setDoctorName(e.target.value)} placeholder="Dr. Suresh Menon" aria-label="Doctor name" />
           </label>
-          <div className="row" style={{ gap: "var(--sp-3)", flexWrap: "wrap" }}>
-            <button className="ed-cta" onClick={onStart} disabled={busy}>🎙 Start recording</button>
-            <button className="ed-cta ghost" onClick={onDemo} disabled={busy}>▶ Demo conversation</button>
+          <div className="mt-consult-actions">
+            <button type="button" className="mt-btn" onClick={onStart} disabled={busy}>Start recording <Arrow /></button>
+            <button type="button" className="mt-btn secondary" onClick={onDemo} disabled={busy}>Play demo conversation</button>
           </div>
-          <div className="ed-meta" style={{ marginTop: "var(--sp-4)" }}>
-            <span aria-hidden="true">🔒</span> Shared by patient. Access expires {expiresText}.
-          </div>
-        </div>
-      </EdSection>
+          <p className="mt-small">Shared by the patient. Access expires {expiresText}. Voice is transcribed by Whisper, and the visit is sorted into diagnosis, medicines and tests for you to check before anything is saved.</p>
+        </RV>
+      </Chapter>
     </div>
   );
 }

@@ -1,72 +1,60 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { getTimeline } from "../api/client.js";
-import { Empty } from "../components/ui.jsx";
-import HealthThread from "../components/thread.jsx";
+import { Empty, Loading } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 import { useApi } from "../useApi.js";
+import { Chapter, RV } from "../design/primitives.jsx";
+import { DocumentStrip } from "../design/home.jsx";
+import ThreadExplorer from "../design/ThreadExplorer.jsx";
 
 const FILTERS = ["all", "prescription", "lab", "consultation", "vitals"];
-
-function ThreadSkeleton() {
-  return (
-    <div className="thread" role="status" aria-label="Building your health story…" style={{ "--thread-scale": 1 }}>
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="thread-item" style={{ opacity: 0.6 }}>
-          <span className="thread-node" aria-hidden="true" />
-          <div className="skeleton skeleton-text" style={{ width: 90, height: 11, marginBottom: 10 }} />
-          <div className="skeleton skeleton-text" style={{ width: "55%", height: 18, marginBottom: 8 }} />
-          <div className="skeleton skeleton-text" style={{ width: "80%", height: 11 }} />
-        </div>
-      ))}
-    </div>
-  );
-}
+const matches = (d, f) => f === "all" || d.type === f || (f === "consultation" && d.type === "visit");
 
 export default function Timeline() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const ml = lang === "ml";
   const { data, loading, error, reload } = useApi(getTimeline);
   const [filter, setFilter] = useState("all");
+  const { hash } = useLocation();
+  const initialId = hash ? hash.slice(1) : undefined; // arrives from a document preview ("View evidence")
 
-  const docs = !data ? [] : filter === "all"
-    ? data
-    : data.filter((d) => d.type === filter || (filter === "consultation" && d.type === "visit"));
+  const docs = data ?? [];
+  const shown = docs.filter((d) => matches(d, filter));
 
   return (
-    <>
-      <header className="ph" style={{ paddingTop: "clamp(20px,4vw,40px)" }}>
-        <div className="ed-kicker">{t("timeline")}</div>
-        <h1 className="ph-greet">Your health <span className="nm">thread</span>.</h1>
-        <p className="ph-sub" style={{ marginTop: "var(--sp-3)" }}>
-          {data ? `${data.length} records woven into one story — newest first.` : "Your records, connected."}
-        </p>
-      </header>
+    <div className="mt-page">
+      <Chapter tone="ground">
+        <RV className="mt-opening">
+          <div className="mt-label">{t("timeline")}</div>
+          <h1 className="mt-display">{ml ? "നിങ്ങളുടെ ആരോഗ്യ " : "Your health "}<em>{ml ? "ത്രെഡ്" : "thread"}</em>.</h1>
+          <p className="mt-lede">
+            {data ? (ml ? `${docs.length} രേഖകൾ ഒരു കഥയായി.` : `${docs.length} ${docs.length === 1 ? "record" : "records"} woven into one story, newest first. Hover or tap any point to see the record behind it.`)
+              : (ml ? "നിങ്ങളുടെ രേഖകൾ ബന്ധിപ്പിക്കുന്നു." : "Your records, connected.")}
+          </p>
+        </RV>
+        <div className="mt-seg" role="group" aria-label="Filter records">
+          {FILTERS.map((f) => (
+            <button key={f} type="button" className={f === filter ? "on" : ""} aria-pressed={f === filter} onClick={() => setFilter(f)}>
+              {t(f)}<span>{docs.filter((d) => matches(d, f)).length}</span>
+            </button>
+          ))}
+        </div>
+      </Chapter>
 
-      <div className="chips" role="group" aria-label="Filter records" style={{ marginTop: "var(--sp-5)" }}>
-        {FILTERS.map((f) => (
-          <button key={f} className={`chip${f === filter ? " on" : ""}`} onClick={() => setFilter(f)} aria-pressed={f === filter}>
-            {t(f)}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ marginTop: "var(--sp-8)" }}>
-        {loading ? (
-          <ThreadSkeleton />
-        ) : error ? (
-          <div className="card-alert" style={{ borderRadius: "var(--r-lg)", padding: "var(--sp-5)" }}>
-            <p className="text-alert font-medium text-sm">{error}</p>
-            <button className="mt-3" onClick={reload}>Try again</button>
-          </div>
-        ) : docs.length === 0 ? (
-          <Empty>
-            {data.length === 0
-              ? "No records yet. Tap Add to upload a prescription or lab report."
-              : "No records of this kind yet."}
-          </Empty>
+      <Chapter tone="warm" no="01" kicker={ml ? "കഥ" : "The story"} title={ml ? "എല്ലാം ഒറ്റ ത്രെഡിൽ" : "Everything on one thread"}>
+        {loading ? <Loading /> : error ? <Loading error={error} onRetry={reload} /> : shown.length === 0 ? (
+          <Empty>{docs.length === 0 ? "No records yet. Tap Add to upload a prescription or lab report." : "No records of this kind yet."}</Empty>
         ) : (
-          <HealthThread docs={docs} groupByYear />
+          <ThreadExplorer docs={shown} initialId={initialId} />
         )}
-      </div>
-    </>
+      </Chapter>
+
+      {docs.length > 0 && (
+        <Chapter tone="neutral" no="02" kicker={ml ? "തെളിവ്" : "Evidence"} title={ml ? "രേഖകൾ" : "Documents"} last>
+          <DocumentStrip docs={docs} limit={7} />
+        </Chapter>
+      )}
+    </div>
   );
 }

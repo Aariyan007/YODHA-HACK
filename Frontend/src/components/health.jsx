@@ -270,6 +270,12 @@ function ReadingResult({ today, insights, result, ml }) {
             </div>
           )}
           <p className="rr-note rr-step">{note}</p>
+          <div className="rr-thread rr-step" role="status">
+            <span className={`n prev${primary.prev ? "" : " none"}`} aria-hidden="true" />
+            <span className="line" aria-hidden="true"><i /></span>
+            <span className="n today" aria-hidden="true" />
+            <span className="txt">{ml ? "നിങ്ങളുടെ ഹെൽത്ത് ത്രെഡിൽ ചേർത്തു" : "Added to your health thread"}</span>
+          </div>
           <Link className="ed-link rr-step" to="/timeline">{ml ? "ഇതിന്റെ പിന്നിലെ രേഖകൾ കാണുക" : "View the records behind this"} →</Link>
         </>
       )}

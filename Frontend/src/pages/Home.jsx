@@ -1,16 +1,24 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
-import { getAlerts, getHealthCheck, getInsights, getReminders, getTimeline, markReminderTaken } from "../api/client.js";
-import { EmergencyBanner, RiskCard, VitalsForm } from "../components/health.jsx";
-import { PatientHeader, NowRail, WhatChanged, AIInsight, Attention, MedTimeline, EdSection } from "../components/editorial.jsx";
-import HealthThread from "../components/thread.jsx";
-import { Loading } from "../components/ui.jsx";
+import { getAlerts, getHealthCheck, getInsights, getMedicines, getReminders, getTimeline, markReminderTaken } from "../api/client.js";
+import { EmergencyBanner, doctorsLink } from "../components/health.jsx";
 import { getProfile } from "../App.jsx";
+import { Loading } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
 import { useApi } from "../useApi.js";
+import { Arrow, Chapter, RV } from "../design/primitives.jsx";
+import { deltaList, eventTime, greeting, longDate } from "../design/data.js";
+import { CareLoop, ChangeBlock, DocumentStrip, HealthSnapshot, InsightHero, OpenItems } from "../design/home.jsx";
+import ThreadExplorer from "../design/ThreadExplorer.jsx";
+import { MedicationTimeline } from "../design/medication.jsx";
 
-const toStatus = (level) =>
-  level === "emergency" || level === "high" ? "alert" : level === "watch" ? "watch" : "good";
+// A health-check risk shown as an open care item (same row design as an alert).
+const riskItem = (r) => ({
+  id: `risk-${r.key}`, severity: r.level === "watch" ? "medium" : "high", kind: "risk",
+  title: r.title, message: r.message, messageMl: r.messageMl,
+  cta: r.level !== "watch" && r.specialist
+    ? { to: doctorsLink(r.specialist, r.emergency ? { emergency: "1" } : { reason: r.reason }), label: `Find a ${r.specialist.toLowerCase()}` }
+    : null,
+});
 
 export default function Home() {
   const { t, lang } = useT();
@@ -21,104 +29,98 @@ export default function Home() {
   const insights = useApi(getInsights);
   const health = useApi(getHealthCheck);
   const timeline = useApi(getTimeline);
-  const [showVitals, setShowVitals] = useState(false);
+  const medicines = useApi(getMedicines);
 
   const take = async (key) => {
     await markReminderTaken(key);
     reminders.setData((rs) => rs.map((r) => (r.key === key ? { ...r, taken: true } : r)));
   };
 
-  const open = alerts.data?.filter((a) => !a.resolved && a.kind !== "risk") ?? [];
+  const name = profile?.name && profile.name !== "New patient" ? profile.name.split(" ")[0] : null;
   const risks = health.data?.risks ?? [];
   const emergency = risks.find((r) => r.emergency);
-  const otherRisks = risks.filter((r) => r !== emergency);
-  const status = toStatus(risks[0]?.level);
-  const name = profile?.name && profile.name !== "New patient" ? profile.name.split(" ")[0] : null;
-  const recordCount = timeline.data?.length ?? 0;
+  const items = [
+    ...(alerts.data?.filter((a) => !a.resolved && a.kind !== "risk") ?? []),
+    ...risks.filter((r) => !r.emergency).map(riskItem),
+  ];
+  const deltas = deltaList(insights.data);
+  const docs = timeline.data ?? [];
+  const latest = docs[0];
+  const doses = { total: reminders.data?.length ?? 0, taken: reminders.data?.filter((r) => r.taken).length ?? 0 };
+  const followUp = docs.find((d) => d.followUp);
+  const lastTime = latest ? eventTime(latest) : null;
 
   return (
-    <>
-      <PatientHeader
-        name={name}
-        subtitle={ml ? "നിങ്ങളുടെ ആരോഗ്യ കഥ ഒറ്റനോട്ടത്തിൽ." : "Your health story, at a glance."}
-        updatedAt={health.data ? Date.now() : null}
-        status={health.data ? status : null}
-      />
+    <div className="mt-page">
+      {emergency && <div className="mt-emergency-wrap"><EmergencyBanner risk={emergency} /></div>}
 
-      {emergency && <div style={{ marginTop: "var(--sp-6)" }}><EmergencyBanner risk={emergency} /></div>}
-
-      {(insights.data || reminders.data) && (
-        <NowRail insights={insights.data} reminders={reminders.data} warnings={open.length} />
-      )}
-
-      {/* WHAT CHANGED */}
-      {insights.data?.series?.length > 0 && (
-        <EdSection kicker={ml ? "മുൻ രേഖകളിൽ നിന്ന്" : "Since your previous records"} title={ml ? "എന്ത് മാറി" : "What changed"}>
-          <WhatChanged insights={insights.data} review={health.data?.review} />
-        </EdSection>
-      )}
-
-      {/* AI HEALTH REVIEW */}
-      {(health.loading || health.error) ? (
-        <EdSection kicker="AI" title={t("healthCheck")}><Loading error={health.error} onRetry={health.reload} /></EdSection>
-      ) : (health.data?.review || otherRisks.length > 0) && (
-        <EdSection
-          kicker={ml ? "വ്യാഖ്യാനം" : "Interpretation"}
-          title={ml ? "ആരോഗ്യ അവലോകനം" : "Health review"}
-          action={<Link className="ed-link" to="/doctors">{ml ? "ഡോക്ടറെ കണ്ടെത്തുക" : "Find a doctor"} →</Link>}
-        >
-          <AIInsight review={health.data?.review} recordCount={recordCount} />
-          {otherRisks.length > 0 && (
-            <div className="stack" style={{ gap: "var(--sp-4)", marginTop: "var(--sp-8)" }}>
-              {otherRisks.slice(0, 3).map((r) => <RiskCard key={r.key} risk={r} />)}
+      {/* OPENING — who, now, and the one thing to read first */}
+      <Chapter tone="ground">
+        <div className="mt-grid mt-opening-grid">
+          <RV className="c-8 mt-opening">
+            <div className="mt-label">{greeting(ml)}{name ? `, ${name}` : ""}</div>
+            <h1 className="mt-display">{ml ? "നിങ്ങളുടെ ആരോഗ്യ കഥ, " : "Your health story,"}<br /><em>{ml ? "ഒറ്റനോട്ടത്തിൽ." : "at a glance."}</em></h1>
+            {latest && (
+              <p className="mt-asof">
+                <i aria-hidden="true" />{ml ? "അവസാന രേഖ" : "Last record"} · {longDate(latest.date)}{lastTime ? ` · ${lastTime}` : ""}
+              </p>
+            )}
+            <div className="mt-open-actions">
+              <Link className="mt-link" to="/insights">{ml ? "ഇന്നത്തെ റീഡിംഗ് ചേർക്കുക" : "Add today's reading"} <Arrow /></Link>
+              <Link className="mt-link" to="/upload">{ml ? "രേഖ ചേർക്കുക" : "Add a record"} <Arrow /></Link>
             </div>
-          )}
-        </EdSection>
-      )}
-
-      {/* HEALTH THREAD */}
-      {timeline.data?.length > 0 && (
-        <EdSection
-          kicker={ml ? "നിങ്ങളുടെ കഥ" : "Your record"}
-          title={ml ? "ആരോഗ്യ ത്രെഡ്" : "Health thread"}
-          meta={`${recordCount} ${ml ? "രേഖകൾ" : "records"}`}
-          action={<Link className="ed-link" to="/timeline">{ml ? "എല്ലാം കാണുക" : "See the full thread"} →</Link>}
-        >
-          <HealthThread docs={timeline.data} limit={5} />
-        </EdSection>
-      )}
-
-      {/* NEEDS ATTENTION */}
-      <EdSection kicker={ml ? "ശ്രദ്ധിക്കുക" : "Flagged for you"} title={ml ? "ശ്രദ്ധ വേണ്ടത്" : "What needs attention"}>
-        {alerts.loading || alerts.error
-          ? <Loading error={alerts.error} onRetry={alerts.reload} />
-          : <Attention alerts={open} />}
-        <p className="ai-disclaim" style={{ marginTop: "var(--sp-4)" }}>{t("askDoctor")}</p>
-      </EdSection>
-
-      {/* TODAY'S MEDICINES */}
-      <EdSection
-        kicker={ml ? "ഇന്ന്" : "Care loop"}
-        title={t("todayMeds")}
-        action={
-          <button className="ed-link" onClick={() => setShowVitals((x) => !x)} aria-expanded={showVitals}>
-            {showVitals ? (ml ? "അടയ്ക്കുക" : "Close") : (ml ? "+ റീഡിംഗ്" : "+ Log a reading")}
-          </button>
-        }
-      >
-        {showVitals && (
-          <div className="animate-in-fast" style={{ marginBottom: "var(--sp-6)" }}>
-            <VitalsForm onSaved={() => { health.reload(); alerts.reload(); insights.reload(); }} />
+          </RV>
+          <div className="c-4 mt-snap-col">
+            {insights.loading && !insights.data ? <Loading /> : <HealthSnapshot insights={insights.data} timeline={docs} openCount={items.length} doses={doses} />}
           </div>
+          <div className="c-8 mt-hero-col">
+            <InsightHero review={health.data?.review} deltas={deltas} openCount={items.length} loading={health.loading && !health.data} />
+          </div>
+        </div>
+      </Chapter>
+
+      {/* 01 — what changed, and what is still open */}
+      <Chapter tone="soft" no="01" kicker={ml ? "മുൻ രേഖകളിൽ നിന്ന്" : "Since your previous records"} title={ml ? "എന്ത് മാറി" : "What changed"}>
+        <div className="mt-grid">
+          <div className="c-8">
+            {insights.loading && !insights.data ? <Loading /> : <ChangeBlock deltas={deltas} review={health.data?.review} />}
+          </div>
+          <div className="c-4 mt-open-col">
+            <div className="mt-label mt-col-label">{ml ? "തുറന്ന പരിചരണ കാര്യങ്ങൾ" : "Open care items"}</div>
+            {(alerts.loading || health.loading) && !items.length ? <Loading /> : <OpenItems alerts={items} limit={3} />}
+            <p className="mt-fine">{t("askDoctor")}</p>
+          </div>
+        </div>
+      </Chapter>
+
+      {/* 02 — the thread itself */}
+      <Chapter tone="warm" no="02" kicker={ml ? "നിങ്ങളുടെ രേഖ" : "Your record"} title={ml ? "ആരോഗ്യ ത്രെഡ്" : "Health thread"}
+        aside={<span className="mt-meta">{docs.length} {ml ? "രേഖകൾ" : "records"}</span>}>
+        {timeline.loading && !timeline.data ? <Loading /> : (
+          <ThreadExplorer docs={docs} limit={5} moreHref="/timeline" moreLabel={ml ? "മുഴുവൻ ത്രെഡ് കാണുക" : "See the full thread"} />
         )}
-        {reminders.loading || reminders.error ? (
-          <Loading error={reminders.error} onRetry={reminders.reload} />
-        ) : reminders.data.length === 0 ? (
-          <p className="ed-meta">{ml ? "മരുന്നുകളൊന്നും ഷെഡ്യൂൾ ചെയ്തിട്ടില്ല. ഓർമ്മപ്പെടുത്തലുകൾക്കായി ഒരു പ്രിസ്ക്രിപ്ഷൻ ചേർക്കുക." : "No medicines scheduled. Add a prescription to get reminders."}</p>
-        ) : (
-          <MedTimeline reminders={reminders.data} onTake={take} />
-        )}
-      </EdSection>
-    </>
+      </Chapter>
+
+      {/* 03 — care today */}
+      <Chapter tone="ground" no="03" kicker={ml ? "ഇന്ന്" : "Care loop"} title={ml ? "ഇന്നത്തെ പരിചരണം" : "Your care today"}>
+        <div className="mt-grid">
+          <div className="c-7">
+            {reminders.loading && !reminders.data ? <Loading error={reminders.error} onRetry={reminders.reload} /> : (
+              <MedicationTimeline reminders={reminders.data || []} medicines={medicines.data || []} onTake={take} />
+            )}
+          </div>
+          <div className="c-5">
+            <div className="mt-label mt-col-label">{ml ? "പരിചരണ ചക്രം" : "Your care loop"}</div>
+            <CareLoop doses={doses} openCount={items.length} followUp={followUp ? { text: followUp.followUp, date: followUp.date } : null} />
+          </div>
+        </div>
+      </Chapter>
+
+      {/* 04 — the documents behind the thread */}
+      <Chapter tone="neutral" no="04" kicker={ml ? "തെളിവ്" : "Evidence"} title={ml ? "സമീപകാല രേഖകൾ" : "Recent records"} last
+        aside={<Link className="mt-link" to="/timeline">{ml ? "എല്ലാ രേഖകളും" : "All records"} <Arrow /></Link>}>
+        {timeline.loading && !timeline.data ? <Loading /> : <DocumentStrip docs={docs} limit={3} />}
+      </Chapter>
+    </div>
   );
 }

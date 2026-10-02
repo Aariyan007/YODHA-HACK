@@ -9,6 +9,7 @@ import { reducedMotion, useReveal } from "../anim.js";
 import { EmergencyBanner, RiskCard } from "../components/health.jsx";
 import { Loading } from "../components/ui.jsx";
 import { useT } from "../i18n.js";
+import { Arrow, Chapter, RV } from "../design/primitives.jsx";
 
 const SPECIALTIES = ["General Physician", "Cardiologist", "Diabetologist", "Nephrologist", "Pulmonologist",
   "Gastroenterologist", "Endocrinologist", "Haematologist", "Neurologist", "Orthopaedician", "Gynaecologist",
@@ -110,34 +111,30 @@ function CareDoctor({ d, rank, active, onSelect, ctx }) {
   const role = d.department ? `${d.department} · ${d.city}` : `${d.specialty} · ${d.clinic}, ${d.city}`;
   const why = whyItems(d, ctx);
   return (
-    <article ref={ref} className={`care-doc${active ? " active" : ""}${rank ? " picked" : ""}`} onClick={() => onSelect(d.id)}>
-      <div className="cd-head">
-        {rank ? <span className="cd-rank">{ml ? `ഏറ്റവും അനുയോജ്യം ${rank}` : `Best match ${rank}`}</span> : null}
-        {d.emergency24x7 && <span className="cd-er">24×7 {ml ? "അത്യാഹിതം" : "emergency"}</span>}
-        <h4 className="cd-name">{title}</h4>
-        <div className="cd-role">{role}</div>
+    <article ref={ref} className={`mt-dm${active ? " active" : ""}${rank ? " picked" : ""}`} onClick={() => onSelect(d.id)}>
+      <div className="mt-dm-id">
+        {rank ? <span className="mt-dm-rank">{ml ? `ഏറ്റവും അനുയോജ്യം ${rank}` : `Best match ${rank}`}</span> : null}
+        {d.emergency24x7 && <span className="mt-dm-er">24×7 {ml ? "അത്യാഹിതം" : "emergency"}</span>}
+        <h4 className="mt-dm-name">{title}</h4>
+        <div className="mt-dm-role">{role}</div>
       </div>
 
-      <div className="cd-why">
-        <div className="cd-why-label">{ml ? "എന്തുകൊണ്ട് ഈ യോജിപ്പ്" : "Why this match"}</div>
-        <ul className="cd-why-list">
-          {why.map((w, i) => (
-            <li key={i}><span className="cd-tick" aria-hidden="true">✓</span>{w}</li>
-          ))}
+      <div className="mt-dm-why">
+        <div className="mt-label">{ml ? "എന്തുകൊണ്ട് ഈ യോജിപ്പ്" : "Why this match"}</div>
+        <ul>
+          {why.map((w, i) => (<li key={i}><span className="tick" aria-hidden="true">✓</span>{w}</li>))}
         </ul>
       </div>
 
-      <div className="cd-foot">
-        <div className="cd-meta">
-          <span>~{d.distanceKm} km {ml ? "അകലെ" : "away"}</span>
-          {d.feeInr ? <span className="sep">·</span> : null}
-          {d.feeInr ? <span>₹{d.feeInr}</span> : null}
-          {d.rating ? <span className="sep">·</span> : null}
-          {d.rating ? <span className="cd-rating">{d.rating.toFixed(1)} {ml ? "റേറ്റിംഗ്" : "rating"} ({d.reviews})</span> : null}
-        </div>
-        <div className="cd-actions" onClick={(e) => e.stopPropagation()}>
-          <a className="ed-cta" style={{ padding: "10px 18px", minHeight: 44 }} href={`tel:${d.phone.replace(/\s/g, "")}`}>{ml ? "വിളിക്കുക" : "Call"}</a>
-          <a className="ed-link" href={directions(d)} target="_blank" rel="noreferrer">{ml ? "വഴി കാണിക്കുക" : "Get directions"} →</a>
+      <div className="mt-dm-side">
+        <dl className="mt-dm-meta">
+          <div><dt>{ml ? "ദൂരം" : "Distance"}</dt><dd>{d.distanceKm} km</dd></div>
+          {d.feeInr ? <div><dt>{ml ? "ഫീസ്" : "Fee"}</dt><dd>₹{d.feeInr}</dd></div> : null}
+          {d.rating ? <div><dt>{ml ? "റേറ്റിംഗ്" : "Rating"}</dt><dd>{d.rating.toFixed(1)} <small>({d.reviews})</small></dd></div> : null}
+        </dl>
+        <div className="mt-dm-actions" onClick={(e) => e.stopPropagation()}>
+          <a className="mt-btn" href={`tel:${d.phone.replace(/\s/g, "")}`}>{ml ? "വിളിക്കുക" : "Call"} <Arrow /></a>
+          <a className="mt-link" href={directions(d)} target="_blank" rel="noreferrer">{ml ? "വഴി കാണിക്കുക" : "Get directions"} <Arrow /></a>
         </div>
       </div>
     </article>
@@ -232,7 +229,7 @@ export default function Doctors() {
   const picks = data?.picks || [];
   const pickIds = useMemo(() => picks.map((p) => p.id), [picks]);
   const rankOf = (id) => (pickIds.indexOf(id) >= 0 ? pickIds.indexOf(id) + 1 : null);
-  const listRef = useReveal([data], { selector: ".care-doc", y: 18, stagger: 0.06 });
+  const listRef = useReveal([data], { selector: ".mt-dm", y: 18, stagger: 0.06 });
 
   const wantsMl = malayalam || profile?.language === "ml";
   const ctx = { data: data || {}, ml, mode, specialty, wantsMl };
@@ -262,100 +259,81 @@ export default function Doctors() {
   })();
 
   return (
-    <>
-      <header className="ph" style={{ paddingTop: "clamp(20px,4vw,40px)" }}>
-        <div className="ed-kicker">{ml ? "കെയർ മാച്ച്" : "Care match"}</div>
-        <h1 className="ph-greet">{ml ? "ശരിയായ " : "Find the "}<span className="nm">{ml ? "പരിചരണം" : "right care"}</span>.</h1>
-        <p className="ph-sub" style={{ marginTop: "var(--sp-3)" }}>
-          {ml ? "നിങ്ങളുടെ ആരോഗ്യ കഥയുമായി ചേർത്ത്, വെറും ലൊക്കേഷൻ കൊണ്ടല്ല."
-              : "Matched to your health story — not just who's nearest."}
-        </p>
-      </header>
+    <div className="mt-page">
+      {/* OPENING — the care context, and what MediThread suggests from it */}
+      <Chapter tone="ground">
+        <RV className="mt-opening">
+          <div className="mt-label">{ml ? "കെയർ മാച്ച്" : "Care match"}</div>
+          <h1 className="mt-display">{ml ? "ശരിയായ " : "Find the "}<em>{ml ? "പരിചരണം" : "right care"}</em>.</h1>
+          <p className="mt-lede">{ml ? "നിങ്ങളുടെ ആരോഗ്യ കഥയുമായി ചേർത്ത്, വെറും ലൊക്കേഷൻ കൊണ്ടല്ല." : "Matched to your health story, not just to who is nearest."}</p>
+        </RV>
 
-      {/* Ask bar */}
-      <form className="care-ask" onSubmit={ask}>
-        <span className="ca-spark" aria-hidden="true">✦</span>
-        <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300}
-               placeholder={ml ? "ഉദാ: ഞായറാഴ്ച തുറക്കുന്ന കാക്കനാട്ടെ ഹൃദ്രോഗ ഡോക്ടർ" : "Describe it: a Malayalam-speaking heart doctor near Kakkanad, open Sunday"}
-               aria-label="Describe the care you need" />
-        <button className="ed-cta" disabled={busy || q.trim().length < 2}>{ml ? "ചോദിക്കുക" : "Ask"}</button>
-      </form>
+        <RV as="form" className="mt-ask" onSubmit={ask}>
+          <span className="sp" aria-hidden="true">✦</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300}
+                 placeholder={ml ? "ഉദാ: ഞായറാഴ്ച തുറക്കുന്ന കാക്കനാട്ടെ ഹൃദ്രോഗ ഡോക്ടർ" : "Describe it: a Malayalam-speaking heart doctor near Kakkanad, open Sunday"}
+                 aria-label="Describe the care you need" />
+          <button className="mt-btn" disabled={busy || q.trim().length < 2}>{ml ? "ചോദിക്കുക" : "Ask"} <Arrow /></button>
+        </RV>
 
-      {/* Emergency / risk lead */}
-      {data?.risk && mode === "foryou" && !asked && data.emergency && <EmergencyBanner risk={data.risk} />}
+        {data?.risk && mode === "foryou" && !asked && data.emergency && <div className="mt-gap-top"><EmergencyBanner risk={data.risk} /></div>}
 
-      {/* CARE CONTEXT → RECOMMENDED CARE */}
-      <section className="care-context">
-        <div className="cc-you">
-          <div className="ed-kicker bare">{ml ? "നിങ്ങൾ പരിചരണം തേടുന്നത്" : "You're looking for care for"}</div>
-          {careContext.length > 0 ? (
-            <div className="cc-chips">
-              {careContext.map((c, i) => <span key={i} className="cc-chip">{c}</span>)}
-            </div>
-          ) : (
-            <p className="ed-meta">{ml ? "പൊതുവായ പരിശോധന." : "A general check-up."}</p>
-          )}
-        </div>
-        <div className="cc-arrow" aria-hidden="true">
-          <svg viewBox="0 0 24 48" width="24" height="48" fill="none"><path d="M12 2v40m0 0l-6-7m6 7l6-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </div>
-        <div className="cc-rec">
-          <div className="ed-kicker bare">{ml ? "MediThread നിർദ്ദേശിക്കുന്നു" : "MediThread suggests"}</div>
-          <div className="cc-spec">{recSpecialty}</div>
-          <p className="cc-reason">{reason}</p>
-          {data?.risk && !data.emergency && mode === "foryou" && !asked && (
-            <div style={{ marginTop: "var(--sp-4)" }}><RiskCard risk={data.risk} showFinder={false} /></div>
-          )}
-        </div>
-      </section>
+        <RV className="mt-flow mt-gap-top">
+          <div className="you">
+            <div className="mt-label">{ml ? "നിങ്ങൾ പരിചരണം തേടുന്നത്" : "You're looking for care for"}</div>
+            {careContext.length > 0 ? (
+              <div className="chips">{careContext.map((c, i) => <span key={i}>{c}</span>)}</div>
+            ) : <p className="mt-quiet">{ml ? "പൊതുവായ പരിശോധന." : "A general check-up."}</p>}
+          </div>
+          <div className="thread" aria-hidden="true"><i /><b /></div>
+          <div className="rec">
+            <div className="mt-label">{ml ? "MediThread നിർദ്ദേശിക്കുന്നു" : "MediThread suggests"}</div>
+            <div className="spec">{recSpecialty}</div>
+            <p className="why">{reason}</p>
+            {data?.risk && !data.emergency && mode === "foryou" && !asked && (
+              <div className="mt-flow-risk"><RiskCard risk={data.risk} showFinder={false} /></div>
+            )}
+          </div>
+        </RV>
 
-      {/* Refine */}
-      <div className="care-refine">
-        <div className="chips" role="group" aria-label="Mode">
-          <button type="button" className={`chip${mode === "foryou" && !asked ? " on" : ""}`} onClick={() => setSpecialty("")}>
-            {ml ? "എന്റെ കഥയ്ക്കായി" : "For my story"}
-          </button>
-          <button type="button" className={`chip er${emergency && !asked ? " on" : ""}`} onClick={() => setSpecialty("Emergency")}>
-            {ml ? "അത്യാഹിതം" : "Emergency"}
-          </button>
-          <select className="chip-select" value={emergency ? "" : specialty} onChange={(e) => setSpecialty(e.target.value)} aria-label="Specialty">
-            <option value="">{ml ? "സ്പെഷ്യാലിറ്റി…" : "Any specialty…"}</option>
-            {SPECIALTIES.filter((s) => s !== "Emergency").map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {mode === "search" && (
-            <>
-              <button type="button" className={`chip${onlyOpen ? " on" : ""}`} onClick={() => setOnlyOpen((x) => !x)}>{ml ? "ഇപ്പോൾ തുറന്നത്" : "Open now"}</button>
-              <button type="button" className={`chip${malayalam ? " on" : ""}`} onClick={() => setMalayalam((x) => !x)}>Malayalam</button>
-            </>
-          )}
+        <div className="mt-refine mt-gap-top">
+          <div className="mt-seg" role="group" aria-label="Mode">
+            <button type="button" className={mode === "foryou" && !asked ? "on" : ""} aria-pressed={mode === "foryou" && !asked} onClick={() => setSpecialty("")}>{ml ? "എന്റെ കഥയ്ക്കായി" : "For my story"}</button>
+            <button type="button" className={emergency && !asked ? "on er" : "er"} aria-pressed={emergency && !asked} onClick={() => setSpecialty("Emergency")}>{ml ? "അത്യാഹിതം" : "Emergency"}</button>
+            {mode === "search" && (
+              <>
+                <button type="button" className={onlyOpen ? "on" : ""} aria-pressed={onlyOpen} onClick={() => setOnlyOpen((x) => !x)}>{ml ? "ഇപ്പോൾ തുറന്നത്" : "Open now"}</button>
+                <button type="button" className={malayalam ? "on" : ""} aria-pressed={malayalam} onClick={() => setMalayalam((x) => !x)}>Malayalam</button>
+              </>
+            )}
+          </div>
+          <div className="mt-refine-sel">
+            <select value={emergency ? "" : specialty} onChange={(e) => setSpecialty(e.target.value)} aria-label="Specialty">
+              <option value="">{ml ? "സ്പെഷ്യാലിറ്റി…" : "Any specialty…"}</option>
+              {SPECIALTIES.filter((s) => s !== "Emergency").map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={geo ? "__geo" : city} onChange={(e) => { setGeo(null); setCity(e.target.value); }} aria-label="Town">
+              {geo && <option value="__geo">{ml ? "എന്റെ ലൊക്കേഷൻ" : "My location"}</option>}
+              <option value="">{ml ? "നഗരം…" : "Town…"}</option>
+              {cities.map((c) => <option key={c.city} value={c.city}>{c.city}{c.state !== "Kerala" ? `, ${c.state}` : ""}</option>)}
+            </select>
+            <button type="button" className="mt-link" onClick={locate}>{ml ? "എന്റെ ലൊക്കേഷൻ" : "Use my location"} <Arrow /></button>
+          </div>
         </div>
-        <div className="row" style={{ gap: "var(--sp-2)", alignItems: "center", flexWrap: "wrap" }}>
-          <button type="button" className="ed-link" onClick={locate}>📍 {ml ? "എന്റെ ലൊക്കേഷൻ" : "Use my location"}</button>
-          <select value={geo ? "__geo" : city} onChange={(e) => { setGeo(null); setCity(e.target.value); }} aria-label="Town">
-            {geo && <option value="__geo">{ml ? "എന്റെ ലൊക്കേഷൻ" : "My location"}</option>}
-            <option value="">{ml ? "നഗരം…" : "Town…"}</option>
-            {cities.map((c) => <option key={c.city} value={c.city}>{c.city}{c.state !== "Kerala" ? `, ${c.state}` : ""}</option>)}
-          </select>
-        </div>
-      </div>
-      {geoMsg && <p className="ed-meta" style={{ marginTop: "var(--sp-2)" }}>{geoMsg}</p>}
-      {data?.origin?.outsideIndia && (
-        <p className="notice">{ml ? "നിങ്ങൾ ഇന്ത്യക്ക് പുറത്താണ്. ഈ ഫൈൻഡർ ഇന്ത്യയിൽ മാത്രം; കാണിക്കുന്നത്:" : "You seem to be outside India. This finder covers India only, so it is showing results around"} <b>{data.origin.label}</b>.</p>
-      )}
-      {data?.relaxed?.map((r, i) => <p key={i} className="notice">{r}</p>)}
+        {geoMsg && <p className="mt-small">{geoMsg}</p>}
+        {data?.origin?.outsideIndia && (
+          <p className="notice">{ml ? "നിങ്ങൾ ഇന്ത്യക്ക് പുറത്താണ്. ഈ ഫൈൻഡർ ഇന്ത്യയിൽ മാത്രം; കാണിക്കുന്നത്:" : "You seem to be outside India. This finder covers India only, so it is showing results around"} <b>{data.origin.label}</b>.</p>
+        )}
+        {data?.relaxed?.map((r, i) => <p key={i} className="notice">{r}</p>)}
+      </Chapter>
 
-      {/* CARE MATCHES */}
-      <section className="ed-section" style={{ marginTop: "clamp(28px,4vw,44px)" }}>
-        <div className="ed-section-head">
-          <div><div className="ed-kicker">{recSpecialty}</div><h3>{ml ? "നിങ്ങൾക്കായുള്ള ഡോക്ടർമാർ" : "Doctors matched to you"}</h3></div>
-          {data?.results?.length > 0 && (
-            <button type="button" className="ed-link" onClick={() => setShowMap((x) => !x)}>
-              {showMap ? (ml ? "മാപ്പ് മറയ്ക്കുക" : "Hide map") : (ml ? "മാപ്പിൽ കാണുക" : "Show on map")} →
-            </button>
-          )}
-        </div>
-
-        <div ref={listRef} className="care-list">
+      {/* 01 — the doctors, led by why they match */}
+      <Chapter tone="soft" no="01" kicker={recSpecialty} title={ml ? "നിങ്ങൾക്കായുള്ള ഡോക്ടർമാർ" : "Doctors matched to you"} last={!(data?.results?.length > 0)}
+        aside={data?.results?.length > 0 ? (
+          <button type="button" className="mt-link" onClick={() => setShowMap((x) => !x)} aria-expanded={showMap}>
+            {showMap ? (ml ? "മാപ്പ് മറയ്ക്കുക" : "Hide map") : (ml ? "മാപ്പിൽ കാണുക" : "Show on map")} <Arrow />
+          </button>) : null}>
+        <div ref={listRef} className="mt-dm-list">
           {busy && !data && <Loading />}
           {error && <Loading error={error} onRetry={load} />}
           {data?.results?.length === 0 && <p className="notice">{ml ? "ഒന്നും കണ്ടില്ല. ഫിൽട്ടർ മാറ്റുക." : "No doctors matched. Try fewer filters."}</p>}
@@ -364,52 +342,46 @@ export default function Doctors() {
           ))}
           {data?.nearbyGp?.length > 0 && (
             <>
-              <div className="ed-kicker" style={{ margin: "var(--sp-6) 0 var(--sp-2)" }}>{ml ? "അടുത്തുള്ള ഒരു ഓപ്ഷൻ" : "A closer option first"}</div>
+              <div className="mt-label mt-col-label">{ml ? "അടുത്തുള്ള ഒരു ഓപ്ഷൻ" : "A closer option first"}</div>
               {data.nearbyGp.map((d) => <CareDoctor key={d.id} d={d} active={active === d.id} onSelect={setActive} ctx={ctx} />)}
             </>
           )}
         </div>
 
-        {/* Map as supporting context, revealed on demand */}
+        {/* The map is supporting context, shown on request */}
         {showMap && data?.results?.length > 0 && (
-          <div className="care-map animate-in-fast">
+          <div className="mt-map animate-in-fast">
             <DoctorMap origin={data?.origin} results={data?.results || []} pickIds={pickIds} active={active} onSelect={setActive} />
-            <p className="ed-meta" style={{ marginTop: 6 }}>
-              {ml ? "സാമ്പിൾ ഡാറ്റ: പേരുകളും നമ്പറുകളും റിവ്യൂകളും സാങ്കൽപ്പികം." : "Sample data: doctor names, clinics, phone numbers and reviews are fictional."}
-            </p>
+            <p className="mt-small">{ml ? "സാമ്പിൾ ഡാറ്റ: പേരുകളും നമ്പറുകളും റിവ്യൂകളും സാങ്കൽപ്പികം." : "Sample data: doctor names, clinics, phone numbers and reviews are fictional."}</p>
           </div>
         )}
-      </section>
+      </Chapter>
 
-      {/* CARE PATH — connect discovery back to the MediThread story */}
+      {/* 02 — the care path, back into the MediThread story */}
       {data?.results?.length > 0 && (
-        <section className="ed-section care-path">
-          <div className="ed-section-head"><div><div className="ed-kicker">{ml ? "അടുത്ത ഘട്ടം" : "The care path"}</div><h3>{ml ? "ഡോക്ടർ നിങ്ങളുടെ കഥ കാണട്ടെ" : "Let the doctor see your story"}</h3></div></div>
-          <ol className="path-steps">
+        <Chapter tone="warm" no="02" kicker={ml ? "അടുത്ത ഘട്ടം" : "The care path"} title={ml ? "ഡോക്ടർ നിങ്ങളുടെ കഥ കാണട്ടെ" : "Let the doctor see your story"} last>
+          <RV as="ol" className="mt-path" stagger={0.1} selector=":scope > li">
             {[
               ml ? "ആരോഗ്യ ഡാറ്റ" : "Your health data",
               ml ? "MediThread മനസ്സിലാക്കുന്നു" : "MediThread's understanding",
               ml ? "കെയർ മാച്ച്" : "Care match",
               ml ? "ഡോക്ടറെ തിരഞ്ഞെടുക്കുക" : "Choose a doctor",
               ml ? "കഥ പങ്കിടുക" : "Share your story",
-            ].map((s, i, arr) => (
-              <li key={i} className={`path-step${i === arr.length - 1 ? " last" : ""}`}>
-                <span className="path-node" aria-hidden="true" />
-                <span className="path-label">{s}</span>
-              </li>
+            ].map((st, i, arr) => (
+              <li key={i} className={i === arr.length - 1 ? "last" : ""}><span className="n" aria-hidden="true">{i + 1}</span><span>{st}</span></li>
             ))}
-          </ol>
-          {data?.bring?.length > 0 && (
-            <div className="path-bring">
-              <div className="ed-kicker bare">{ml ? "ഡോക്ടറുടെ അടുത്ത് കൊണ്ടുപോകേണ്ടത്" : "Take these to the visit"}</div>
-              <ul>{data.bring.map((b, i) => <li key={i}>{(ml && b.textMl) || b.text}</li>)}</ul>
-            </div>
-          )}
-          <Link className="ed-cta ghost" to="/sharing" style={{ marginTop: "var(--sp-5)" }}>
-            {ml ? "ഡോക്ടറുമായി പങ്കിടുക" : "Share with a doctor"} →
-          </Link>
-        </section>
+          </RV>
+          <div className="mt-grid mt-gap-top">
+            {data?.bring?.length > 0 && (
+              <RV className="c-7 mt-bring">
+                <div className="mt-label">{ml ? "ഡോക്ടറുടെ അടുത്ത് കൊണ്ടുപോകേണ്ടത്" : "Take these to the visit"}</div>
+                <ul>{data.bring.map((b, i) => <li key={i}>{(ml && b.textMl) || b.text}</li>)}</ul>
+              </RV>
+            )}
+            <RV className="c-5"><Link className="mt-btn" to="/sharing">{ml ? "ഡോക്ടറുമായി പങ്കിടുക" : "Share with a doctor"} <Arrow /></Link></RV>
+          </div>
+        </Chapter>
       )}
-    </>
+    </div>
   );
 }
