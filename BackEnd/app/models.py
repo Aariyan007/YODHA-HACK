@@ -241,3 +241,23 @@ class AiDecision(Base):
     latency_ms: Mapped[float | None] = mapped_column(Float)
     cached: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AgentAudit(Base):
+    """One row per agent tool call: who, which agent, what, on whom, outcome. Never stores document text or secrets."""
+    __tablename__ = "agent_audit"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    actor_id: Mapped[str] = mapped_column(String(32), index=True)           # patient id or doctor user id
+    actor_role: Mapped[str] = mapped_column(String(10))                      # patient | doctor
+    agent_type: Mapped[str] = mapped_column(String(10))                      # patient | doctor
+    patient_id: Mapped[str | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    request_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    tool: Mapped[str] = mapped_column(String(60), index=True)
+    category: Mapped[str] = mapped_column(String(30))
+    level: Mapped[int] = mapped_column(default=1)
+    target: Mapped[str | None] = mapped_column(String(80))                   # id of the record touched, not its content
+    status: Mapped[str] = mapped_column(String(24))                          # ok | denied | invalid | failed | needs_confirmation | declined
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    result_ref: Mapped[str | None] = mapped_column(String(80))
+    detail: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
