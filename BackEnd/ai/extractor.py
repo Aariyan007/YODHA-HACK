@@ -101,6 +101,23 @@ def _call(client: genai.Client, data: bytes, mime: str) -> str:
     return ""
 
 
+def explain_error(e: Exception) -> str:
+    """Plain-language reason for a failed Gemini call. 'Try a sharper photo' is only right when the call worked."""
+    code = getattr(e, "code", None) or getattr(e, "status_code", None)
+    text = str(e).lower()
+    if code == 429 or "resource_exhausted" in text or "quota" in text:
+        return "The AI reading service has used up its free limit for now. Please try again later, or use one of the test images."
+    if code in (400, 401, 403) and ("api key" in text or "api_key" in text or "permission" in text or "denied" in text or code in (401, 403)):
+        return "The server's Gemini key is not accepted. Whoever runs this server should check GEMINI_API_KEY in .env (keys that were shared or published get disabled)."
+    if code == 404:
+        return "The AI model this server asks for is not available for its key. Whoever runs this server should check the model list in ai/extractor.py."
+    if isinstance(e, ServerError) or code in (500, 502, 503, 504):
+        return "The AI reading service is busy right now. Please try again in a minute."
+    if isinstance(e, (TimeoutError,)) or "timed out" in text or "timeout" in text:
+        return "Reading the document took too long. Please try again."
+    return f"Could not read the document. Please try again, or try a sharper photo. ({type(e).__name__})"
+
+
 def extract(data: bytes, mime: str = "image/png") -> dict:
     """Call Gemini. Returns the parsed dict (always with is_medical).
 
@@ -110,7 +127,8 @@ def extract(data: bytes, mime: str = "image/png") -> dict:
     try:
         raw = _call(client, data, mime)
     except Exception as e:
-        raise ExtractError(f"Could not read the image. Please try a sharper photo. ({type(e).__name__})") from e
+        print(f"[extractor] failed: {type(e).__name__} code={getattr(e, 'code', None)}")
+        raise ExtractError(explain_error(e)) from e
 
     text = _strip_fences(raw)
     try:
