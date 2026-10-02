@@ -5,7 +5,7 @@ import { reducedMotion } from "../../anim.js";
 import { factsFor } from "./agentContext.js";
 import { loadAgentData, useAgentData } from "./agentData.js";
 import { intentFor, runAction } from "./agentActions.js";
-import { agentAvailable, agentChat } from "../../api/client.js";
+import { agentAvailable, agentChat, agentSetFileType, agentUploadFile } from "../../api/client.js";
 import { resultFromResponse } from "./agentBlocks.js";
 import AgentHeader from "./AgentHeader.jsx";
 import AgentContext from "./AgentContext.jsx";
@@ -20,6 +20,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
   const ref = useRef(null);
   const alive = useRef(true);
   const conv = useRef(null);
+  const fileId = useRef(null); // the file the person last gave the agent
   const [view, setView] = useState({ kind: "home" });
   const { data, loading } = useAgentData(!ctx.doctor);
 
@@ -88,6 +89,32 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     }, wait);
   };
 
+  const typeLabel = { lab: "lab report", prescription: "prescription", visit: "visit or discharge note", scan: "scan report" };
+  const fileResult = (f) => {
+    fileId.current = f.fileId;
+    const kind = f.type && typeLabel[f.type];
+    return {
+      title: f.duplicate ? "You already gave me this file" : "File received",
+      lead: `${f.name} is stored privately and encrypted.`,
+      items: [{ label: "Looks like", value: kind || "I am not sure yet", sub: f.needsType ? f.reason || "Tell me what it is and I will go on." : undefined, tone: kind ? "good" : "watch" }],
+      note: "Nothing was added to your health thread. I will ask before I save anything.",
+      typeChoices: f.needsType ? Object.entries(typeLabel).map(([id, title]) => ({ id, title })) : undefined,
+    };
+  };
+
+  const attach = async (file) => {
+    setView({ kind: "processing", label: `Reading ${file.name}` });
+    let result;
+    try { result = fileResult(await agentUploadFile(file)); }
+    catch (e) { result = { title: "I could not take that file", lead: e?.message && e.message.length < 160 ? e.message : "The upload failed.", note: "Try a PDF, JPG, PNG or WEBP under 10 MB." }; }
+    if (alive.current) setView({ kind: "result", result });
+  };
+
+  const chooseType = async (type) => {
+    try { setView({ kind: "result", result: fileResult(await agentSetFileType(fileId.current, type)) }); }
+    catch { setView({ kind: "result", result: { title: "That did not work", lead: "I could not save your answer.", note: "Try again." } }); }
+  };
+
   const facts = factsFor(ctx, data);
   const busy = view.kind === "processing";
 
@@ -99,10 +126,10 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
         {view.kind === "home" && <AgentActionList actions={ctx.actions} onRun={run} />}
         {view.kind === "processing" && <AgentProcessing label={view.label} />}
         {view.kind === "result" && (
-          <AgentResult result={view.result} onBack={() => setView({ kind: "home" })} onGo={go} ctxActions={ctx.actions} onRun={run} />
+          <AgentResult result={view.result} onBack={() => setView({ kind: "home" })} onGo={go} ctxActions={ctx.actions} onRun={run} onType={chooseType} />
         )}
       </div>
-      <AgentInput onSubmit={submit} disabled={busy} />
+      <AgentInput onSubmit={submit} onFile={agentAvailable() && !ctx.doctor ? attach : undefined} disabled={busy} />
     </div>
   );
 }

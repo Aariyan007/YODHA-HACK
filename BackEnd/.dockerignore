@@ -7,3 +7,4 @@ demo_cache/
 .env
 .git
 data/ddi/
+vault/

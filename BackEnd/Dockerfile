@@ -9,8 +9,8 @@ RUN pip install -r requirements.txt
 
 COPY . .
 RUN useradd --system --uid 10001 --no-create-home app \
- && mkdir -p /app/uploads /app/demo_cache \
- && chown -R app:app /app/uploads /app/demo_cache
+ && mkdir -p /app/uploads /app/demo_cache /app/vault \
+ && chown -R app:app /app/uploads /app/demo_cache /app/vault
 USER app
 
 EXPOSE 8000

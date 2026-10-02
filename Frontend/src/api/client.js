@@ -634,3 +634,16 @@ export const getDoctorRecommendation = async (params) =>
 export const agentAvailable = () => !USE_MOCK;
 export const agentChat = (text, conversationId) => request("/api/agent/chat", { method: "POST", body: { text, conversationId } });
 export const agentConfirm = (id, approve) => request("/api/agent/confirm", { method: "POST", body: { id, approve } });
+export const agentUploadFile = async (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${BASE}/api/agent/files`, { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: fd });
+  if (res.status === 401) { setToken(null); goLogin(); }
+  if (!res.ok) {
+    let d = res.statusText;
+    try { d = (await res.json()).detail ?? d; } catch {}
+    throw new Error(typeof d === "string" ? d : "Upload failed");
+  }
+  return res.json();
+};
+export const agentSetFileType = (fileId, type) => request(`/api/agent/files/${fileId}/type`, { method: "POST", body: { type } });

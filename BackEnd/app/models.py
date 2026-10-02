@@ -261,3 +261,23 @@ class AgentAudit(Base):
     result_ref: Mapped[str | None] = mapped_column(String(80))
     detail: Mapped[str | None] = mapped_column(String(300))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AgentFile(Base):
+    """Metadata for one file the person gave the agent. The bytes live encrypted in the vault, never in the DB or under a
+    guessable path. `sha256` is of the plaintext and is for integrity / duplicate checks only (not a secret)."""
+    __tablename__ = "agent_files"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
+    uploaded_by: Mapped[str] = mapped_column(String(32))
+    uploader_role: Mapped[str] = mapped_column(String(10), default="patient")
+    display_name: Mapped[str] = mapped_column(String(120))
+    mime: Mapped[str] = mapped_column(String(60))
+    size: Mapped[int] = mapped_column(default=0)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    storage_key: Mapped[str] = mapped_column(String(64), unique=True)       # random; the vault path derives from it
+    status: Mapped[str] = mapped_column(String(20), default="uploaded")     # uploaded | classified | extracted | confirmed | discarded
+    classification: Mapped[dict] = mapped_column(JSON, default=dict)        # {type, confidence, source}
+    extraction: Mapped[dict] = mapped_column(JSON, default=dict)            # structured fields with provenance (phase 7)
+    document_id: Mapped[str | None] = mapped_column(ForeignKey("documents.id"))  # set once confirmed into the timeline
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

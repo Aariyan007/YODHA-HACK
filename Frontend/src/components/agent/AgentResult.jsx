@@ -1,6 +1,6 @@
 import { Arrow } from "../../design/primitives.jsx";
 
-export default function AgentResult({ result, onBack, onGo, ctxActions, onRun }) {
+export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, onType }) {
   return (
     <section className="ag-res" data-a aria-live="polite" aria-label="Result">
       <div className="ag-label">{result.preview ? "Not connected yet" : "Result"}</div>
@@ -19,6 +19,11 @@ export default function AgentResult({ result, onBack, onGo, ctxActions, onRun })
         </ul>
       )}
       {result.note && <p className="ag-res-note">{result.note}</p>}
+      {result.typeChoices?.length > 0 && (
+        <div className="ag-res-sug" role="group" aria-label="What kind of document is this?">
+          {result.typeChoices.map((c) => <button key={c.id} type="button" className="ag-chip" onClick={() => onType(c.id)}>{c.title}</button>)}
+        </div>
+      )}
       {result.suggestions?.length > 0 && (
         <div className="ag-res-sug">
           {result.suggestions.map((a) => <button key={a.id} type="button" className="ag-chip" onClick={() => onRun(a.id, a.title)}>{a.title}</button>)}

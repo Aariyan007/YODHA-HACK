@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,7 +16,11 @@ from ..agent.engine import AgentEngine
 from ..agent.registry import REGISTRY
 from ..auth import current_patient
 from ..database import get_db
-from ..models import AgentAudit, Patient
+from ..models import AgentAudit, AgentFile, Patient
+from .. import vault
+from ..agent import ingest
+from ..agent.audit import AgentAuditLogger
+from .documents import MAX_UPLOAD_BYTES, detect_type
 from ..schemas import iso
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
@@ -82,3 +87,123 @@ def history(limit: int = 20, patient: Patient = Depends(current_patient), db: Se
                       .order_by(AgentAudit.created_at.desc()).limit(max(1, min(limit, 50))))
     return [{"tool": r.tool, "category": r.category, "level": r.level, "status": r.status, "confirmed": r.confirmed,
              "at": iso(r.created_at)} for r in rows]
+
+
+# ---------- files ----------
+
+MIME = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp", "pdf": "application/pdf"}
+TYPES = ("lab", "prescription", "visit", "scan")
+
+
+def _safe_name(name: str | None, kind: str) -> str:
+    base = (name or "").replace("\\", "/").split("/")[-1]
+    base = "".join(ch for ch in base if ch.isalnum() or ch in " ._-")[:100].strip(" .")
+    return base or f"document.{kind}"
+
+
+def file_out(f: AgentFile) -> dict:
+    c = f.classification or {}
+    return {"fileId": f.id, "name": f.display_name, "mime": f.mime, "size": f.size, "status": f.status,
+            "type": c.get("type"), "confidence": c.get("confidence"),
+            "needsType": c.get("type") is None and f.status != "discarded", "reason": c.get("reason"),
+            "documentId": f.document_id, "createdAt": iso(f.created_at)}
+
+
+def owned_file(db: Session, patient: Patient, file_id: str) -> AgentFile:
+    f = db.scalar(select(AgentFile).where(AgentFile.id == file_id, AgentFile.patient_id == patient.id, AgentFile.status != "discarded"))
+    if f is None:  # same answer for missing and not yours
+        raise HTTPException(404, "File not found")
+    return f
+
+
+@router.post("/files")
+async def upload_file(file: UploadFile = File(...), patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    """Store a file encrypted and classify it. Nothing reaches the health thread from here: extraction and writing are
+    separate steps, and writing needs the person's confirmation."""
+    if not vault.available():
+        raise HTTPException(503, "File storage is not set up on this server.")
+    _limit(patient.id)
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if not data:
+        raise HTTPException(400, "File is empty.")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File is too large (limit is 10 MB).")
+    kind = detect_type(data)
+    if kind is None:
+        raise HTTPException(415, "This file type is not supported. Please use a JPG, PNG, WEBP or PDF.")
+    import hashlib
+    sha = hashlib.sha256(data).hexdigest()
+    ctx = patient_ctx(patient, db)
+    log = AgentAuditLogger()
+    dup = db.scalar(select(AgentFile).where(AgentFile.patient_id == patient.id, AgentFile.sha256 == sha, AgentFile.status != "discarded"))
+    if dup is not None:
+        log.record(ctx, None, "files.upload", "ok", target=dup.id, detail="duplicate")
+        db.commit()
+        return {**file_out(dup), "duplicate": True}
+    cls: dict = {"type": None, "confidence": 0.0, "source": "none", "reason": "needs reading first"}
+    pages = 0
+    if kind == "pdf":
+        texts, pages = ingest.pdf_pages(data)
+        cls = ingest.classify("\n".join(texts))
+        cls["pages"] = pages
+        cls["hasText"] = any(texts)
+    row = AgentFile(patient_id=patient.id, uploaded_by=patient.id, display_name=_safe_name(file.filename, kind), mime=MIME[kind],
+                    size=len(data), sha256=sha, storage_key=vault.new_storage_key(), status="classified" if cls["type"] else "uploaded",
+                    classification=cls)
+    db.add(row)
+    db.flush()
+    try:
+        vault.put(row.storage_key, data, row.id, patient.id)
+    except vault.VaultError:
+        db.rollback()
+        raise HTTPException(503, "I could not store that file safely, so I did not keep it.")
+    log.record(ctx, None, "files.upload", "ok", target=row.id, detail=f"{kind} {len(data)}B")
+    db.commit()
+    return {**file_out(row), "duplicate": False}
+
+
+@router.get("/files")
+def list_files(patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    rows = db.scalars(select(AgentFile).where(AgentFile.patient_id == patient.id, AgentFile.status != "discarded")
+                      .order_by(AgentFile.created_at.desc()).limit(50))
+    return [file_out(f) for f in rows]
+
+
+class TypeBody(BaseModel):
+    type: str = Field(pattern=r"^(lab|prescription|visit|scan)$")
+
+
+@router.post("/files/{file_id}/type")
+def set_type(file_id: str, body: TypeBody, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    """The person's answer when the agent could not tell what the document is."""
+    f = owned_file(db, patient, file_id)
+    f.classification = {**(f.classification or {}), "type": body.type, "confidence": 1.0, "source": "user", "reason": None}
+    f.status = "classified" if f.status == "uploaded" else f.status
+    AgentAuditLogger().record(patient_ctx(patient, db), None, "files.set_type", "ok", target=f.id, detail=body.type)
+    db.commit()
+    return file_out(f)
+
+
+@router.get("/files/{file_id}/content")
+def download_file(file_id: str, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    """Authenticated download of the person's own file. Decrypted in memory, never cached, no path exposed."""
+    f = owned_file(db, patient, file_id)
+    try:
+        data = vault.get(f.storage_key, f.id, f.patient_id)
+    except vault.VaultError:
+        raise HTTPException(410, "That file can no longer be opened.")
+    AgentAuditLogger().record(patient_ctx(patient, db), None, "files.download", "ok", target=f.id)
+    db.commit()
+    return Response(data, media_type=f.mime, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                                                      "Content-Disposition": f'attachment; filename="{_safe_name(f.display_name, "bin")}"'})
+
+
+@router.delete("/files/{file_id}")
+def delete_file(file_id: str, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    """Remove the stored bytes. A record already confirmed into the timeline is a separate thing and stays."""
+    f = owned_file(db, patient, file_id)
+    vault.delete(f.storage_key)
+    f.status = "discarded"
+    AgentAuditLogger().record(patient_ctx(patient, db), None, "files.delete", "ok", target=f.id)
+    db.commit()
+    return {"ok": True}

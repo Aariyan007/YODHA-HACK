@@ -47,6 +47,7 @@ services:
       - ./BackEnd/demo_cache:/app/demo_cache
       - ./BackEnd/data/ddi:/app/data/ddi:ro   # built by scripts/build_ddi.py (DDInter, CC BY-NC-SA 4.0)
       - uploads:/app/uploads
+      - vault:/app/vault   # encrypted agent files (AES-256-GCM)
     depends_on:
       redis: { condition: service_healthy }
     read_only: true
@@ -82,4 +83,5 @@ services:
 volumes:
   redis-data:
   uploads:
+  vault:
   certs:

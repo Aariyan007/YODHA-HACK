@@ -102,3 +102,7 @@
   .ag-skel i { animation: none !important; }
   .ag-launch:hover, .ag-act:hover { transform: none; }
 }
+
+/* attach: same footprint as the send button, quiet until hovered */
+.ag-input .ag-attach { background: var(--mt-paper-2); color: var(--mt-deep); border: 1px solid var(--mt-line-2); display: grid; place-items: center; }
+.ag-input .ag-attach:hover:not(:disabled) { background: var(--mt-pale); }
