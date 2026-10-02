@@ -274,6 +274,7 @@ class ToolOutputTests(Base_):
         w = r.blocks[0]
         self.assertEqual((w["type"], w["emergency"]), ("warning", True))
         self.assertIn("108", w["text"])
+        self.assertTrue(any(b["type"] == "doctor_match" for b in r.blocks))  # nearest emergency care is shown at once
         self.assertEqual(AgentExecutor().run(self.ctx(), "triage.check", {"text": "i have a mild headache"}).blocks[0]["type"], "text")
 
     def test_engine_end_to_end(self):

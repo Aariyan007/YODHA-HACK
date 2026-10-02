@@ -222,29 +222,33 @@ def careloop_history(ctx: AgentContext, args: dict) -> dict:
 
 # ---------------- doctors
 
-@tool("doctors.search", "Find doctors in the (sample) directory by specialty, language or city, nearest first.",
-      {"type": "object", "properties": {"specialty": {"type": "string", "maxLength": 60}, "language": {"type": "string", "maxLength": 20},
-                                        "city": {"type": "string", "maxLength": 60}, "limit": {"type": "integer", "minimum": 1, "maximum": 8},
-                                        "emergency": {"type": "boolean", "description": "true for the nearest hospital / emergency / casualty"}},
-       "additionalProperties": False},
-      permission="doctors:read", audit_category="doctors")
-def doctors_search(ctx: AgentContext, args: dict) -> dict:
+def _nearby_blocks(ctx: AgentContext, specialty=None, language=None, city=None, limit=4, emergency=False) -> tuple[list[dict], dict]:
     from ... import doctors as finder
     p = ctx.db.get(Patient, ctx.patient_id)
-    origin = finder.resolve_origin(None, None, args.get("city"), p.lat, p.lng, p.city)
-    spec = args.get("specialty") if args.get("specialty") in finder.SPECIALTIES else None
-    lang = args.get("language") if args.get("language") in finder.LANGUAGES else None
-    found = finder.search(origin, spec, lang, None, False, bool(args.get("emergency")), None, None, None, False, args.get("limit", 4))
+    origin = finder.resolve_origin(None, None, city, p.lat, p.lng, p.city)
+    spec = specialty if specialty in finder.SPECIALTIES else None
+    lang = language if language in finder.LANGUAGES else None
+    found = finder.search(origin, spec, lang, None, False, emergency, None, None, None, False, limit)
     blocks = [block("doctor_match", id=d.get("id"), name=d.get("name"), specialty=d.get("specialties") or d.get("specialty"),
                     hospital=d.get("clinic") or d.get("hospital"), distanceKm=d.get("distanceKm"), rating=d.get("rating"),
                     sample=True) for d in found["results"]]
-    if not blocks:
-        blocks = [block("text", text="I found no doctor matching that in the sample directory.")]
-    else:
+    if blocks:
         src = {"default": "a default starting point (Kochi). Set your town in your profile or use the Doctors page for exact distances",
                "profile": "your saved town", "city": "the town you chose", "device": "your location"}.get(origin.get("source"), "your area")
         blocks.insert(0, block("text", text=f"Distances are from {origin.get('label')} ({src}). These are sample listings, not real clinics."))
-    return {"data": {"count": len(found["results"]), "origin": origin.get("label")}, "blocks": blocks}
+    return blocks, origin
+
+
+@tool("doctors.search", "Find doctors in the (sample) directory by specialty, language or city, nearest first. Use emergency=true for the nearest hospital / emergency / casualty.",
+      {"type": "object", "properties": {"specialty": {"type": "string", "maxLength": 60}, "language": {"type": "string", "maxLength": 20},
+                                        "city": {"type": "string", "maxLength": 60}, "limit": {"type": "integer", "minimum": 1, "maximum": 8},
+                                        "emergency": {"type": "boolean"}}, "additionalProperties": False},
+      permission="doctors:read", audit_category="doctors")
+def doctors_search(ctx: AgentContext, args: dict) -> dict:
+    blocks, origin = _nearby_blocks(ctx, args.get("specialty"), args.get("language"), args.get("city"), args.get("limit", 4), bool(args.get("emergency")))
+    if not blocks:
+        blocks = [block("text", text="I found no doctor matching that in the sample directory.")]
+    return {"data": {"count": sum(b["type"] == "doctor_match" for b in blocks), "origin": origin.get("label")}, "blocks": blocks}
 
 
 # ---------------- sharing (read)
@@ -341,6 +345,8 @@ def triage_check(ctx: AgentContext, args: dict) -> dict:
     blocks = []
     if r.get("urgency") == "emergency":
         blocks.append(block("warning", severity="high", title="This may be an emergency", text=r["why"], emergency=True))
+        near, _o = _nearby_blocks(ctx, emergency=True, limit=3)  # the nearest 24-hour care, right away
+        blocks += near
     else:
         blocks.append(block("text", text=f"{r['why']} A {r['specialist']} is a good fit. This is guidance on who to see, not a diagnosis."))
     return {"data": {"urgency": r.get("urgency"), "specialist": r.get("specialist"), "emergency": bool(r.get("urgent"))}, "blocks": blocks}
