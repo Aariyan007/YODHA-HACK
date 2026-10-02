@@ -4,7 +4,11 @@ import * as mock from "../data/mockData.js";
 import { goLogin } from "../routing.js";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
-const BASE = import.meta.env.VITE_API_URL || ""; // empty = same origin, Vite proxies /api
+// Empty = same origin (nginx or the Vite proxy). A loopback URL in .env only makes sense on the machine that runs the backend:
+// opened from another device (a friend on the LAN) it would point at THEIR localhost and every call fails with "Failed to fetch".
+const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i;
+const RAW = import.meta.env.VITE_API_URL || "";
+const BASE = RAW && LOOPBACK.test(RAW) && typeof location !== "undefined" && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? "" : RAW;
 
 const TOKEN_KEY = "medithread_token";
 

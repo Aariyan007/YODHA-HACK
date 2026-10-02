@@ -151,7 +151,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
   const busy = view.kind === "processing";
 
   return (
-    <div ref={ref} id={id} className="ag-panel" role="dialog" aria-modal="false" aria-label="MediThread Agent" aria-describedby={`${id}-ctx`}>
+    <div ref={ref} id={id} className="ag-panel" data-lenis-prevent role="dialog" aria-modal="false" aria-label="MediThread Agent" aria-describedby={`${id}-ctx`}>
       <AgentHeader ctx={ctx} onClose={onClose} />
       <div className="ag-body" id={`${id}-ctx`}>
         <AgentContext ctx={ctx} facts={facts} loading={loading} />
