@@ -76,6 +76,16 @@ export default function Upload() {
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  const [dragging, setDragging] = useState(false);
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (!f) return;
+    setFile(f); setDone(null); setError(null); setCurrentStage(null);
+    setPreview(URL.createObjectURL(f));
+  };
+
   const stageIdx = currentStage ? STAGES.indexOf(currentStage) : -1;
 
   return (
@@ -94,31 +104,34 @@ export default function Upload() {
         <div className="card stagger-1">
           <label
             htmlFor="doc-file-input"
-            style={{ cursor: "pointer" }}
+            className={`dropzone${dragging ? " dragging" : ""}${file ? " has-file" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
           >
-            <div
-              style={{
-                border: "2px dashed var(--border)",
-                borderRadius: "var(--r-md)",
-                padding: "var(--sp-8) var(--sp-6)",
-                textAlign: "center",
-                background: file ? "var(--surface-2)" : "var(--bg-subtle)",
-                transition: "background var(--t-base), border-color var(--t-base)",
-                cursor: "pointer",
-                marginBottom: "var(--sp-4)",
-              }}
-            >
-              <div style={{ fontSize: "2rem", marginBottom: "var(--sp-3)" }} aria-hidden="true">
-                {file ? "📄" : "📷"}
-              </div>
-              <div className="text-sm font-medium" style={{ color: file ? "var(--text)" : "var(--text-3)" }}>
-                {file ? file.name : (ml ? "ഫോട്ടോ തിരഞ്ഞെടുക്കുക" : "Choose a photo or PDF")}
-              </div>
-              {!file && (
-                <div className="text-xs text-dim" style={{ marginTop: "var(--sp-1)" }}>
-                  {ml ? "ക്ലിക്ക് ചെയ്ത് ഫയൽ തിരഞ്ഞെടുക്കുക" : "Click to select, or drag and drop"}
-                </div>
-              )}
+            <span className="dz-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="34" height="34">
+                {file ? (
+                  <>
+                    <path d="M14 6h14l8 8v28a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" className="dz-doc" />
+                    <path d="M28 6v8h8" className="dz-fold" />
+                    <path d="M19 26l4 4 7-8" className="dz-check" />
+                  </>
+                ) : (
+                  <>
+                    <path d="M24 31V13m0 0-7 7m7-7 7 7" className="dz-arrow" />
+                    <path d="M9 30v6a3 3 0 0 0 3 3h24a3 3 0 0 0 3-3v-6" className="dz-tray" />
+                  </>
+                )}
+              </svg>
+            </span>
+            <div className="dz-title">
+              {file ? file.name : (ml ? "ഫോട്ടോ തിരഞ്ഞെടുക്കുക" : "Drop a photo or PDF here")}
+            </div>
+            <div className="dz-sub">
+              {file
+                ? (ml ? "ഉപയോഗം തുടങ്ങാൻ തയ്യാറാണ്" : "Ready to analyse")
+                : (ml ? "ക്ലിക്ക് ചെയ്ത് ഫയൽ തിരഞ്ഞെടുക്കുക" : "or click to browse  ·  JPG, PNG, PDF up to 10 MB")}
             </div>
           </label>
           <input
