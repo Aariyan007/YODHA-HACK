@@ -75,7 +75,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     const started = Date.now();
     let result;
     try {
-      const r = await agentChat(text, conv.current);
+      const r = await agentChat(text, conv.current, fileId.current);
       conv.current = r.conversationId || conv.current;
       result = resultFromResponse(r);
     } catch (e) {

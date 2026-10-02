@@ -33,15 +33,15 @@ class AgentEngine:
     def chat(self, ctx: AgentContext, text: str) -> dict:
         conv = ctx.conversation_id = ctx.conversation_id or uuid.uuid4().hex[:12]
         history = self.memory.history(ctx.role, ctx.actor_id, conv)
-        plan = self.planner.plan(ctx.role, text, history)
+        plan = self.planner.plan(ctx.role, text, history, ctx.file_id)
         results: list[ToolResult] = []
         for step in plan.steps:
             r = self.executor.run(ctx, step.tool, step.args)
             results.append(r)
             if r.status == "needs_confirmation":
                 break  # nothing after a pending write may run until the person answers
-            if not r.ok and r.status in ("denied", "unknown_tool"):
-                break
+            if not r.ok:
+                break  # later steps depend on earlier ones (read before summarise), so stop at the first failure
         out = self.formatter.format(plan, results)
         out["steps"] = [{"tool": r.tool, "status": r.status} for r in results]  # compact activity log
         out["conversationId"] = conv

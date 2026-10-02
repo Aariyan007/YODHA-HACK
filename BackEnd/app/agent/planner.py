@@ -62,15 +62,31 @@ class AgentPlanner:
         self.registry = registry
         self.llm = llm
 
-    def plan(self, role: str, text: str, history: list[dict] | None = None) -> Plan:
+    def plan(self, role: str, text: str, history: list[dict] | None = None, file_id: str | None = None) -> Plan:
         text = (text or "").strip()
         if not text:
             return Plan("empty", clarify="What would you like me to do?", source="none")
-        p = self._rules(role, text)
+        p = self._file_rules(text, file_id) if file_id else None
+        p = p or self._rules(role, text)
         if p is None:
             p = self._llm(role, text, history or [])
         return p or Plan("unknown", clarify="I am not sure what you need. Try 'latest records', 'my medicines', or 'what is due today'.",
                          source="none")
+
+    # ---- rules for an attached file: always read first (cached after the first time), then the asked step
+    def _file_rules(self, text: str, fid: str) -> Plan | None:
+        low = text.lower()
+        read = Step("documents.extract", {"fileId": fid})
+        one = lambda t, a=None: {"fileId": fid, **(a or {})}  # noqa: E731
+        if re.search(r"compare|previous|earlier|last (report|time)|changed", low):
+            return Plan("file_compare", [read, Step("documents.compare", one(0))])
+        if re.search(r"evidence|where (does|did)|which line|show me (the )?(line|source)|proof", low):
+            return Plan("file_evidence", [read, Step("documents.evidence", one(0))])
+        if re.search(r"medicine|tablet|result|value|diagnos|what('s| is) in|list|entit|find", low):
+            return Plan("file_entities", [read, Step("documents.entities", one(0))])
+        if re.search(r"summar|explain|what does|tell me about|read|understand|simple|plain", low):
+            return Plan("file_summary", [read, Step("documents.summarize", one(0))])
+        return None
 
     # ---- rules
     def _rules(self, role: str, text: str) -> Plan | None:

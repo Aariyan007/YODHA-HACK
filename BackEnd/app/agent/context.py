@@ -18,6 +18,7 @@ class AgentContext:
     scope: str = "full"             # full | labs | medicines (share-link scopes)
     lang: str = "en"
     conversation_id: str | None = None
+    file_id: str | None = None      # the file the person attached to this request (ownership checked by the router)
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
 
     @property

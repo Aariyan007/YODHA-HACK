@@ -632,7 +632,7 @@ export const getDoctorRecommendation = async (params) =>
 
 // Typed requests go to the backend Agent Engine. Offline/mock build has no engine, so callers fall back to local actions.
 export const agentAvailable = () => !USE_MOCK;
-export const agentChat = (text, conversationId) => request("/api/agent/chat", { method: "POST", body: { text, conversationId } });
+export const agentChat = (text, conversationId, fileId) => request("/api/agent/chat", { method: "POST", body: { text, conversationId, fileId: fileId || undefined } });
 export const agentConfirm = (id, approve) => request("/api/agent/confirm", { method: "POST", body: { id, approve } });
 export const agentUploadFile = async (file) => {
   const fd = new FormData();

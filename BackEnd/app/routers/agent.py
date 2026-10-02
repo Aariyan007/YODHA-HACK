@@ -38,6 +38,7 @@ def engine() -> AgentEngine:
 class ChatBody(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
     conversationId: str | None = Field(default=None, max_length=32, pattern=r"^[A-Za-z0-9_-]*$")
+    fileId: str | None = Field(default=None, max_length=32, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class ConfirmBody(BaseModel):
@@ -62,6 +63,8 @@ def _limit(actor: str) -> None:
 def chat(body: ChatBody, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
     _limit(patient.id)
     ctx = patient_ctx(patient, db, body.conversationId)
+    if body.fileId:
+        ctx.file_id = owned_file(db, patient, body.fileId).id  # 404 for someone else's file
     out = engine().chat(ctx, body.text.strip())
     db.commit()  # audit rows
     return out
