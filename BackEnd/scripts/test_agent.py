@@ -320,9 +320,10 @@ class TaskTests(Base_):
     def setUp(self):
         super().setUp()
         NOTES.clear()
-        p = mock.patch.object(agent_tasks, "SESSION", self.Session)
-        p.start()
-        self.addCleanup(p.stop)
+        for target, name, value in ((agent_tasks, "SESSION", self.Session), (agent_router, "_engine", AgentEngine(llm=NullLLM(), runner=lambda f: f()))):
+            p = mock.patch.object(target, name, value)  # never the real model in tests
+            p.start()
+            self.addCleanup(p.stop)
 
     def engine(self, out=None):
         return AgentEngine(llm=FakeLLM(out) if out else NullLLM(), runner=lambda f: f())

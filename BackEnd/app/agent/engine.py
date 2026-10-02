@@ -182,6 +182,8 @@ class AgentEngine:
             if stop:
                 break
         cards, ev, conf = loop.to_blocks(results)
+        if not results and not loop.reply_ok(reply, evidence_text):
+            return None  # the model answered about the record without using a tool, so its words cannot be trusted: let the rules answer
         if conf:
             reply = loop.fixed_reply(conf)
         elif not loop.reply_ok(reply, evidence_text):
