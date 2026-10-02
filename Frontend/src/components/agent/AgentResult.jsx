@@ -1,6 +1,6 @@
 import { Arrow } from "../../design/primitives.jsx";
 
-export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, onType, onAnswer }) {
+export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, onType, onAnswer, onDownload }) {
   return (
     <section className="ag-res" data-a aria-live="polite" aria-label="Result">
       <div className="ag-label">{result.confirmation ? "Needs your OK" : result.preview ? "Not connected yet" : "Result"}</div>
@@ -44,6 +44,7 @@ export default function AgentResult({ result, onBack, onGo, ctxActions, onRun, o
         </div>
       )}
       <div className="ag-res-actions">
+        {result.pdf && <button type="button" className="mt-btn sm" onClick={() => onDownload(result.pdf)}>Download PDF</button>}
         {result.cta && <button type="button" className="mt-btn sm" onClick={() => onGo(result.cta.to)}>{result.cta.label} <Arrow /></button>}
         <button type="button" className="mt-btn secondary sm" onClick={onBack}>All actions</button>
       </div>

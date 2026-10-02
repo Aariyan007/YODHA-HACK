@@ -137,7 +137,19 @@ def file_out(f: AgentFile) -> dict:
             "documentId": f.document_id, "createdAt": iso(f.created_at)}
 
 
+def purge_expired(db: Session, patient_id: str) -> None:
+    """Generated PDFs are short-lived: past their time the bytes are deleted."""
+    from datetime import datetime, timezone
+    for f in db.scalars(select(AgentFile).where(AgentFile.patient_id == patient_id, AgentFile.status == "generated")):
+        exp = (f.classification or {}).get("expiresAt")
+        if exp and datetime.fromisoformat(exp) < datetime.now(timezone.utc):
+            vault.delete(f.storage_key)
+            f.status = "discarded"
+    db.flush()
+
+
 def owned_file(db: Session, patient: Patient, file_id: str) -> AgentFile:
+    purge_expired(db, patient.id)
     f = db.scalar(select(AgentFile).where(AgentFile.id == file_id, AgentFile.patient_id == patient.id, AgentFile.status != "discarded"))
     if f is None:  # same answer for missing and not yours
         raise HTTPException(404, "File not found")
@@ -192,6 +204,8 @@ async def upload_file(file: UploadFile = File(...), patient: Patient = Depends(c
 
 @router.get("/files")
 def list_files(patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    purge_expired(db, patient.id)
+    db.commit()
     rows = db.scalars(select(AgentFile).where(AgentFile.patient_id == patient.id, AgentFile.status != "discarded")
                       .order_by(AgentFile.created_at.desc()).limit(50))
     return [file_out(f) for f in rows]

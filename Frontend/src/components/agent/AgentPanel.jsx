@@ -5,7 +5,7 @@ import { reducedMotion } from "../../anim.js";
 import { factsFor } from "./agentContext.js";
 import { loadAgentData, useAgentData } from "./agentData.js";
 import { intentFor, runAction } from "./agentActions.js";
-import { agentAvailable, agentChat, agentConfirm, agentSetFileType, agentTask, agentUploadFile } from "../../api/client.js";
+import { agentAvailable, agentChat, agentConfirm, agentDownload, agentSetFileType, agentTask, agentUploadFile } from "../../api/client.js";
 import { resultFromResponse } from "./agentBlocks.js";
 import AgentHeader from "./AgentHeader.jsx";
 import AgentContext from "./AgentContext.jsx";
@@ -128,6 +128,11 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     if (alive.current) setView({ kind: "result", result });
   };
 
+  const download = async (f) => {
+    try { await agentDownload(f.fileId, f.name); }
+    catch (e) { setView({ kind: "result", result: { title: "I could not download that", lead: e?.message || "The download failed.", note: "Ask me to make it again." } }); }
+  };
+
   const chooseType = async (type) => {
     try { setView({ kind: "result", result: fileResult(await agentSetFileType(fileId.current, type)) }); }
     catch { setView({ kind: "result", result: { title: "That did not work", lead: "I could not save your answer.", note: "Try again." } }); }
@@ -144,7 +149,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
         {view.kind === "home" && <AgentActionList actions={ctx.actions} onRun={run} />}
         {view.kind === "processing" && <AgentProcessing label={view.label} />}
         {view.kind === "result" && (
-          <AgentResult result={view.result} onBack={() => setView({ kind: "home" })} onGo={go} ctxActions={ctx.actions} onRun={run} onType={chooseType} onAnswer={answer} />
+          <AgentResult result={view.result} onBack={() => setView({ kind: "home" })} onGo={go} ctxActions={ctx.actions} onRun={run} onType={chooseType} onAnswer={answer} onDownload={download} />
         )}
       </div>
       <AgentInput onSubmit={submit} onFile={agentAvailable() && !ctx.doctor ? attach : undefined} disabled={busy} />

@@ -42,6 +42,8 @@ NAV = {
 }
 
 _P = lambda *words: re.compile("|".join(words), re.I)  # noqa: E731
+R_PDF = _P(r"\bpdf\b", r"printable", r"hand ?out", r"doctor summary", r"health summary", r"download .*(summary|report)")
+R_SEND = _P(r"send .*(doctor|dr\b)", r"(email|whatsapp|forward|mail) .*(doctor|dr\b)")
 R_NAV = re.compile(r"^\s*(?:please\s+)?(?:open|go to|take me to|show me the|navigate to)\s+(?:the\s+|my\s+)?(.+?)(?: page| tab| screen)?\s*$", re.I)
 R_MEDS = _P(r"medicin", r"tablet", r"\bpills?\b", r"prescri", r"മരുന്ന്", r"\bdrugs?\b")
 R_DUE = _P(r"\bdue\b", r"reminder", r"dose", r"care.?loop", r"today'?s", r"missed", r"taken")
@@ -117,6 +119,12 @@ class AgentPlanner:
             for word, route in NAV.items():
                 if word in target:
                     return Plan("navigate", [Step("navigation.navigate", {"route": route})])
+        if R_SEND.search(low):  # delivery is never faked: say what is really possible
+            return Plan("send_to_doctor", clarify="I cannot send anything to a doctor myself, so I will not pretend to. I can make a PDF summary "
+                                                  "for you to hand over, or a share link and QR code your doctor can scan. Which would you like?")
+        if R_PDF.search(low):
+            kind = "medication_summary" if re.search(r"medic|tablet|drug", low) else "visit_prep" if re.search(r"visit|prepar|appointment", low) else "patient_summary"
+            return Plan("pdf", [Step("pdf.generate", {"kind": kind})])
         for word, code in LAB_WORDS.items():
             if word in low and (R_TREND.search(low) or "how is" in low or "how's" in low):
                 return Plan("trend", [Step("health.trend", {"code": code})])

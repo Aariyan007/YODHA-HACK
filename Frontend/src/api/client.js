@@ -649,3 +649,12 @@ export const agentUploadFile = async (file) => {
 export const agentSetFileType = (fileId, type) => request(`/api/agent/files/${fileId}/type`, { method: "POST", body: { type } });
 export const agentTask = (id) => request(`/api/agent/tasks/${id}`);
 export const agentCancel = (id) => request(`/api/agent/tasks/${id}/cancel`, { method: "POST" });
+// Authenticated download of one of the person's own files (the browser cannot send the bearer token on a plain link).
+export const agentDownload = async (fileId, name) => {
+  const res = await fetch(`${BASE}/api/agent/files/${fileId}/content`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new Error(res.status === 404 ? "That file has expired. Ask me to make it again." : "Download failed");
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: name || "document.pdf" });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+};
