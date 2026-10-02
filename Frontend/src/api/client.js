@@ -296,6 +296,38 @@ export function sendLine(consultationId, text, speaker, shareToken) {
   });
 }
 
+// One spoken clip -> { transcript, partial_note, flags, suggestions, heard, added }
+// Rejects with err.unavailable = true when server-side voice transcription cannot be used
+// (not set up, quota used up, mock mode): the caller then falls back to browser speech recognition.
+// Rejects with err.skip = true for a clip the server could not read (do not retry that clip).
+export async function sendAudio(consultationId, blob, speaker, language, shareToken) {
+  if (USE_MOCK) {
+    const e = new Error("Voice transcription is not available in the offline demo.");
+    e.unavailable = true;
+    throw e;
+  }
+  const form = new FormData();
+  const ext = (blob.type || "").includes("mp4") ? "m4a" : (blob.type || "").includes("ogg") ? "ogg" : "webm";
+  form.append("file", blob, `clip.${ext}`);
+  form.append("speaker", speaker || "unknown");
+  if (language) form.append("language", language);
+  const headers = {};
+  if (shareToken) headers["X-Share-Token"] = shareToken;
+  const res = await fetch(`${BASE}/api/consultations/${encodeURIComponent(consultationId)}/audio`, {
+    method: "POST", body: form, headers,
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail ?? detail; } catch {}
+    const e = new Error(typeof detail === "string" ? detail : "Request failed");
+    e.status = res.status;
+    if (res.status === 503) e.unavailable = true;
+    if (res.status === 413 || res.status === 415 || res.status === 422) e.skip = true;
+    throw e;
+  }
+  return res.json();
+}
+
 // -> consultation shape (incl. finalNote with per-field source_lines)
 export function finalizeConsultation(consultationId, shareToken) {
   if (USE_MOCK) {

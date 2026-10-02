@@ -1361,6 +1361,9 @@ textarea:focus-visible, .care-doc:focus-visible, .now-cell:focus-visible, [tabin
 }
 .share-fam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 12px; }
 
+/* Medicine name corrected after speech-to-text (doctor console transcript) */
+.t-fix { font-size: var(--font-xs); color: var(--amber); white-space: nowrap; cursor: help; }
+
 /* ============================================================
    EMPTY STATE — a small MediThread thread/node motif
    ============================================================ */

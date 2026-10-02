@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { sendLine } from "../../api/client.js";
+import { sendAudio, sendLine } from "../../api/client.js";
 import { FlagList } from "./FlagBanner.jsx";
 import { useSpeechRecognition } from "./useSpeechRecognition.js";
+import { useWhisperRecorder } from "./useWhisperRecorder.js";
 
 /**
  * State 2 — Recording.
@@ -33,6 +34,18 @@ export function RecordingPanel({
   const [startedAt] = useState(() => Date.now());
   const [elapsed, setElapsed] = useState(0);
   const [micError, setMicError] = useState(null);
+  const [engine, setEngine] = useState("whisper"); // "whisper" (server) | "browser" (fallback)
+  const [engineNote, setEngineNote] = useState(null);
+  const [language, setLanguage] = useState(""); // "" = auto-detect, "en", "ml"
+  const [stopping, setStopping] = useState(false);
+
+  // Always-current copies for async callbacks (a clip finishes seconds after it was spoken).
+  const stateRef = useRef(state);
+  const commit = useCallback((next) => { stateRef.current = next; setState(next); }, []);
+  const speakerRef = useRef(speaker);
+  speakerRef.current = speaker;
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
 
   // ---- queue (serial) ----
   // A tiny FIFO that posts one line at a time. If a POST fails, the queue
@@ -53,11 +66,11 @@ export function RecordingPanel({
       const res = await sendLine(consultationId, next.text, next.speaker, shareToken);
       // Replace the local transcript with the server's authoritative version
       // (same shape as our local optimistic append), then update derived state.
-      setState({
+      commit({
         transcript: res.transcript || [],
         flags: res.flags || [],
         suggestions: res.suggestions || [],
-        partial_note: res.partial_note || state.partial_note,
+        partial_note: res.partial_note || stateRef.current.partial_note,
       });
       queueRef.current.shift();
       sendingRef.current = false;
@@ -70,33 +83,68 @@ export function RecordingPanel({
       const wait = Math.min(500 * 2 ** (next.attempt - 1), 4000);
       setTimeout(pump, wait);
     }
-  }, [consultationId, shareToken, state.partial_note]);
+  }, [consultationId, shareToken, commit]);
 
   const enqueue = useCallback((text, who) => {
     const line = { text, speaker: who, attempt: 0 };
     queueRef.current.push(line);
     // Optimistic local append so the UI shows the line instantly.
-    setState((s) => ({ ...s, transcript: [...s.transcript, { speaker: who, text }] }));
+    commit({ ...stateRef.current, transcript: [...stateRef.current.transcript, { speaker: who, text }] });
     pump();
-  }, [pump]);
+  }, [pump, commit]);
 
   // ---- speech ----
+  // Primary: Whisper on the server (accurate on accents, drug names, Malayalam). The browser engine keeps
+  // running only as a live caption while Whisper works, and becomes the engine if Whisper is unavailable.
+  const wr = useWhisperRecorder({
+    getSpeaker: () => speakerRef.current,
+    onClip: async (blob, who) => {
+      const res = await sendAudio(consultationId, blob, who, language || undefined, shareToken);
+      if (res.added) {
+        commit({
+          transcript: res.transcript || [],
+          flags: res.flags || [],
+          suggestions: res.suggestions || [],
+          partial_note: res.partial_note || stateRef.current.partial_note,
+        });
+      }
+    },
+    onUnavailable: (msg) => {
+      setEngine("browser");
+      setEngineNote(`${msg} Using browser voice typing instead.`);
+    },
+  });
   const sr = useSpeechRecognition({
-    onFinal: (text) => enqueue(text, speaker),
-    lang: "en-IN",
+    onFinal: (text) => { if (engineRef.current === "browser") enqueue(text, speakerRef.current); },
+    lang: language === "ml" ? "ml-IN" : "en-IN",
   });
 
+  const whisperOn = engine === "whisper" && wr.supported;
+  const micOn = whisperOn ? wr.listening : sr.listening;
+  const micSupported = whisperOn || sr.supported;
+  const micStart = () => { if (whisperOn) wr.start(); if (sr.supported) sr.start(); };
+  const micStop = () => { wr.stop(); sr.stop(); };
+
+  // Start listening as soon as the visit starts (not for the scripted demo).
   useEffect(() => {
-    if (sr.error === "not-allowed" || sr.error === "service-not-allowed") {
+    if (autoFeed && autoFeed.length) return;
+    if (wr.supported && engineRef.current === "whisper") wr.start();
+    if (sr.supported) sr.start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const err = whisperOn ? wr.error : sr.error;
+    if (err === "not-allowed" || err === "service-not-allowed") {
       setMicError("Microphone access was blocked. Allow it in your browser, or type lines below.");
-    } else if (sr.error === "unsupported") {
+    } else if (err === "no-mic") {
+      setMicError("No microphone was found. Plug one in, or type lines below.");
+    } else if (err === "unsupported" || !err) {
       setMicError(null);
-    } else if (sr.error) {
-      setMicError(`Voice typing hiccuped (${sr.error}). It will retry automatically.`);
     } else {
-      setMicError(null);
+      setMicError(`Voice typing hiccuped (${err}). It will retry automatically.`);
     }
-  }, [sr.error]);
+  }, [wr.error, sr.error, whisperOn]);
 
   // ---- D / P keyboard shortcuts ----
   useEffect(() => {
@@ -141,9 +189,12 @@ export function RecordingPanel({
     setTyped("");
   };
 
-  const handleStop = () => {
+  const handleStop = async () => {
+    if (stopping) return;
+    setStopping(true);
     sr.stop();
-    onStop(state);
+    await wr.flush(); // finish transcribing the sentence in progress before reviewing
+    onStop(stateRef.current);
   };
 
   const mmss = useMemo(() => {
@@ -157,28 +208,39 @@ export function RecordingPanel({
       {/* Status strip */}
       <div className="console-record-top">
         <div className="row" style={{ gap: 10, alignItems: "center" }}>
-          <span className={`rec-dot ${sr.listening ? "live" : ""}`} aria-hidden="true" />
+          <span className={`rec-dot ${micOn ? "live" : ""}`} aria-hidden="true" />
           <span aria-live="polite">
-            {sr.listening ? "Listening" : sr.supported ? "Paused" : "Voice typing unavailable"}
+            {!micSupported ? "Voice typing unavailable"
+              : !micOn ? "Paused"
+              : wr.speaking && whisperOn ? "Hearing you…"
+              : whisperOn && wr.pending > 0 ? "Transcribing…"
+              : "Listening"}
             {" · "}
             <span className="muted">{mmss}</span>
+            {whisperOn && micOn && <span className="muted small"> · Whisper</span>}
           </span>
         </div>
-        <div className="row" style={{ gap: 8 }}>
-          {sr.supported && !sr.listening && (
-            <button onClick={sr.start}>Resume mic</button>
+        <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {micSupported && (
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Spoken language" style={{ minWidth: 0 }}>
+              <option value="">Auto language</option>
+              <option value="en">English</option>
+              <option value="ml">Malayalam</option>
+            </select>
           )}
-          {sr.supported && sr.listening && (
-            <button onClick={sr.stop}>Pause mic</button>
-          )}
-          <button className="primary" onClick={handleStop}>Stop and review</button>
+          {micSupported && !micOn && <button onClick={micStart}>Resume mic</button>}
+          {micSupported && micOn && <button onClick={micStop}>Pause mic</button>}
+          <button className="primary" onClick={handleStop} disabled={stopping}>
+            {stopping ? "Finishing…" : "Stop and review"}
+          </button>
         </div>
       </div>
 
       {micError && <div className="card error" style={{ marginBottom: 12 }}>{micError}</div>}
-      {!sr.supported && (
+      {engineNote && <div className="card" style={{ marginBottom: 12, background: "var(--accent-soft)" }}>{engineNote}</div>}
+      {!micSupported && (
         <div className="card" style={{ marginBottom: 12, background: "var(--accent-soft)" }}>
-          <strong>Voice typing works in Chrome.</strong>{" "}
+          <strong>Voice typing works in Chrome, Edge and Safari.</strong>{" "}
           Use the demo conversation, or type lines below.
         </div>
       )}
@@ -211,7 +273,14 @@ export function RecordingPanel({
             {state.transcript.map((ln, i) => (
               <li key={i} className={`t-line t-${ln.speaker}`}>
                 <span className="t-stamp">{ln.speaker}</span>
-                <span className="t-text">{ln.text}</span>
+                <span className="t-text">
+                  {ln.text}
+                  {ln.fixes?.length > 0 && (
+                    <span className="t-fix" title="Medicine name corrected after speech-to-text. Check it is right.">
+                      {" "}✎ {ln.fixes.map((f) => `${f.from} → ${f.to}`).join(", ")}
+                    </span>
+                  )}
+                </span>
               </li>
             ))}
             {sr.interim && (

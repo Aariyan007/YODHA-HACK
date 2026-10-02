@@ -1,8 +1,9 @@
 """Doctor-side consultation flow.
 
-Six endpoints:
+Seven endpoints:
     POST /api/consultations/start          start a visit from a share token
     POST /api/consultations/{id}/line      append one transcript line
+    POST /api/consultations/{id}/audio     one spoken clip -> Whisper -> a transcript line
     POST /api/consultations/{id}/finalize  build the full SOAP note (status=draft)
     POST /api/consultations/{id}/approve   doctor signs off; writes patient timeline
     GET  /api/consultations/{id}           full state for the review screen
@@ -20,12 +21,14 @@ import time as _time
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ai import consultation as consult_ai
+from ai import medterms
+from ai import transcribe as stt
 from ai import reminders as reminders_mod
 from ai import decision as laya_decision
 from ai.safety import allergy_hit, check_pair_level, to_generic
@@ -318,15 +321,31 @@ def add_line(
     c = _authorize(db, cid, x_share_token)
     if c.status == "approved":
         raise HTTPException(409, "Consultation already approved")
+    return _append_line(db, c, body.text, body.speaker)
+
+
+def _state_out(c: Consultation) -> dict:
+    return {
+        "transcript": list(c.transcript_lines or []),
+        "partial_note": c.soap or dict(consult_ai.EMPTY_SOAP),
+        "flags": list(c.flags or []),
+        "suggestions": list(c.questions or []),
+    }
+
+
+def _append_line(db: Session, c: Consultation, text: str, speaker_in: str, fixes: list[dict] | None = None) -> dict:
+    """Add one transcript line and run every per-line check. Shared by typed lines and voice clips."""
     patient = db.get(Patient, c.patient_id)
 
     # Resolve speaker
-    speaker = body.speaker
+    speaker = speaker_in
     if speaker == "unknown":
-        speaker = consult_ai.guess_speaker(body.text)
+        speaker = consult_ai.guess_speaker(text)
 
     lines = list(c.transcript_lines or [])
-    line = {"speaker": speaker, "text": body.text.strip()}
+    line = {"speaker": speaker, "text": text.strip()}
+    if fixes:
+        line["fixes"] = fixes  # medicine names corrected after speech-to-text; shown so the doctor can verify
     new_index = len(lines)
     lines.append(line)
 
@@ -375,6 +394,70 @@ def add_line(
         "flags": existing_flags,
         "suggestions": suggestions,
     }
+
+
+MAX_AUDIO_BYTES = 6 * 1024 * 1024  # one clip is a single sentence; a long one is a sign of misuse
+
+
+def _sniff_audio(head: bytes) -> tuple[str, str] | None:
+    """Return (mime, extension) from magic bytes, or None. Never trust the client's content type."""
+    if head[:4] == b"\x1aE\xdf\xa3":
+        return "audio/webm", "webm"
+    if head[:4] == b"OggS":
+        return "audio/ogg", "ogg"
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return "audio/wav", "wav"
+    if head[4:8] == b"ftyp":
+        return "audio/mp4", "m4a"
+    if head[:3] == b"ID3" or (len(head) > 1 and head[0] == 0xFF and (head[1] & 0xE0) == 0xE0):
+        return "audio/mpeg", "mp3"
+    return None
+
+
+@router.post("/{cid}/audio")
+def add_audio(
+    cid: str,
+    file: UploadFile = File(...),
+    speaker: str = Form("unknown"),
+    language: str | None = Form(None),
+    db: Session = Depends(get_db),
+    x_share_token: str | None = Header(default=None, alias="X-Share-Token"),
+):
+    """One spoken clip -> Whisper -> a transcript line (same checks as a typed line).
+
+    Silence, noise and Whisper's phantom phrases return added=False with the unchanged state.
+    """
+    c = _authorize(db, cid, x_share_token)
+    if c.status == "approved":
+        raise HTTPException(409, "Consultation already approved")
+    if speaker not in ("doctor", "patient", "unknown"):
+        raise HTTPException(422, "speaker must be doctor, patient or unknown")
+    if language is not None and not re.fullmatch(r"[a-z]{2}", language):
+        language = None
+
+    data = file.file.read(MAX_AUDIO_BYTES + 1)
+    if len(data) > MAX_AUDIO_BYTES:
+        raise HTTPException(413, "Audio clip is too large")
+    if len(data) < 800:  # a few ms of nothing
+        return {**_state_out(c), "heard": "", "added": False}
+    kind = _sniff_audio(data[:16])
+    if kind is None:
+        raise HTTPException(415, "Unsupported audio format")
+    mime, ext = kind
+
+    vocab = [m["name"] for m in _active_meds(db, c.patient_id)]
+    try:
+        res = stt.transcribe(data, filename=f"clip.{ext}", mime=mime, language=language, vocab=vocab)
+    except stt.TranscribeError as e:
+        raise HTTPException(e.status, str(e))
+
+    text = res["text"]
+    if not text or len(text) < 2:
+        return {**_state_out(c), "heard": "", "added": False}
+    # Fix mis-heard medicine names (reported, never silent).
+    text, fixes = medterms.correct(text, vocab)
+    out = _append_line(db, c, text[:1000], speaker, fixes=fixes)
+    return {**out, "heard": text, "added": True, "fixes": fixes}
 
 
 @router.post("/{cid}/finalize")
