@@ -20,6 +20,11 @@ ROLES = ("patient", "doctor")
 DOC_TYPES = ["lab", "prescription", "consultation", "visit", "scan", "vitals"]
 
 
+def condition_names(p: Patient) -> list[str]:
+    """Conditions are stored as {name, ...} objects (ICD-10 imports add more fields); older rows may be plain strings."""
+    return [str(c.get("name")) if isinstance(c, dict) else str(c) for c in (p.conditions or []) if (c.get("name") if isinstance(c, dict) else c)]
+
+
 def share_ref(token: str) -> str:
     """A handle for a share link that is not the token (safe to show and to log)."""
     import hashlib
@@ -158,7 +163,7 @@ def health_trend(ctx: AgentContext, args: dict) -> dict:
 
 @tool("health.conditions", "The conditions listed on the profile.", permission="health:read", roles=ROLES, audit_category="health")
 def health_conditions(ctx: AgentContext, args: dict) -> dict:
-    items = list(ctx.db.get(Patient, ctx.patient_id).conditions or [])
+    items = condition_names(ctx.db.get(Patient, ctx.patient_id))
     text = ("Conditions on file: " + ", ".join(map(str, items)) + ".") if items else "No conditions are listed on the profile."
     return {"data": {"conditions": items}, "blocks": [block("text", text=text)]}
 

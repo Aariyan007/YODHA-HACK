@@ -71,16 +71,48 @@ class AgentPlanner:
         self.registry = registry
         self.llm = llm
 
-    def plan(self, role: str, text: str, history: list[dict] | None = None, file_id: str | None = None) -> Plan:
+    def plan(self, role: str, text: str, history: list[dict] | None = None, file_id: str | None = None, session: dict | None = None) -> Plan:
         text = (text or "").strip()
         if not text:
             return Plan("empty", clarify="What would you like me to do?", source="none")
-        p = self._file_rules(text, file_id) if file_id else None
+        p = self._doctor_rules(text, session or {}) if role == "doctor" else None
+        p = p or (self._file_rules(text, file_id) if file_id else None)
         p = p or self._compound(role, text) or self._rules(role, text)
         if p is None:
             p = self._llm(role, text, history or [])
+        if p is not None and p.steps:  # a plan may only use tools this role has (e.g. no write tools for doctors)
+            kept = [st for st in p.steps if (sp := self.registry.get(st.tool)) is not None and role in sp.roles]
+            if not kept:
+                return Plan(p.intent, clarify="That is not something I can do from this account.", source=p.source)
+            p.steps = kept
         return p or Plan("unknown", clarify="I am not sure what you need. Try 'latest records', 'my medicines', or 'what is due today'.",
                          source="none")
+
+    # ---- the doctor's agent
+    def _doctor_rules(self, text: str, session: dict) -> Plan | None:
+        low = text.lower()
+        if m := re.match(r"\s*(?:please\s+)?(?:draft|write up|make)\s+(?:a\s+|the\s+)?(?:visit\s+)?(?:note|soap|consultation)s?\s*(?:from|for|:|-)?\s*(.{10,})$", text, re.I | re.S):
+            return Plan("consult_draft", [Step("consult.draft_from_notes", {"notes": m.group(1).strip()[:4000]})])
+        if re.search(r"approve|sign off|save (the )?(draft|note)", low):
+            cid = session.get("last_consultation")
+            if not cid:
+                return Plan("consult_approve", clarify="There is no draft visit note in this conversation yet. Dictate or paste your notes after the word draft, and I will prepare one for your approval.")
+            return Plan("consult_approve", [Step("consult.approve_draft", {"consultationId": cid})])
+        if re.search(r"\bpdf\b|printable|hand ?out", low):
+            return Plan("pdf", [Step("pdf.generate", {"kind": "doctor_brief"})])
+        if re.search(r"what changed|since (the |my )?(last|previous) (visit|appointment)|changes? since", low):
+            return Plan("changes", [Step("doctor.changes_since_visit")])
+        if re.search(r"conflict|disagree|inconsisten|discrepan|verify|contradict", low):
+            return Plan("conflicts", [Step("doctor.record_conflicts")])
+        if re.search(r"missing|gaps?\b|not recorded|what (should|do) i ask|what am i missing", low):
+            return Plan("missing_info", [Step("doctor.missing_info")])
+        if re.search(r"brief|pre-?visit|prepare|summary of|summari[sz]e (the )?patient|who is this patient|overview", low) and not self._is_nav(text):
+            return Plan("brief", [Step("doctor.brief")])
+        return None
+
+    @staticmethod
+    def _is_nav(text: str) -> bool:
+        return bool(R_NAV.match(text))
 
     # ---- "A, then B and C": every clause must be understood by the rules, otherwise the whole text goes to the LLM path
     def _compound(self, role: str, text: str) -> Plan | None:
@@ -128,7 +160,7 @@ class AgentPlanner:
             for word, route in NAV.items():
                 if word in target:
                     return Plan("navigate", [Step("navigation.navigate", {"route": route})])
-        if R_MED_CHANGE.search(low) and not R_NAV.match(text):  # L4: the agent never changes or advises on medicines
+        if role == "patient" and R_MED_CHANGE.search(low) and not R_NAV.match(text):  # L4: the agent never changes or advises on medicines
             return Plan("medicine_change", [Step("medications.list")],
                         clarify="I cannot start, stop or change a medicine, and I cannot tell you whether to. That is your doctor's decision. "
                                 "Here is your current list; I can also prepare questions for your next visit.")
@@ -139,10 +171,10 @@ class AgentPlanner:
         if R_SHARE_NEW.search(low) and role == "patient":
             scope = "labs" if re.search(r"\blabs?\b|lab report", low) else "medicines" if re.search(r"medicin|prescri", low) else "full"
             return Plan("share_create", [Step("sharing.create", {"scope": scope})])
-        if R_SEND.search(low):  # delivery is never faked: say what is really possible
+        if role == "patient" and R_SEND.search(low):  # delivery is never faked: say what is really possible
             return Plan("send_to_doctor", clarify="I cannot send anything to a doctor myself, so I will not pretend to. I can make a PDF summary "
                                                   "for you to hand over, or a share link and QR code your doctor can scan. Which would you like?")
-        if R_PDF.search(low):
+        if role == "patient" and R_PDF.search(low):
             kind = "medication_summary" if re.search(r"medic|tablet|drug", low) else "visit_prep" if re.search(r"visit|prepar|appointment", low) else "patient_summary"
             return Plan("pdf", [Step("pdf.generate", {"kind": kind})])
         reading = self._reading(text) if R_LOG.search(low) and role == "patient" else None

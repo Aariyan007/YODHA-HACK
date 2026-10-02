@@ -19,6 +19,7 @@ class AgentContext:
     lang: str = "en"
     conversation_id: str | None = None
     file_id: str | None = None      # the file the person attached to this request (ownership checked by the router)
+    session: dict = field(default_factory=dict)  # short-term facts for this conversation (e.g. the last draft visit)
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
 
     @property

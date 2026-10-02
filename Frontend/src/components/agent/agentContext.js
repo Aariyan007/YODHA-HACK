@@ -31,9 +31,10 @@ export const CONTEXTS = [
   { match: (p) => p.startsWith("/profile"), id: "profile", label: "Profile context", title: "Profile",
     actions: [ACTION("changes", "What changed recently?", "Compare your latest records"), ACTION("open", "What still needs attention?", "Open care items")] },
   { match: (p) => p.startsWith("/doctor"), id: "doctorhome", label: "Doctor workspace", title: "Doctor home", doctor: true,
-    actions: [ACTION("dpatients", "Open a linked patient", "Review before a visit"), ACTION("dsummary", "Summarise a patient", "Before the consultation")] },
+    actions: [ACTION("dpatients", "Open a linked patient", "Then ask about them here")] },
   { match: (p) => p.startsWith("/console"), id: "console", label: "Consultation context", title: "Doctor console", doctor: true,
-    actions: [ACTION("dsummary", "Summarise this patient", "Before the consultation"), ACTION("dask", "What should I ask?", "From the record")] },
+    actions: [ACTION("dbrief", "Pre-visit brief", "Who they are, medicines, results"), ACTION("dchanges", "What changed since the last visit?", "New records and results"),
+      ACTION("dconflicts", "Check the record for conflicts", "Where records disagree"), ACTION("dmissing", "What is missing?", "Gaps to ask about"), ACTION("dpdf", "Make a PDF brief", "With sources")] },
 ];
 
 export const contextFor = (pathname) => CONTEXTS.find((c) => c.match(pathname)) || CONTEXTS[0];

@@ -8,7 +8,7 @@ from .types import ToolResult, block
 LEAD = {
     "latest_records": "Your latest records:", "search": "Records that match:", "medications": "Your current medicines:",
     "care_loop": "Today's doses:", "labs": "Your latest results:", "alerts": "What needs your attention:",
-    "pdf": "Your PDF:", "medicine_change": "About your medicines:", "visit_prep": "Getting ready for your visit:", "multi_step": "Here is what I did:", "file_summary": "About this file:", "file_entities": "What the file contains:", "file_compare": "Compared with your thread:", "file_evidence": "Where it says that:",
+    "pdf": "Your PDF:", "brief": "Pre-visit brief:", "changes": "What changed:", "conflicts": "Records to verify:", "missing_info": "Possible gaps:", "consult_draft": "Draft visit note:", "medicine_change": "About your medicines:", "visit_prep": "Getting ready for your visit:", "multi_step": "Here is what I did:", "file_summary": "About this file:", "file_entities": "What the file contains:", "file_compare": "Compared with your thread:", "file_evidence": "Where it says that:",
     "find_doctor": "Doctors from the sample directory (not real clinics):", "sharing_status": "Sharing right now:",
 }
 DISCLAIMER = "This is information from your own records, not medical advice. Your doctor decides about treatment."

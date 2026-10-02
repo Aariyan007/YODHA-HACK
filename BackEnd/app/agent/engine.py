@@ -50,7 +50,8 @@ class AgentEngine:
     def chat(self, ctx: AgentContext, text: str) -> dict:
         conv = ctx.conversation_id = ctx.conversation_id or uuid.uuid4().hex[:12]
         history = self.memory.history(ctx.role, ctx.actor_id, conv)
-        plan = self.planner.plan(ctx.role, text, history, ctx.file_id)
+        ctx.session = self.memory.session(ctx.role, ctx.actor_id, conv)
+        plan = self.planner.plan(ctx.role, text, history, ctx.file_id, ctx.session)
         if not plan.steps:  # a question back to the person, or nothing to do: no task needed
             out = self.formatter.format(plan, [])
             out.update(steps=[], conversationId=conv, planSource=plan.source, status="completed")
@@ -105,6 +106,8 @@ class AgentEngine:
             if r.status == "needs_confirmation":
                 step["confirmationId"] = r.confirmation["id"]
             tasks.set_step(ctx.db, task, i, **step)
+            if r.ok and isinstance(r.data, dict) and r.data.get("consultationId"):
+                self.memory.set_session(ctx.role, ctx.actor_id, conv, last_consultation=r.data["consultationId"])
             if r.status == "needs_confirmation":
                 tasks.set_status(ctx.db, task, "waiting_for_confirmation")
                 return self._finish(ctx, task, intent, conv, source)

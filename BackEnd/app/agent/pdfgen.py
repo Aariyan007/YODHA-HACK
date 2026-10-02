@@ -65,7 +65,7 @@ def build(kind: str, data: dict) -> tuple[bytes, int]:
     src = Sources()
     story: list = []
     p = data["patient"]
-    title = {"patient_summary": "Health summary", "medication_summary": "Medication summary", "visit_prep": "Visit preparation"}[kind]
+    title = {"patient_summary": "Health summary", "medication_summary": "Medication summary", "visit_prep": "Visit preparation", "doctor_brief": "Pre-visit brief"}[kind]
     story += [Paragraph(_t(title), st["h1"]),
               Paragraph(_t(f"{p['name']}" + (f", {p['age']} years" if p.get("age") else "") + (f", {p['gender']}" if p.get("gender") else "")
                            + (f" | Blood group {p['bloodGroup']}" if p.get("bloodGroup") else "") + f" | Prepared {date.today().isoformat()}"), st["sub"])]
@@ -79,11 +79,11 @@ def build(kind: str, data: dict) -> tuple[bytes, int]:
         else:
             story.append(Paragraph(_t(empty), st["small"]))
 
-    if kind in ("patient_summary", "visit_prep"):
+    if kind in ("patient_summary", "visit_prep", "doctor_brief"):
         section("Conditions and allergies", lines=[l for l in (
             ("Conditions: " + ", ".join(map(str, p["conditions"]))) if p.get("conditions") else None,
             ("Allergies: " + ", ".join(map(str, p["allergies"]))) if p.get("allergies") else None) if l])
-    if kind in ("patient_summary", "medication_summary", "visit_prep"):
+    if kind in ("patient_summary", "medication_summary", "visit_prep", "doctor_brief"):
         meds = data["medicines"]
         rows = [["Medicine", "Dose", "When", "Prescribed by"]] + [
             [_t(m["name"]) + _t(src.ref(m.get("sourceTitle"), m.get("sourceDate"))), _t(m.get("dose") or "-"),
@@ -91,7 +91,7 @@ def build(kind: str, data: dict) -> tuple[bytes, int]:
             for m in meds]
         section("Current medicines", rows=_table([[Paragraph(c, st["p"]) for c in r] if i else r for i, r in enumerate(rows)],
                                                  [60 * mm, 28 * mm, 50 * mm, 40 * mm]) if meds else None, empty="No current medicines are recorded.")
-    if kind in ("patient_summary", "visit_prep"):
+    if kind in ("patient_summary", "visit_prep", "doctor_brief"):
         labs = data["labs"]
         rows = [["Test", "Latest", "Date", "Status"]] + [
             [_t(l["name"]) + _t(src.ref(l.get("sourceTitle"), l.get("sourceDate"))), _t(f"{l['value']:g} {l.get('unit') or ''}".strip()), _t(l["date"]), _t(l["status"])]
@@ -99,7 +99,10 @@ def build(kind: str, data: dict) -> tuple[bytes, int]:
         section("Latest results", rows=_table([[Paragraph(c, st["p"]) for c in r] if i else r for i, r in enumerate(rows)],
                                               [60 * mm, 40 * mm, 30 * mm, 30 * mm]) if labs else None, empty="No results are recorded.")
         section("Needs attention", lines=[f"{a['title']}: {a['message']}" for a in data["alerts"][:8]], empty="No open warnings.")
-    if kind == "patient_summary":
+    if kind == "doctor_brief":
+        section("Records to verify (they disagree)", lines=[f"{c['title']}: {c['text']}" for c in data.get("conflicts", [])[:8]], empty="No disagreement found between the records.")
+        section("Possible gaps", lines=data.get("gaps", [])[:8], empty="No obvious gaps from the rules checked.")
+    if kind in ("patient_summary", "doctor_brief"):
         section("Recent records", lines=[f"{d['date']}  {d['title']} ({d['type']})" + _t(src.ref(d["title"], d["date"])).replace("&amp;", "&") for d in data["records"][:8]])
     if kind in ("visit_prep", "patient_summary") and data.get("questions"):
         section("Questions to ask the doctor", lines=[f"{i}. {q}" for i, q in enumerate(data["questions"][:6], 1)])

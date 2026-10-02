@@ -65,7 +65,7 @@ class Base_(unittest.TestCase):
 
         app.dependency_overrides[get_db] = override
         self.addCleanup(app.dependency_overrides.clear)
-        self.a = Patient(id="pa", name="Asha", phone="1", conditions=["Type 2 diabetes"], allergies=["Penicillin"])
+        self.a = Patient(id="pa", name="Asha", phone="1", conditions=[{"name": "Type 2 diabetes"}], allergies=["Penicillin"])
         self.b = Patient(id="pb", name="Bala", phone="2")
         self.db.add_all([self.a, self.b])
         self.db.add_all([
@@ -262,6 +262,11 @@ class ToolOutputTests(Base_):
         r = AgentExecutor().run(self.ctx(), "sharing.active", {})
         self.assertEqual(r.data["count"], 1)
         self.assertNotIn("SECRETTOKEN", str(r.data) + str(r.blocks))
+
+    def test_conditions_are_objects_in_real_data(self):
+        r = AgentExecutor().run(self.ctx(), "health.conditions", {})
+        self.assertIn("Type 2 diabetes", r.blocks[0]["text"])
+        self.assertNotIn("{", r.blocks[0]["text"])
 
     def test_engine_end_to_end(self):
         out = AgentEngine(llm=NullLLM()).chat(self.ctx(), "what medicines am I on")

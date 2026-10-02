@@ -14,6 +14,12 @@ const preview = (title, text) => ({
   note: text || "MediThread Agent is a preview. It can read your existing records, but it cannot write, summarise or explain with a model yet.",
 });
 
+// Doctor quick actions are plain questions to the doctor agent on the server.
+export const DOCTOR_ASK = {
+  dbrief: "pre-visit brief", dchanges: "what changed since the last visit", dconflicts: "any conflicts in the record",
+  dmissing: "what am I missing", dpdf: "make a pdf brief", dsummary: "pre-visit brief", dask: "what am I missing",
+};
+
 const RUN = {
   async changes(d) {
     const deltas = deltaList(d.insights);

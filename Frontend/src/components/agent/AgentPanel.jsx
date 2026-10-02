@@ -4,8 +4,9 @@ import { gsap } from "gsap";
 import { reducedMotion } from "../../anim.js";
 import { factsFor } from "./agentContext.js";
 import { loadAgentData, useAgentData } from "./agentData.js";
-import { intentFor, runAction } from "./agentActions.js";
-import { agentAvailable, agentChat, agentConfirm, agentDownload, agentSetFileType, agentTask, agentUploadFile } from "../../api/client.js";
+import { DOCTOR_ASK, intentFor, runAction } from "./agentActions.js";
+import { apiFor } from "./agentApi.js";
+import { useAgentPatient } from "./agentPatient.js";
 import { resultFromResponse } from "./agentBlocks.js";
 import AgentHeader from "./AgentHeader.jsx";
 import AgentContext from "./AgentContext.jsx";
@@ -19,10 +20,13 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
   const navigate = useNavigate();
   const ref = useRef(null);
   const alive = useRef(true);
+  const submitRef = useRef(() => {});
   const conv = useRef(null);
   const fileId = useRef(null); // the file the person last gave the agent
   const [view, setView] = useState({ kind: "home" });
   const { data, loading } = useAgentData(!ctx.doctor);
+  const dp = useAgentPatient();
+  const api = apiFor(ctx, dp?.id);
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
@@ -49,6 +53,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
   const go = (to) => { onClose(); navigate(to); };
 
   const run = useCallback(async (actionId, label) => {
+    if (ctx.doctor) return submitRef.current(DOCTOR_ASK[actionId] || label);
     setView({ kind: "processing", label });
     const started = Date.now();
     let result;
@@ -57,6 +62,8 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     const wait = Math.max(0, 1100 - (Date.now() - started)); // long enough to see the thread being worked through
     setTimeout(() => { if (alive.current) setView({ kind: "result", result }); }, wait);
   }, [data]);
+
+  const noPatient = () => setView({ kind: "result", result: { title: "Open a patient first", lead: "The doctor agent works on one linked patient at a time.", note: "Open a patient's record, then ask again." } });
 
   const localAnswer = (text) => {
     const actionId = intentFor(text);
@@ -70,17 +77,17 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
   // Typed requests go to the Agent Engine on the server (planner -> permitted tools -> verified result).
   // The offline build and doctor pages have no patient engine, so they keep the local actions.
   const submit = async (text) => {
-    if (!agentAvailable() || ctx.doctor) return localAnswer(text);
+    if (!api.ready) return ctx.doctor ? noPatient() : localAnswer(text);
     setView({ kind: "processing", label: text });
     const started = Date.now();
     let result;
     try {
-      let r = await agentChat(text, conv.current, fileId.current);
+      let r = await api.chat(text, conv.current, fileId.current);
       conv.current = r.conversationId || conv.current;
       // A slow job (reading a file) runs on the server as a task; follow its steps until it settles.
       for (let n = 0; r.status === "running" && n < 90 && alive.current; n++) {
         await new Promise((ok) => setTimeout(ok, 1000));
-        const t = await agentTask(r.taskId);
+        const t = await api.task(r.taskId);
         const cur = t.steps.find((x) => x.status === "running") || t.steps.find((x) => x.status === "queued");
         if (cur) setView({ kind: "processing", label: cur.label });
         if (t.status !== "running" && t.status !== "queued") r = { ...t.result, status: t.status, intent: t.intent, taskId: t.taskId, steps: t.steps };
@@ -107,14 +114,14 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
       lead: `${f.name} is stored privately and encrypted.`,
       items: [{ label: "Looks like", value: kind || "I am not sure yet", sub: f.needsType ? f.reason || "Tell me what it is and I will go on." : undefined, tone: kind ? "good" : "watch" }],
       note: "Nothing was added to your health thread. I will ask before I save anything.",
-      typeChoices: f.needsType ? Object.entries(typeLabel).map(([id, title]) => ({ id, title })) : undefined,
+      typeChoices: f.needsType && api.setType ? Object.entries(typeLabel).map(([id, title]) => ({ id, title })) : undefined,
     };
   };
 
   const attach = async (file) => {
     setView({ kind: "processing", label: `Reading ${file.name}` });
     let result;
-    try { result = fileResult(await agentUploadFile(file)); }
+    try { result = fileResult(await api.upload(file)); }
     catch (e) { result = { title: "I could not take that file", lead: e?.message && e.message.length < 160 ? e.message : "The upload failed.", note: "Try a PDF, JPG, PNG or WEBP under 10 MB." }; }
     if (alive.current) setView({ kind: "result", result });
   };
@@ -123,20 +130,22 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
   const answer = async (confirmationId, approve) => {
     setView({ kind: "processing", label: approve ? "Saving" : "Cancelling" });
     let result;
-    try { result = resultFromResponse(await agentConfirm(confirmationId, approve)); }
+    try { result = resultFromResponse(await api.confirm(confirmationId, approve)); }
     catch (e) { result = { title: "That did not work", lead: e?.message && e.message.length < 140 ? e.message : "I could not finish that.", note: "Nothing was saved." }; }
     if (alive.current) setView({ kind: "result", result });
   };
 
   const download = async (f) => {
-    try { await agentDownload(f.fileId, f.name); }
+    try { await api.download(f); }
     catch (e) { setView({ kind: "result", result: { title: "I could not download that", lead: e?.message || "The download failed.", note: "Ask me to make it again." } }); }
   };
 
   const chooseType = async (type) => {
-    try { setView({ kind: "result", result: fileResult(await agentSetFileType(fileId.current, type)) }); }
+    try { setView({ kind: "result", result: fileResult(await api.setType(fileId.current, type)) }); }
     catch { setView({ kind: "result", result: { title: "That did not work", lead: "I could not save your answer.", note: "Try again." } }); }
   };
+
+  submitRef.current = submit;
 
   const facts = factsFor(ctx, data);
   const busy = view.kind === "processing";
@@ -152,7 +161,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
           <AgentResult result={view.result} onBack={() => setView({ kind: "home" })} onGo={go} ctxActions={ctx.actions} onRun={run} onType={chooseType} onAnswer={answer} onDownload={download} />
         )}
       </div>
-      <AgentInput onSubmit={submit} onFile={agentAvailable() && !ctx.doctor ? attach : undefined} disabled={busy} />
+      <AgentInput onSubmit={submit} onFile={api.ready ? attach : undefined} disabled={busy} />
     </div>
   );
 }

@@ -161,20 +161,17 @@ def purge_expired(db: Session, patient_id: str) -> None:
 
 def owned_file(db: Session, patient: Patient, file_id: str) -> AgentFile:
     purge_expired(db, patient.id)
-    f = db.scalar(select(AgentFile).where(AgentFile.id == file_id, AgentFile.patient_id == patient.id, AgentFile.status != "discarded"))
+    f = db.scalar(select(AgentFile).where(AgentFile.id == file_id, AgentFile.patient_id == patient.id, AgentFile.uploaded_by == patient.id, AgentFile.status != "discarded"))
     if f is None:  # same answer for missing and not yours
         raise HTTPException(404, "File not found")
     return f
 
 
-@router.post("/files")
-async def upload_file(file: UploadFile = File(...), patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
-    """Store a file encrypted and classify it. Nothing reaches the health thread from here: extraction and writing are
-    separate steps, and writing needs the person's confirmation."""
+def ingest_upload(db: Session, ctx: AgentContext, data: bytes, filename: str | None) -> dict:
+    """Validate, classify and store one uploaded file for ctx.patient_id, uploaded by ctx.actor_id. Shared by both agents."""
+    import hashlib
     if not vault.available():
         raise HTTPException(503, "File storage is not set up on this server.")
-    _limit(patient.id)
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
     if not data:
         raise HTTPException(400, "File is empty.")
     if len(data) > MAX_UPLOAD_BYTES:
@@ -182,29 +179,27 @@ async def upload_file(file: UploadFile = File(...), patient: Patient = Depends(c
     kind = detect_type(data)
     if kind is None:
         raise HTTPException(415, "This file type is not supported. Please use a JPG, PNG, WEBP or PDF.")
-    import hashlib
     sha = hashlib.sha256(data).hexdigest()
-    ctx = patient_ctx(patient, db)
     log = AgentAuditLogger()
-    dup = db.scalar(select(AgentFile).where(AgentFile.patient_id == patient.id, AgentFile.sha256 == sha, AgentFile.status != "discarded"))
+    dup = db.scalar(select(AgentFile).where(AgentFile.patient_id == ctx.patient_id, AgentFile.uploaded_by == ctx.actor_id,
+                                            AgentFile.sha256 == sha, AgentFile.status != "discarded"))
     if dup is not None:
         log.record(ctx, None, "files.upload", "ok", target=dup.id, detail="duplicate")
         db.commit()
         return {**file_out(dup), "duplicate": True}
     cls: dict = {"type": None, "confidence": 0.0, "source": "none", "reason": "needs reading first"}
-    pages = 0
     if kind == "pdf":
         texts, pages = ingest.pdf_pages(data)
         cls = ingest.classify("\n".join(texts))
         cls["pages"] = pages
         cls["hasText"] = any(texts)
-    row = AgentFile(patient_id=patient.id, uploaded_by=patient.id, display_name=_safe_name(file.filename, kind), mime=MIME[kind],
-                    size=len(data), sha256=sha, storage_key=vault.new_storage_key(), status="classified" if cls["type"] else "uploaded",
-                    classification=cls)
+    row = AgentFile(patient_id=ctx.patient_id, uploaded_by=ctx.actor_id, uploader_role=ctx.role, display_name=_safe_name(filename, kind),
+                    mime=MIME[kind], size=len(data), sha256=sha, storage_key=vault.new_storage_key(),
+                    status="classified" if cls["type"] else "uploaded", classification=cls)
     db.add(row)
     db.flush()
     try:
-        vault.put(row.storage_key, data, row.id, patient.id)
+        vault.put(row.storage_key, data, row.id, ctx.patient_id)
     except vault.VaultError:
         db.rollback()
         raise HTTPException(503, "I could not store that file safely, so I did not keep it.")
@@ -213,11 +208,20 @@ async def upload_file(file: UploadFile = File(...), patient: Patient = Depends(c
     return {**file_out(row), "duplicate": False}
 
 
+@router.post("/files")
+async def upload_file(file: UploadFile = File(...), patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
+    """Store a file encrypted and classify it. Nothing reaches the health thread from here: extraction and writing are
+    separate steps, and writing needs the person's confirmation."""
+    _limit(patient.id)
+    data = await file.read(MAX_UPLOAD_BYTES + 1)  # never buffer more than the limit plus one byte
+    return ingest_upload(db, patient_ctx(patient, db), data, file.filename)
+
+
 @router.get("/files")
 def list_files(patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
     purge_expired(db, patient.id)
     db.commit()
-    rows = db.scalars(select(AgentFile).where(AgentFile.patient_id == patient.id, AgentFile.status != "discarded")
+    rows = db.scalars(select(AgentFile).where(AgentFile.patient_id == patient.id, AgentFile.uploaded_by == patient.id, AgentFile.status != "discarded")
                       .order_by(AgentFile.created_at.desc()).limit(50))
     return [file_out(f) for f in rows]
 

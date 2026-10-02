@@ -9,7 +9,7 @@ from .observability import RequestLogMiddleware, configure_logging
 from sqlalchemy import text
 
 from .database import DB_KIND, Base, SessionLocal, add_missing_columns, engine
-from .routers import agent, auth, care, consultations, demo, doctor, doctors, documents, imports, patients, reminders, shares
+from .routers import agent, auth, doctor_agent, care, consultations, demo, doctor, doctors, documents, imports, patients, reminders, shares
 from .seed import ensure_demo_reminder_settings, seed_if_empty
 
 
@@ -75,6 +75,7 @@ app.include_router(care.router)
 app.include_router(doctor.router)
 app.include_router(doctors.router)
 app.include_router(agent.router)
+app.include_router(doctor_agent.router)
 
 
 @app.get("/health")

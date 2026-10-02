@@ -22,7 +22,7 @@ FILE_ARG = {"type": "object", "properties": {"fileId": {"type": "string", "minLe
 
 def _file(ctx: AgentContext, file_id: str) -> AgentFile:
     f = ctx.db.scalar(select(AgentFile).where(AgentFile.id == file_id, AgentFile.patient_id == ctx.patient_id,
-                                              AgentFile.status != "discarded"))
+                                              AgentFile.uploaded_by == ctx.actor_id, AgentFile.status != "discarded"))
     if f is None:  # missing and not-yours look the same
         raise ToolError("I could not find that file.")
     return f
@@ -47,7 +47,7 @@ def _evidence_list(x: dict) -> list[dict]:
 @tool("documents.extract", "Read an attached file and list the diagnoses, medicines, results and vitals it contains, each with the line it came from. Saves nothing to the health thread.",
       {"type": "object", "properties": {"fileId": {"type": "string", "minLength": 1, "maxLength": 32}, "force": {"type": "boolean"}},
        "required": ["fileId"], "additionalProperties": False},
-      permission="records:read", level=L2, audit_category="extract", slow=True)
+      permission="records:read", level=L2, audit_category="extract", slow=True, roles=("patient", "doctor"))
 def documents_extract(ctx: AgentContext, args: dict) -> dict:
     f = _file(ctx, args["fileId"])
     if f.extraction and not args.get("force"):
@@ -93,7 +93,7 @@ def documents_extract(ctx: AgentContext, args: dict) -> dict:
 
 
 @tool("documents.entities", "List what a read file contains: diagnoses, medicines, results, vitals.", FILE_ARG,
-      permission="records:read", audit_category="documents")
+      permission="records:read", audit_category="documents", roles=("patient", "doctor"))
 def documents_entities(ctx: AgentContext, args: dict) -> dict:
     f = _file(ctx, args["fileId"])
     x = _need_extraction(ctx, f)
@@ -117,7 +117,7 @@ def documents_entities(ctx: AgentContext, args: dict) -> dict:
 @tool("documents.evidence", "Show the exact lines of the file behind a result, medicine or diagnosis.",
       {"type": "object", "properties": {"fileId": {"type": "string", "minLength": 1, "maxLength": 32}, "about": {"type": "string", "maxLength": 80}},
        "required": ["fileId"], "additionalProperties": False},
-      permission="records:read", audit_category="documents")
+      permission="records:read", audit_category="documents", roles=("patient", "doctor"))
 def documents_evidence(ctx: AgentContext, args: dict) -> dict:
     f = _file(ctx, args["fileId"])
     x = _need_extraction(ctx, f)
@@ -128,7 +128,7 @@ def documents_evidence(ctx: AgentContext, args: dict) -> dict:
 
 
 @tool("documents.summarize", "Summarise a read file in plain words, using only what it says.", FILE_ARG,
-      permission="records:read", level=L2, audit_category="documents")
+      permission="records:read", level=L2, audit_category="documents", roles=("patient", "doctor"))
 def documents_summarize(ctx: AgentContext, args: dict) -> dict:
     f = _file(ctx, args["fileId"])
     x = _need_extraction(ctx, f)
@@ -150,7 +150,7 @@ def documents_summarize(ctx: AgentContext, args: dict) -> dict:
 
 
 @tool("documents.compare", "Compare the results and medicines in a read file with what is already on the health thread.", FILE_ARG,
-      permission="records:read", level=L2, audit_category="documents")
+      permission="records:read", level=L2, audit_category="documents", roles=("patient", "doctor"))
 def documents_compare(ctx: AgentContext, args: dict) -> dict:
     f = _file(ctx, args["fileId"])
     x = _need_extraction(ctx, f)

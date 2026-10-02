@@ -659,3 +659,29 @@ export const agentDownload = async (fileId, name) => {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 };
 export const agentShareQr = (ref) => request(`/api/agent/shares/${ref}`);
+
+// ---------- doctor agent (one linked patient per call; the server re-checks the care link every time) ----------
+export const doctorAgentChat = (text, patientId, conversationId, fileId) =>
+  request("/api/doctor-agent/chat", { method: "POST", body: { text, patientId, conversationId, fileId: fileId || undefined } });
+export const doctorAgentTask = (id) => request(`/api/doctor-agent/tasks/${id}`);
+export const doctorAgentConfirm = (id, patientId, approve) => request("/api/doctor-agent/confirm", { method: "POST", body: { id, patientId, approve } });
+export const doctorAgentUpload = async (patientId, file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${BASE}/api/doctor-agent/files?patientId=${encodeURIComponent(patientId)}`, { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: fd });
+  if (res.status === 401) { setToken(null); goLogin(); }
+  if (!res.ok) {
+    let d = res.statusText;
+    try { d = (await res.json()).detail ?? d; } catch {}
+    throw new Error(typeof d === "string" ? d : "Upload failed");
+  }
+  return res.json();
+};
+export const doctorAgentDownload = async (patientId, fileId, name) => {
+  const res = await fetch(`${BASE}/api/doctor-agent/files/${fileId}/content?patientId=${encodeURIComponent(patientId)}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new Error(res.status === 404 ? "That file has expired. Ask me to make it again." : "Download failed");
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: name || "document.pdf" });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+};

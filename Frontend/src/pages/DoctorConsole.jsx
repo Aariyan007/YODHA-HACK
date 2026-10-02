@@ -16,6 +16,7 @@ import { ReviewPanel } from "../components/console/ReviewPanel.jsx";
 import { ApprovedPanel } from "../components/console/ApprovedPanel.jsx";
 import { useT } from "../i18n.js";
 import MediThreadAgent from "../components/agent/MediThreadAgent.jsx";
+import { setAgentPatient } from "../components/agent/agentPatient.js";
 
 const PHASE_LABELS = {
   recording: "Recording",
@@ -110,6 +111,12 @@ export default function DoctorConsole() {
       .catch((e) => alive && setSnapshotError(e.message));
     return () => { alive = false; };
   }, [token]);
+
+  // Tell the Agent which patient this console is open on (the server still checks the doctor's care link).
+  useEffect(() => {
+    if (snapshot?.patient?.id) setAgentPatient({ id: snapshot.patient.id, name: snapshot.patient.name });
+    return () => setAgentPatient(null);
+  }, [snapshot?.patient?.id, snapshot?.patient?.name]);
 
   // Animate phase transitions
   useEffect(() => {

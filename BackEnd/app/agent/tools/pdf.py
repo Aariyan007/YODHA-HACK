@@ -16,7 +16,8 @@ from ..permissions import AgentPermissionManager
 from ..registry import tool
 from ..types import L2, block
 
-KINDS = ["patient_summary", "medication_summary", "visit_prep"]
+KINDS = ["patient_summary", "medication_summary", "visit_prep", "doctor_brief"]
+BY_ROLE = {"patient": {"patient_summary", "medication_summary", "visit_prep"}, "doctor": {"doctor_brief"}}
 TTL_HOURS = 24
 
 
@@ -50,18 +51,25 @@ def _data(ctx: AgentContext) -> dict:
     from ...routers.patients import build_health_check
     questions = [q["text"] for q in build_health_check(db, p, use_ai=False)["review"].get("askDoctor", [])]
     return {"patient": {"name": p.name, "age": p.age, "gender": p.gender, "bloodGroup": p.blood_group,
-                        "conditions": p.conditions or [], "allergies": p.allergies or []},
+                        "conditions": __import__("app.agent.tools.patient_read", fromlist=["condition_names"]).condition_names(p), "allergies": p.allergies or []},
             "medicines": meds, "labs": labs, "alerts": alerts, "records": records, "questions": questions}
 
 
 @tool("pdf.generate", "Create a PDF summary from the record: health summary, medication list, or visit preparation. Every fact has a source. Saves nothing to the health thread.",
       {"type": "object", "properties": {"kind": {"type": "string", "enum": KINDS}}, "required": ["kind"], "additionalProperties": False},
-      permission="pdf:create", level=L2, roles=("patient",), audit_category="pdf", verify=lambda c, a, o: _verify(c, a, o))
+      permission="pdf:create", level=L2, roles=("patient", "doctor"), audit_category="pdf", verify=lambda c, a, o: _verify(c, a, o))
 def pdf_generate(ctx: AgentContext, args: dict) -> dict:
     if not vault.available():
         raise ToolError("File storage is not set up, so I cannot make a private PDF.")
-    data, pages = pdfgen.build(args["kind"], _data(ctx))
-    name = {"patient_summary": "Health summary", "medication_summary": "Medication summary", "visit_prep": "Visit preparation"}[args["kind"]] \
+    if args["kind"] not in BY_ROLE[ctx.role]:
+        raise ToolError("That kind of PDF is not available to you.")
+    payload = _data(ctx)
+    if args["kind"] == "doctor_brief":
+        from . import doctor as D
+        payload["conflicts"] = D._conflicts(ctx)
+        payload["gaps"] = []
+    data, pages = pdfgen.build(args["kind"], payload)
+    name = {"patient_summary": "Health summary", "medication_summary": "Medication summary", "visit_prep": "Visit preparation", "doctor_brief": "Pre-visit brief"}[args["kind"]] \
         + f" {datetime.now().date().isoformat()}.pdf"
     import hashlib
     row = AgentFile(patient_id=ctx.patient_id, uploaded_by=ctx.actor_id, uploader_role=ctx.role, display_name=name, mime="application/pdf",
@@ -89,10 +97,10 @@ def _verify(ctx: AgentContext, args: dict, out: dict) -> bool:
 @tool("pdf.preview", "Show the first lines of a PDF the agent made, before the person downloads it.",
       {"type": "object", "properties": {"fileId": {"type": "string", "minLength": 1, "maxLength": 32}}, "required": ["fileId"],
        "additionalProperties": False},
-      permission="pdf:create", level=L2, roles=("patient",), audit_category="pdf")
+      permission="pdf:create", level=L2, roles=("patient", "doctor"), audit_category="pdf")
 def pdf_preview(ctx: AgentContext, args: dict) -> dict:
     from .. import ingest
-    row = ctx.db.scalar(select(AgentFile).where(AgentFile.id == args["fileId"], AgentFile.patient_id == ctx.patient_id, AgentFile.status == "generated"))
+    row = ctx.db.scalar(select(AgentFile).where(AgentFile.id == args["fileId"], AgentFile.patient_id == ctx.patient_id, AgentFile.uploaded_by == ctx.actor_id, AgentFile.status == "generated"))
     if row is None:
         raise ToolError("I could not find that PDF.")
     pages, _ = ingest.pdf_pages(vault.get(row.storage_key, row.id, row.patient_id))

@@ -18,7 +18,7 @@ PATIENT_PERMS = {
     "records:read", "records:write", "meds:read", "health:read", "careloop:read", "careloop:write",
     "doctors:read", "sharing:read", "sharing:write", "nav:use", "pdf:create", "profile:read",
 }
-DOCTOR_PERMS = {"records:read", "meds:read", "health:read", "careloop:read", "nav:use", "pdf:create", "consult:draft"}
+DOCTOR_PERMS = {"records:read", "meds:read", "health:read", "careloop:read", "nav:use", "pdf:create", "consult:draft", "consult:approve"}
 
 ROLE_PERMS = {"patient": PATIENT_PERMS, "doctor": DOCTOR_PERMS}
 
