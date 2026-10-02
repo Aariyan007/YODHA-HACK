@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from ai import consultation as consult_ai
 from ai import reminders as reminders_mod
-from ai.jev_client import allergy_hit, check_pair, to_generic
+from ai.safety import allergy_hit, check_pair_level, to_generic
 
 from ..database import get_db
 from ..health_hooks import after_new_data, notify_patient
@@ -206,10 +206,11 @@ def _run_fast_checks(
             if key in checked:
                 continue
             checked.add(key)
-            msg = check_pair(g, og)
-            if msg:
+            hit = check_pair_level(g, og)
+            if hit:
+                sev, msg = hit
                 out.append(_flag(
-                    "clash", "high",
+                    "clash", sev,
                     f"{m['name']} + {other['name']}",
                     f"{m['name']} ({g}) with {other['name']} ({og}): {msg}",
                     line_index,

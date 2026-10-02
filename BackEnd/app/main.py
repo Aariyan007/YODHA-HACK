@@ -95,6 +95,8 @@ def ready(response: Response):
     checks["store"] = store.status()
     sch = reminder_service._scheduler
     checks["scheduler"] = {"ok": bool(sch is not None and sch.running)}
+    from ai import ddi
+    checks["ddi"] = {"ok": True, "dataset": "DDInter" if ddi.available() else "not built (curated rules only)"}
     checks["laya"] = {"ok": True, "enabled": bool((os.getenv("LAYA_URL") or "").strip())}
     ok = all(v["ok"] for v in checks.values())
     if not ok:

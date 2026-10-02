@@ -20,7 +20,7 @@ from datetime import datetime
 from sqlalchemy import select
 
 from ai import reminders as reminders_mod
-from ai.jev_client import analyse
+from ai.safety import analyse
 from ai.translator import summarise
 from .database import SessionLocal
 from .labs import CODE_BY_LOINC, RULES, code_for_name, loinc_for, slug

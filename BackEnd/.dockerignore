@@ -6,3 +6,4 @@ uploads/
 demo_cache/
 .env
 .git
+data/ddi/

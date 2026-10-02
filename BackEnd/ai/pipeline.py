@@ -30,7 +30,7 @@ from app.models import AccessLog, Alert, Document, Medicine, Observation, Patien
 from . import reminders as reminders_mod
 from . import telegram
 from .extractor import ExtractError, extract
-from .jev_client import analyse
+from .safety import analyse
 from .translator import summarise
 
 ROOT = Path(__file__).resolve().parents[1]

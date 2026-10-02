@@ -4,3 +4,4 @@ __pycache__/
 *.db
 uploads/
 demo_cache/
+data/ddi/

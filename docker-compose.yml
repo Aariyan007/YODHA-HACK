@@ -44,6 +44,7 @@ services:
       CORS_ORIGINS: ""                  # same origin behind nginx, so no CORS needed
     volumes:
       - ./BackEnd/demo_cache:/app/demo_cache
+      - ./BackEnd/data/ddi:/app/data/ddi:ro   # built by scripts/build_ddi.py (DDInter, CC BY-NC-SA 4.0)
       - uploads:/app/uploads
     depends_on:
       redis: { condition: service_healthy }
