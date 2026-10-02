@@ -56,19 +56,19 @@ function ThreadBackground() {
       </defs>
       {/* Long curved thread — muted sage */}
       <path d="M -20 500 C 100 450 150 350 200 280 S 300 180 380 150 S 520 130 600 100 S 720 60 820 40"
-        stroke="rgba(85,122,106,0.18)" strokeWidth="1.5" strokeLinecap="round" />
+        stroke="rgba(101,146,135,0.18)" strokeWidth="1.5" strokeLinecap="round" />
       {/* Branch */}
       <path d="M 380 150 C 400 200 390 260 420 310 S 450 380 480 420"
-        stroke="rgba(85,122,106,0.12)" strokeWidth="1" strokeLinecap="round" />
+        stroke="rgba(101,146,135,0.12)" strokeWidth="1" strokeLinecap="round" />
       {/* Second thread */}
       <path d="M -20 80 C 80 100 160 150 220 200 S 300 260 320 300"
-        stroke="rgba(85,122,106,0.12)" strokeWidth="1" strokeLinecap="round" />
+        stroke="rgba(101,146,135,0.12)" strokeWidth="1" strokeLinecap="round" />
       {/* Nodes */}
-      <circle cx="200" cy="280" r="4" fill="rgba(85,122,106,0.35)" />
-      <circle cx="380" cy="150" r="5" fill="rgba(85,122,106,0.40)" />
-      <circle cx="600" cy="100" r="3.5" fill="rgba(85,122,106,0.30)" />
-      <circle cx="480" cy="420" r="3" fill="rgba(85,122,106,0.25)" />
-      <circle cx="220" cy="200" r="3" fill="rgba(85,122,106,0.25)" />
+      <circle cx="200" cy="280" r="4" fill="rgba(101,146,135,0.35)" />
+      <circle cx="380" cy="150" r="5" fill="rgba(101,146,135,0.40)" />
+      <circle cx="600" cy="100" r="3.5" fill="rgba(101,146,135,0.30)" />
+      <circle cx="480" cy="420" r="3" fill="rgba(101,146,135,0.25)" />
+      <circle cx="220" cy="200" r="3" fill="rgba(101,146,135,0.25)" />
     </svg>
   );
 }
@@ -157,9 +157,9 @@ function LoginTransition({ onDone }) {
     >
       <svg width="160" height="50" viewBox="0 0 160 50" fill="none" aria-hidden="true">
         <path d="M 8 25 C 40 8 64 42 96 25 S 128 8 152 25"
-          stroke="#557A6A" strokeWidth="1.5" strokeLinecap="round"
+          stroke="#659287" strokeWidth="1.5" strokeLinecap="round"
           strokeDasharray="200" strokeDashoffset="0" />
-        <circle cx="96" cy="25" r="4" fill="#557A6A" />
+        <circle cx="96" cy="25" r="4" fill="#659287" />
       </svg>
     </div>
   );

@@ -103,6 +103,7 @@ def document_out(d: Document) -> dict:
     out = {
         "id": d.id,
         "date": d.date,
+        "createdAt": iso(d.created_at) if getattr(d, "created_at", None) else None,
         "type": d.type,
         "title": d.title,
         "source": d.source,
@@ -135,6 +136,7 @@ def medicine_out(m: Medicine) -> dict:
         "times": m.times or [],
         "instructions": m.instructions,
         "startDate": m.start_date,
+        "durationDays": m.duration_days,
         "prescribedBy": m.prescribed_by,
         "active": m.active,
     }

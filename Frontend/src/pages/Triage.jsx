@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { doctorsLink } from "../components/health.jsx";
-import { triage } from "../api/client.js";
+import { getNearbyDoctors, triage } from "../api/client.js";
 import { useT } from "../i18n.js";
 
 // Triage names like "Diabetologist / Endocrinologist" -> the finder's single specialty.
@@ -66,6 +66,70 @@ function TriageResult({ result, lang }) {
           ? "ഈ ഉപദേശം ഒരു രോഗനിർണ്ണയമല്ല. ഒരു ഡോക്ടറെ കാണുക."
           : "This is not a diagnosis. Please consult a doctor."}
       </p>
+    </div>
+  );
+}
+
+// ── Name an actual doctor from the directory for this specialty ──────────────
+function DoctorSuggestion({ specialist, urgent, lang }) {
+  const ml = lang === "ml";
+  const finderSpecialty = urgent ? "Emergency" : toFinderSpecialty(specialist);
+  const [doc, setDoc] = useState(undefined); // undefined=loading, null=none
+  const [why, setWhy] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    setDoc(undefined);
+    getNearbyDoctors({ specialty: urgent ? undefined : finderSpecialty, emergency: urgent })
+      .then((res) => {
+        if (!alive) return;
+        const top = res.results?.[0] || null;
+        setDoc(top);
+        if (top) {
+          const pick = (res.picks || []).find((p) => p.id === top.id);
+          const items = [`${ml ? finderSpecialty + " നിങ്ങളുടെ പ്രശ്നവുമായി യോജിക്കുന്നു" : `${finderSpecialty} matches the current concern`}`];
+          if (pick) items.push((ml && pick.whyMl) || pick.why);
+          if (top.openNow) items.push(top.closesAt ? (ml ? `ഇന്ന് തുറന്ന് · ${top.closesAt} വരെ` : `Available today · open till ${top.closesAt}`) : (ml ? "എപ്പോഴും തുറന്ന്" : "Open 24 hours"));
+          if (top.teleconsult) items.push(ml ? "വീഡിയോ കൺസൾട്ട് ലഭ്യം" : "Video consultation available");
+          if (top.languages?.length) items.push((ml ? "ഭാഷ: " : "Speaks ") + top.languages.slice(0, 3).join(", "));
+          setWhy(items.slice(0, 5));
+        }
+      })
+      .catch(() => alive && setDoc(null));
+    return () => { alive = false; };
+  }, [finderSpecialty, urgent, ml]);
+
+  if (doc === undefined) return null;
+
+  return (
+    <div className="triage-match animate-in-fast">
+      <div className="ed-kicker">{ml ? "കെയർ മാച്ച്" : "Care match"}</div>
+      {doc ? (
+        <>
+          <p className="tm-rec-sub" style={{ marginTop: 6 }}>
+            {ml ? "നിങ്ങളുടെ MediThread ഡയറക്ടറിയിൽ ലഭ്യമായ ഒരു ഡോക്ടർ:" : "One available match in your MediThread directory:"}
+          </p>
+          <h4 className="tm-rec-name">{doc.department ? doc.clinic : doc.name}</h4>
+          <div className="tm-rec-sub">{doc.department ? `${doc.department} · ${doc.city}` : `${doc.specialty} · ${doc.clinic}, ${doc.city}`}</div>
+          <div className="cd-why" style={{ marginTop: 16 }}>
+            <div className="cd-why-label">{ml ? "എന്തുകൊണ്ട് ഈ യോജിപ്പ്" : "Why this match"}</div>
+            <ul className="cd-why-list">
+              {why.map((w, i) => <li key={i}><span className="cd-tick" aria-hidden="true">✓</span>{w}</li>)}
+            </ul>
+          </div>
+          <div className="row" style={{ gap: "var(--sp-3)", marginTop: 18, alignItems: "center", flexWrap: "wrap" }}>
+            <Link className="ed-cta" to={doctorsLink(finderSpecialty)}>{ml ? "ഡോക്ടറെ കാണുക" : "View doctor"} →</Link>
+            <a className="ed-link" href={`tel:${doc.phone.replace(/\s/g, "")}`}>{ml ? "വിളിക്കുക" : "Call"}</a>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="tm-none" style={{ marginTop: 6 }}>
+            {ml ? `നിങ്ങളുടെ ഡയറക്ടറിയിൽ ${finderSpecialty} ലഭ്യമല്ല.` : `No matching ${finderSpecialty} is currently available in your directory.`}
+          </p>
+          <Link className="ed-link" to={doctorsLink(finderSpecialty)} style={{ marginTop: 10 }}>{ml ? "മറ്റ് ഡോക്ടർമാരെ കാണുക" : "Browse doctors"} →</Link>
+        </>
+      )}
     </div>
   );
 }
@@ -143,6 +207,9 @@ export default function Triage() {
       </div>
 
       {result && <TriageResult result={result} lang={lang} />}
+      {result && result.specialist && (
+        <DoctorSuggestion specialist={result.specialist} urgent={result.urgent} lang={lang} />
+      )}
     </>
   );
 }

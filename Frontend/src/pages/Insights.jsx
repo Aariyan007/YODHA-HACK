@@ -24,25 +24,25 @@ function LabRow({ l, series }) {
   );
 }
 
-// ── Condition card ────────────────────────────────────────────
+// ── Condition clinical tag ────────────────────────────────────
+// Shows only data that exists (name, optional status, optional since).
+// No invented medical metadata.
 function ConditionCard({ c }) {
-  const { t } = useT();
-  const statusEmoji = { good: "🟢", watch: "🟠", alert: "🔴" };
+  const { t, lang } = useT();
+  const ml = lang === "ml";
+  const tag = c.status ? t(c.status) : (ml ? "സജീവം" : "Active");
+  const meta = c.since
+    ? `${ml ? "മുതൽ" : "Since"} ${c.since}`
+    : (ml ? "രേഖയിൽ" : "On record");
   return (
-    <div className="card-sm" style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
-      <span style={{ fontSize: "1rem", flexShrink: 0 }} aria-hidden="true">
-        {statusEmoji[c.status] || "🔵"}
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: "var(--fw-medium)" }}>{c.name}</div>
-        {c.since && (
-          <div className="text-dim" style={{ fontSize: "var(--font-xs)", marginTop: 2 }}>
-            {t("since")} {c.since}
-          </div>
-        )}
+    <li className="cond-item">
+      <span className={`cond-dot ${c.status || ""}`} aria-hidden="true" />
+      <div className="cond-body">
+        <span className="cond-name" title={c.name}>{c.name}</span>
+        <span className="cond-meta">{meta}</span>
       </div>
-      {c.status && <Status value={c.status} />}
-    </div>
+      <span className={`cond-tag ${c.status || ""}`}>{tag}</span>
+    </li>
   );
 }
 
@@ -113,9 +113,9 @@ export function InsightsView({ data }) {
       {conditions.length > 0 && (
         <div className="section" style={{ marginTop: 0, marginBottom: 0 }}>
           <h3>{t("conditions")}</h3>
-          <div className="list">
+          <ul className="cond-grid">
             {conditions.map((c) => <ConditionCard key={c.name} c={c} />)}
-          </div>
+          </ul>
         </div>
       )}
     </div>
@@ -127,20 +127,31 @@ export default function Insights() {
   const ml = lang === "ml";
   const { data, loading, error, reload } = useApi(getInsights);
   const health = useApi(getHealthCheck);
-  if (loading || error) return <Loading error={error} onRetry={reload} />;
+  // Only block on the first load; background reloads (after saving a reading)
+  // must not unmount the form and lose its comparison result.
+  if (!data) return <Loading error={error} onRetry={reload} />;
   return (
     <>
-      <div className="page-header"><h2>{t("insights")}</h2></div>
-      <div className="insights-top">
-        <section className="section" style={{ marginTop: 0 }}>
-          <h3>{t("healthCheck")}</h3>
-          {health.loading || health.error ? <Loading error={health.error} onRetry={health.reload} /> : <HealthCheckPanel data={health.data} />}
-        </section>
-        <section className="section" style={{ marginTop: 0 }}>
-          <h3>{ml ? "വീട്ടിലെ റീഡിംഗ് ചേർക്കുക" : "Add a home reading"}</h3>
-          <VitalsForm onSaved={() => { reload(); health.reload(); }} />
-        </section>
-      </div>
+      <header className="ph" style={{ paddingTop: "clamp(20px,4vw,40px)" }}>
+        <div className="ed-kicker">{ml ? "ആരോഗ്യ പരിശോധന" : "Health check"}</div>
+        <h1 className="ph-greet">{ml ? "ഇന്ന്, നിങ്ങളുടെ " : "Today, against your "}<span className="nm">{ml ? "കഥയോട് ചേർത്ത്" : "story"}</span>.</h1>
+        <p className="ph-sub" style={{ marginTop: "var(--sp-3)" }}>
+          {ml ? "ഇന്നത്തെ അളവ് നിങ്ങളുടെ ഹെൽത്ത് ത്രെഡുമായി MediThread താരതമ്യം ചെയ്യുന്നു."
+              : "MediThread connects today's measurement to your health thread."}
+        </p>
+      </header>
+
+      <section className="ed-section" style={{ marginTop: "clamp(28px,4vw,44px)" }}>
+        <VitalsForm onSaved={() => { reload(); health.reload(); }} insights={data} />
+      </section>
+
+      <section className="ed-section">
+        <div className="ed-section-head">
+          <div><div className="ed-kicker">{ml ? "ഇത് എന്ത് അർത്ഥമാക്കുന്നു" : "What it means"}</div><h3>{t("healthCheck")}</h3></div>
+        </div>
+        {health.loading || health.error ? <Loading error={health.error} onRetry={health.reload} /> : <HealthCheckPanel data={health.data} />}
+      </section>
+
       <InsightsView data={data} />
     </>
   );

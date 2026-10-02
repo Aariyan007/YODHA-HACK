@@ -90,14 +90,17 @@ export default function Upload() {
 
   return (
     <>
-      <div className="page-header">
-        <h2>{ml ? "പുതിയ രേഖ ചേർക്കുക" : "Add a new record"}</h2>
-      </div>
-      <p className="text-muted text-sm" style={{ marginBottom: "var(--sp-5)" }}>
-        {ml
-          ? "പ്രിസ്ക്രിപ്ഷന്റെയോ ലാബ് റിപ്പോർട്ടിന്റെയോ ഫോട്ടോ അപ്‌ലോഡ് ചെയ്യുക."
-          : "Upload a clear photo of a prescription or lab report."}
-      </p>
+      <header className="ph" style={{ paddingTop: "clamp(20px,4vw,40px)", marginBottom: "var(--sp-8)" }}>
+        <div className="ed-kicker">{ml ? "ത്രെഡിലേക്ക് ചേർക്കുക" : "Add to your thread"}</div>
+        <h1 className="ph-greet" style={{ fontSize: "clamp(1.9rem,1.3rem+2.6vw,3rem)" }}>
+          {ml ? "പുതിയ രേഖ" : "A new record."}
+        </h1>
+        <p className="ph-sub" style={{ marginTop: "var(--sp-3)" }}>
+          {ml
+            ? "പ്രിസ്ക്രിപ്ഷന്റെയോ ലാബ് റിപ്പോർട്ടിന്റെയോ വ്യക്തമായ ഫോട്ടോ. AI വായിച്ച് നിങ്ങളുടെ കഥയിലേക്ക് ചേർക്കും."
+            : "A clear photo of a prescription or lab report. The AI reads it and weaves it into your health thread."}
+        </p>
+      </header>
 
       {/* Upload card */}
       {!done && (

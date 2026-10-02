@@ -4,6 +4,7 @@ import { BrowserRouter, HashRouter } from "react-router-dom";
 import { SINGLE } from "./routing.js";
 import App from "./App.jsx";
 import "./styles.css";
+import "./redesign.css";
 
 const Router = SINGLE ? HashRouter : BrowserRouter;
 

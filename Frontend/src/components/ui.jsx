@@ -40,9 +40,11 @@ export function Loading({ error, onRetry }) {
 export function Empty({ children }) {
   return (
     <div className="empty animate-in">
-      <svg className="empty-mark" viewBox="0 0 64 64" aria-hidden="true">
-        <circle cx="32" cy="32" r="26" className="em-ring" />
-        <path d="M18 34h8l5-12 7 22 5-10h5" className="em-pulse" />
+      <svg className="empty-mark" viewBox="0 0 48 72" aria-hidden="true">
+        <line x1="24" y1="12" x2="24" y2="60" className="em-thread" />
+        <circle cx="24" cy="12" r="5" className="em-node" />
+        <circle cx="24" cy="36" r="4" className="em-node soft" />
+        <circle cx="24" cy="60" r="6" className="em-node open" />
       </svg>
       <p>{children}</p>
     </div>

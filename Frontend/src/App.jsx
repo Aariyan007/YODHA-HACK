@@ -4,7 +4,7 @@ import { reducedMotion } from "./anim.js";
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getToken, setToken } from "./api/client.js";
 import { LangContext, useT } from "./i18n.js";
-import { getTheme, toggleTheme } from "./theme.js";
+import { getTheme, setTheme, toggleTheme } from "./theme.js";
 import StartupScreen from "./components/StartupScreen.jsx";
 import Login from "./pages/Login.jsx";
 import Home from "./pages/Home.jsx";
@@ -264,6 +264,10 @@ export default function App() {
     sessionStorage.setItem(STARTUP_KEY, "1");
     setShowStartup(false);
   };
+
+  // Ensure the saved theme is applied as an attribute (the pre-paint inline
+  // script can be missing in some embeds); default is the editorial paper look.
+  useEffect(() => { setTheme(getTheme()); }, []);
 
   // Lenis smooth scroll, driven by the GSAP ticker so ScrollTrigger stays in sync.
   // Cleaned up on unmount (StrictMode mounts twice in dev) and skipped for reduced motion.

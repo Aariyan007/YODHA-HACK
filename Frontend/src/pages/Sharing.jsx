@@ -2,6 +2,7 @@ import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { createInvite, createShare, getAccessLog, getFamily, listMyDoctors, removeDoctor } from "../api/client.js";
 import { Empty, Loading } from "../components/ui.jsx";
+import { EdSection } from "../components/editorial.jsx";
 import { useT } from "../i18n.js";
 import { appPath, appUrl } from "../routing.js";
 import { useApi } from "../useApi.js";
@@ -159,106 +160,77 @@ export default function Sharing() {
   };
 
   const fullUrl = share ? appUrl(share.url) : "";
+  const { lang } = useT();
+  const ml = lang === "ml";
+  const hasFamily = (family.data?.length ?? 0) > 0;
 
   return (
-    <>
-      <div className="page-header">
-        <h2>{t("sharing")}</h2>
-      </div>
+    <div className="share-page">
+      <header className="ph" style={{ paddingTop: "clamp(20px,4vw,40px)" }}>
+        <div className="ed-kicker">{t("sharing")}</div>
+        <h1 className="ph-greet">{ml ? "നിങ്ങളുടെ കഥ " : "Share your "}<span className="nm">{ml ? "പങ്കിടുക" : "health story"}</span>.</h1>
+        <p className="share-lead">{ml ? "ആർക്കൊക്കെ, എങ്ങനെ നിങ്ങളുടെ ആരോഗ്യ രേഖ കാണാമെന്ന് തീരുമാനിക്കുക." : "Choose how someone can access your health story."}</p>
+      </header>
 
-      <div className="grid-2">
-        <div className="stack" style={{ gap: "var(--sp-8)" }}>
-          <InviteDoctor />
-          {/* Share with doctor */}
-          <div className="section stagger-1" style={{ marginTop: 0 }}>
-            <h3>{t("shareTitle")}</h3>
-            <div className="card">
-              <p className="text-sm text-muted" style={{ marginBottom: "var(--sp-4)" }}>{t("shareHelp")}</p>
-
-              <div className="row" style={{ gap: "var(--sp-3)", flexWrap: "wrap" }}>
-                <select
-                  id="share-hours-select"
-                  value={hours}
-                  onChange={(e) => setHours(Number(e.target.value))}
-                  style={{ flexShrink: 0 }}
-                >
-                  <option value={1}>1 hour</option>
-                  <option value={24}>24 hours</option>
-                  <option value={72}>3 days</option>
-                </select>
-                <button
-                  id="create-share-btn"
-                  className="primary"
-                  onClick={create}
-                  disabled={creating}
-                >
-                  {creating ? "Creating…" : t("createLink")}
-                </button>
+      {/* SHARE WITH A DOCTOR — QR is the primary mechanism */}
+      <EdSection kicker={ml ? "ഒറ്റത്തവണ ലിങ്ക്" : "One-time link"} title={t("shareTitle")}>
+        <div className="card" style={{ padding: "var(--sp-6)" }}>
+          <p className="text-sm text-muted" style={{ marginBottom: "var(--sp-4)" }}>{t("shareHelp")}</p>
+          <div className="row" style={{ gap: "var(--sp-3)", flexWrap: "wrap" }}>
+            <select id="share-hours-select" value={hours} onChange={(e) => setHours(Number(e.target.value))} style={{ flexShrink: 0 }}>
+              <option value={1}>1 hour</option>
+              <option value={24}>24 hours</option>
+              <option value={72}>3 days</option>
+            </select>
+            <button id="create-share-btn" className="ed-cta" onClick={create} disabled={creating}>
+              {creating ? "Creating…" : t("createLink")}
+            </button>
+          </div>
+          {error && <p className="error text-sm mt-3" role="alert">{error}</p>}
+          {share && (
+            <div className="qr animate-in" style={{ marginTop: "var(--sp-6)" }}>
+              <div style={{ background: "white", padding: "var(--sp-3)", borderRadius: "var(--r-md)", display: "inline-block", boxShadow: "var(--shadow-md)" }}>
+                <QRCodeSVG value={fullUrl} size={180} />
               </div>
-
-              {error && <p className="error text-sm mt-3" role="alert">{error}</p>}
-
-              {share && (
-                <div className="qr animate-in" style={{ marginTop: "var(--sp-6)" }}>
-                  <div style={{ background: "white", padding: "var(--sp-3)", borderRadius: "var(--r-md)", display: "inline-block", boxShadow: "var(--shadow-md)" }}>
-                    <QRCodeSVG value={fullUrl} size={180} />
-                  </div>
-                  <a
-                    href={appPath(share.url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="qr-url text-xs text-dim"
-                    style={{ maxWidth: 300, wordBreak: "break-all", textAlign: "center" }}
-                  >
-                    {fullUrl}
-                  </a>
-                  <span className="text-xs text-dim">
-                    {t("expires")}: {new Date(share.expiresAt).toLocaleString("en-IN")}
-                  </span>
-                  <div className="row qr-actions">
-                    <a className="btn" href={appPath(share.url)} target="_blank" rel="noreferrer">
-                      Preview patient view
-                    </a>
-                    <a className="btn primary" href={appPath(`/console/${share.token}`)} target="_blank" rel="noreferrer">
-                      Open doctor console
-                    </a>
-                  </div>
-                </div>
-              )}
+              <a href={appPath(share.url)} target="_blank" rel="noreferrer" className="qr-url text-xs text-dim" style={{ maxWidth: 300, wordBreak: "break-all", textAlign: "center" }}>
+                {fullUrl}
+              </a>
+              <span className="text-xs text-dim">{t("expires")}: {new Date(share.expiresAt).toLocaleString("en-IN")}</span>
+              <div className="row qr-actions">
+                <a className="btn" href={appPath(share.url)} target="_blank" rel="noreferrer">Preview patient view</a>
+                <a className="btn primary" href={appPath(`/console/${share.token}`)} target="_blank" rel="noreferrer">Open doctor console</a>
+              </div>
             </div>
-          </div>
-
-          {/* Access log */}
-          <div className="section stagger-3" style={{ marginTop: 0 }}>
-            <h3>{t("accessLog")}</h3>
-            {log.loading || log.error ? (
-              <Loading error={log.error} onRetry={log.reload} />
-            ) : (
-              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <tbody>
-                    {log.data.map((a) => <AccessRow key={a.id} a={a} />)}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          )}
         </div>
+      </EdSection>
 
-        <div className="stack" style={{ gap: "var(--sp-8)" }}>
-          {/* Family */}
-          <div className="section stagger-2" style={{ marginTop: 0 }}>
-            <h3>{t("family")}</h3>
-            {family.loading || family.error ? (
-              <Loading error={family.error} onRetry={family.reload} />
-            ) : (
-              <div className="list">
-                {family.data.map((f) => <FamilyRow key={f.id} f={f} />)}
-              </div>
-            )}
+      {/* CURRENT ACCESS — invite a doctor account + who can see */}
+      <InviteDoctor />
+
+      {/* ACCESS HISTORY */}
+      <EdSection kicker={ml ? "പ്രവർത്തനം" : "Activity"} title={t("accessLog")}>
+        {log.loading || log.error ? (
+          <Loading error={log.error} onRetry={log.reload} />
+        ) : log.data.length === 0 ? (
+          <p className="ed-meta">{ml ? "ഇതുവരെ ആരും കണ്ടിട്ടില്ല." : "No one has viewed your records yet."}</p>
+        ) : (
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>{log.data.map((a) => <AccessRow key={a.id} a={a} />)}</tbody>
+            </table>
           </div>
-        </div>
-      </div>
-    </>
+        )}
+      </EdSection>
+
+      {/* FAMILY / CAREGIVERS — only when it has content */}
+      {hasFamily && (
+        <EdSection kicker={ml ? "പരിചരണം" : "Caregivers"} title={t("family")}>
+          <div className="share-fam-grid">
+            {family.data.map((f) => <FamilyRow key={f.id} f={f} />)}
+          </div>
+        </EdSection>
+      )}
+    </div>
   );
 }

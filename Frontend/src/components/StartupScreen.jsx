@@ -60,10 +60,10 @@ export default function StartupScreen({ onDone }) {
     return () => tl.kill();
   }, [onDone]);
 
-  // Brand colors
-  const SAGE     = "#557A6A";
-  const SAGE_LT  = "#8AB5A2";
-  const SAGE_BG  = "#E6EEE9";
+  // Brand colors (MediThread sage system)
+  const SAGE     = "#659287";
+  const SAGE_LT  = "#88BDA4";
+  const SAGE_BG  = "#E6F2DD";
   const TEXT_MED = "var(--text-2)";
   const TEXT_DIM = "var(--text-3)";
 
