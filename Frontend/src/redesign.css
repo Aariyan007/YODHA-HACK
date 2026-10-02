@@ -1396,3 +1396,44 @@ textarea:focus-visible, .care-doc:focus-visible, .now-cell:focus-visible, [tabin
    ============================================================ */
 .ed-cta, .ed-link, .now-cell, .tabs a { -webkit-tap-highlight-color: transparent; }
 button.ed-cta, a.ed-cta { min-height: 48px; }
+
+/* ============================================================
+   VISIT CLASSIFICATION — the visit sorted by type (doctor console)
+   ============================================================ */
+.vc { padding: clamp(18px, 2.4vw, 26px); }
+.vc-block { margin-top: 20px; }
+.vc-title {
+  font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;
+  color: var(--brand-dark); padding-bottom: 8px; border-bottom: 1px solid var(--hairline);
+}
+.vc-hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-3); }
+.vc-list { list-style: none; margin: 0; padding: 0; }
+.vc-item {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: start;
+  padding: 12px 0; border-bottom: 1px solid var(--hairline);
+}
+.vc-main { min-width: 0; color: var(--text); line-height: 1.5; }
+.vc-tools { display: flex; gap: 6px; align-items: center; }
+.vc-src, .vc-x {
+  font-size: var(--font-xs); padding: 4px 10px; min-height: 32px; border-radius: var(--r-full);
+  border: 1px solid var(--hairline); background: var(--surface); color: var(--text-2); cursor: pointer;
+}
+.vc-src:hover, .vc-x:hover { border-color: var(--brand-border); color: var(--brand-dark); }
+.vc-item.gone .vc-main { opacity: 0.45; text-decoration: line-through; }
+.vc-gone-note { grid-column: 1 / -1; font-size: var(--font-xs); color: var(--text-3); }
+.vc-med-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.vc-med-name { font-family: var(--font-display); font-size: 1.15rem; font-weight: 500; color: var(--ink); }
+.vc-generic { font-size: var(--font-xs); color: var(--text-3); }
+.vc-act {
+  font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700;
+  padding: 3px 9px; border-radius: var(--r-full); border: 1px solid var(--hairline);
+}
+.vc-act.good { color: var(--success); background: var(--success-bg); border-color: var(--success-border); }
+.vc-act.info { color: var(--brand-dark); background: var(--brand-soft); border-color: var(--brand-border); }
+.vc-act.watch { color: var(--amber); background: var(--amber-soft); border-color: var(--warning-border); }
+.vc-act.alert { color: var(--rust); background: var(--rust-soft); border-color: var(--danger-border); }
+.vc-det { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 8px 0 0; }
+.vc-det > div { display: flex; flex-direction: column; gap: 1px; }
+.vc-det dt { font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+.vc-det dd { margin: 0; font-size: var(--font-sm); color: var(--text); }
+.vc-warn { font-size: var(--font-xs); color: var(--amber); margin-top: 6px; }

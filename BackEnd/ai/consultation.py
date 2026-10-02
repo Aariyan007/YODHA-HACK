@@ -18,6 +18,7 @@ from typing import Any
 from groq import Groq
 
 MODEL = "openai/gpt-oss-120b"
+FALLBACK_MODEL = "openai/gpt-oss-20b"  # own quota; used when MODEL is rate-limited (finalize only)
 TIMEOUT_S = 25.0
 
 EMPTY_SOAP = {"subjective": None, "objective": None, "assessment": None, "plan": None}
@@ -27,34 +28,82 @@ def _client() -> Groq:
     key = os.getenv("GROQ_API_KEY")
     if not key:
         raise RuntimeError("GROQ_API_KEY is not set.")
-    return Groq(api_key=key, timeout=TIMEOUT_S)
+    # max_retries=0: the SDK would otherwise retry a rate-limited call twice, honouring retry-after, which can
+    # hang a request for a minute (nginx then answers 504). Fail fast and use the fallback; finalize waits explicitly.
+    return Groq(api_key=key, timeout=TIMEOUT_S, max_retries=0)
 
 
-def _chat_json(system: str, user: str, max_tokens: int = 900) -> dict[str, Any] | None:
-    """Single JSON-mode Groq call. Returns parsed dict or None on any failure."""
+def _is_limit(e: Exception) -> bool:
+    return type(e).__name__ == "RateLimitError"
+
+
+def _retry_after(e: Exception) -> float | None:
     try:
-        client = _client()
-        kwargs = dict(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            max_tokens=max_tokens,
-            temperature=0.1,
-            response_format={"type": "json_object"},
-        )
-        try:
-            r = client.chat.completions.create(**kwargs, reasoning_effort="low")
-        except TypeError:
-            r = client.chat.completions.create(**kwargs)
-        text = (r.choices[0].message.content or "").strip()
-        if not text:
-            return None
-        return json.loads(text)
-    except Exception as e:
-        print(f"[consultation] JSON call failed: {type(e).__name__}")
+        return float(e.response.headers.get("retry-after"))  # type: ignore[attr-defined]
+    except Exception:
         return None
+
+
+def _chat_json(system: str, user: str, max_tokens: int = 900, wait_on_limit: float = 0.0,
+               fallback_model: str | None = None) -> dict[str, Any] | None:
+    """Single JSON-mode Groq call. Returns parsed dict or None on any failure.
+
+    Rate limits (the free tier is 8,000 tokens/minute and 200,000 tokens/day per model):
+    - fallback_model: when the main model is rate-limited, try this one right away. It has its own quota.
+    - wait_on_limit > 0: still limited -> wait if Groq says the wait is at most this many seconds (a per-minute
+      limit), then try the main model once more. A daily limit is never waited out; the caller falls back instead.
+    Live per-line calls leave both unset so the doctor's screen never stalls.
+    """
+    try:
+        return _chat_json_once(system, user, max_tokens)
+    except Exception as e:
+        if not _is_limit(e):
+            print(f"[consultation] JSON call failed: {type(e).__name__}")
+            return None
+        first = e
+    if fallback_model:
+        try:
+            out = _chat_json_once(system, user, max_tokens, model=fallback_model)
+            print(f"[consultation] used {fallback_model}: {MODEL} is rate-limited")
+            return out
+        except Exception as e2:
+            if not _is_limit(e2):
+                print(f"[consultation] fallback model failed: {type(e2).__name__}")
+                return None
+    after = _retry_after(first)
+    if wait_on_limit and after is not None and after <= wait_on_limit:
+        import time
+        time.sleep(max(after, 1.0))
+        try:
+            return _chat_json_once(system, user, max_tokens)
+        except Exception as e3:
+            print(f"[consultation] JSON call failed after wait: {type(e3).__name__}")
+            return None
+    print("[consultation] JSON call failed: RateLimitError")
+    return None
+
+
+def _chat_json_once(system: str, user: str, max_tokens: int, model: str | None = None) -> dict[str, Any] | None:
+    """One JSON-mode Groq call. Raises on API errors so the caller can decide to wait and retry."""
+    client = _client()
+    kwargs = dict(
+        model=model or MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        max_tokens=max_tokens,
+        temperature=0.1,
+        response_format={"type": "json_object"},
+    )
+    try:
+        r = client.chat.completions.create(**kwargs, reasoning_effort="low")
+    except TypeError:
+        r = client.chat.completions.create(**kwargs)
+    text = (r.choices[0].message.content or "").strip()
+    if not text:
+        return None
+    return json.loads(text)
 
 
 def _lines_block(lines: list[dict]) -> str:
@@ -71,6 +120,7 @@ _PARTIAL_SYSTEM = (
     "Each value is a short string or null. Fill a field only when the transcript clearly supports it. "
     "ASSESSMENT must only restate what the DOCTOR explicitly said. If the doctor did not state an "
     "assessment, assessment MUST be null. Never diagnose on your own. Never invent medicines. "
+    "Ignore greetings, small talk and any chat that is not about the patient's health. "
     "Keep each field under two sentences. Do not include any extra keys."
 )
 
@@ -124,6 +174,7 @@ _FINAL_SYSTEM = (
     "ASSESSMENT.text may only restate what the DOCTOR said in the transcript. "
     "If the doctor stated no assessment, use {\"text\": null, \"source_lines\": []} for assessment. "
     "Never invent medicines; include only ones the doctor actually prescribed. "
+    "Ignore greetings, small talk and any chat that is not about the patient's health. "
     "Keep each 'text' two to four short sentences. Return no extra keys."
 )
 
@@ -132,9 +183,9 @@ def final_soap(lines: list[dict], retry: bool = True) -> dict:
     """Return SOAP with per-field source_line indexes. One retry on malformed output."""
     if not lines:
         return _empty_final()
-    out = _chat_json(_FINAL_SYSTEM, _lines_block(lines), max_tokens=1200)
+    out = _chat_json(_FINAL_SYSTEM, _lines_block(lines), max_tokens=1200, wait_on_limit=8.0, fallback_model=FALLBACK_MODEL)
     if not _looks_final(out) and retry:
-        out = _chat_json(_FINAL_SYSTEM, _lines_block(lines), max_tokens=1500)
+        out = _chat_json(_FINAL_SYSTEM, _lines_block(lines), max_tokens=1500, wait_on_limit=8.0, fallback_model=FALLBACK_MODEL)
     if not _looks_final(out):
         return _empty_final()
     return _normalise_final(out, max_idx=len(lines) - 1)

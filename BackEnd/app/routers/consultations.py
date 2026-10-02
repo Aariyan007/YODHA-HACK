@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 import time as _time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 
@@ -29,6 +30,7 @@ from sqlalchemy.orm import Session
 from ai import consultation as consult_ai
 from ai import medterms
 from ai import transcribe as stt
+from ai import visit_classify
 from ai import reminders as reminders_mod
 from ai import decision as laya_decision
 from ai.safety import allergy_hit, check_pair_level, to_generic
@@ -56,6 +58,9 @@ class LineBody(BaseModel):
 
 class ApproveBody(BaseModel):
     edits: dict[str, Any] = Field(default_factory=dict)
+    # Items the doctor removed from the classified visit: {"medicines": [1], "diagnoses": [0], "follow_up": [0]}
+    # (indexes into what the server stored; the client can never add or change an item).
+    removedItems: dict[str, list[int]] = Field(default_factory=dict)
 
 
 # ---------- helpers ----------
@@ -470,7 +475,15 @@ def finalize(
     if c.status == "approved":
         raise HTTPException(409, "Consultation already approved")
     lines = list(c.transcript_lines or [])
-    final = consult_ai.final_soap(lines)
+    active_names = [m["name"] for m in _active_meds(db, c.patient_id)]
+    # The SOAP note and the classification are independent AI calls: run them side by side.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        soap_f = pool.submit(consult_ai.final_soap, lines)
+        cls_f = pool.submit(visit_classify.classify, lines, active_names)
+        final = soap_f.result()
+        cls = cls_f.result()
+    if cls:  # None when the AI was unavailable: approve then falls back to the old plan-text extraction
+        final["classification"] = cls
     c.final_note = final
     c.status = "draft"
     db.commit()
@@ -478,12 +491,70 @@ def finalize(
     return _consultation_out(c)
 
 
-def _extract_medicines_from_plan(plan_text: str | None, lines: list[dict]) -> list[dict]:
-    """Pull medicines from the plan text first, then fall back to any doctor
-    lines that look like a prescription. Returns extractor-style dicts."""
+_CLS_LISTS = ("complaints", "diagnoses", "medicines", "tests", "advice", "referrals")
+
+
+def _apply_removed(cls: dict, removed: dict[str, list[int]]) -> tuple[dict, list[dict]]:
+    """Drop the items the doctor removed on the review screen. The client sends only INDEXES into the
+    classification the server stored, so nothing the model did not produce (and code did not ground) can be saved."""
+    out = dict(cls)
+    gone: list[dict] = []
+    for key in _CLS_LISTS:
+        drop = {i for i in removed.get(key, []) if isinstance(i, int)}
+        kept = []
+        for idx, item in enumerate(cls.get(key) or []):
+            (gone.append({"kind": key, **item}) if idx in drop else kept.append(item))
+        out[key] = kept
+    if removed.get("follow_up") and cls.get("follow_up"):
+        gone.append({"kind": "follow_up", **cls["follow_up"]})
+        out["follow_up"] = None
+    return out, gone
+
+
+def _meds_from_classification(db: Session, patient_id: str, cls: dict) -> tuple[list[dict], list[Medicine]]:
+    """(medicines to add, existing medicines to switch off) from a classified prescription."""
+    active = list(db.scalars(select(Medicine).where(Medicine.patient_id == patient_id, Medicine.active.is_(True))))
+
+    def same(m: dict, row: Medicine) -> bool:
+        g, rg = (m.get("generic") or "").lower(), (row.generic or to_generic(row.name) or "").lower()
+        return bool((g and rg and g == rg) or m["name"].lower() == (row.name or "").lower())
+
+    add: list[dict] = []
+    stop: list[Medicine] = []
+    for m in cls.get("medicines") or []:
+        hits = [r for r in active if same(m, r)]
+        if m["action"] == "stop":
+            stop.extend(hits)
+            continue
+        if m["action"] == "continue" and hits:
+            continue  # already on the patient's list: do not create a duplicate
+        if m["action"] == "change":
+            stop.extend(hits)  # the new prescription replaces the old one
+        add.append({
+            "name": m["name"], "generic": m.get("generic"), "dose": m.get("dose"),
+            "schedule": m.get("frequency"), "duration": m.get("duration"),
+            "purpose": " · ".join(x for x in (m.get("timing"), m.get("instructions")) if x) or None,
+        })
+    return add, stop
+
+
+_STOP_CUE = re.compile(r"\b(stop|stopped|avoid|discontinue|discontinued|do\s+not|don'?t|no\s+need|hold)\b", re.I)
+_SENT_SPLIT = re.compile(r"[.!?;\n]+")
+
+
+def _extract_medicines_from_plan(plan_text: str | None, lines: list[dict], active: list[dict] | None = None) -> list[dict]:
+    """Fallback when the AI classification is unavailable: read known medicines out of the plan text and the
+    doctor's lines. Deliberately cautious:
+    - a sentence that says stop / avoid / do not never creates a prescription;
+    - dose / schedule / duration are read only from the SAME sentence as the medicine name;
+    - a medicine the patient is already on is not added a second time.
+    Returns extractor-style dicts."""
     meds: dict[str, dict] = {}
-    sources = [plan_text or ""]
-    sources.extend(ln["text"] for ln in lines if ln.get("speaker") == "doctor")
+    already = {(a.get("generic") or "").lower() for a in (active or []) if a.get("generic")}
+    raw_sources = [plan_text or ""]
+    raw_sources.extend(ln["text"] for ln in lines if ln.get("speaker") == "doctor")
+    sources = [sent for src in raw_sources for sent in _SENT_SPLIT.split(src)
+               if sent.strip() and not _STOP_CUE.search(sent)]
 
     # Patterns like "Tab Glycomet 500 mg BD x 7 days" or "Clarithromycin 500mg twice daily"
     dose_re = re.compile(r"(\d+\s*mg|\d+\s*ml|\d+\s*mcg)", re.I)
@@ -500,7 +571,7 @@ def _extract_medicines_from_plan(plan_text: str | None, lines: list[dict]) -> li
             g = to_generic(tok)
             if not g:
                 continue
-            if g in meds:
+            if g in meds or g.lower() in already:
                 continue
             # Snip a window around the token for dose/sched detection
             idx = src.lower().find(tok.lower())
@@ -549,11 +620,24 @@ def approve(
 
     lines = list(c.transcript_lines or [])
     plan_text = (final.get("plan") or {}).get("text")
-    meds = _extract_medicines_from_plan(plan_text, lines)
 
-    # Follow-up: pull a "review in N days" hint from the plan text if present
+    # Classified visit (AI, grounded in code). The doctor may have removed items on the review screen.
+    cls = final.get("classification")
+    classified = bool(cls) and cls.get("source") == "ai"
+    stopped: list[Medicine] = []
+    removed_items: list[dict] = []
+    if classified:
+        cls, removed_items = _apply_removed(cls, body.removedItems)
+        meds, stopped = _meds_from_classification(db, c.patient_id, cls)
+        final["classification"] = {**cls, "removed": removed_items}  # keep what was removed, for the record
+    else:
+        meds = _extract_medicines_from_plan(plan_text, lines, _active_meds(db, c.patient_id))  # AI unavailable
+
+    # Follow-up: the classified one if present, else a "review in N days" hint from the plan text
     follow_up = None
-    if plan_text:
+    if classified and cls.get("follow_up"):
+        follow_up = cls["follow_up"]["text"]
+    elif not classified and plan_text:
         m = re.search(r"(review|follow.?up|come\s+back)[^.]*", plan_text, re.I)
         if m:
             follow_up = m.group(0).strip().rstrip(".")
@@ -594,13 +678,16 @@ def approve(
                            name=v["name"], value=v["value"], unit=v["unit"], loinc=loinc_for(v["code"]), source="visit"))
 
     # Save medicines + build reminders
+    stopped_names = [r.name for r in stopped]
+    for row in stopped:  # the doctor stopped or replaced these: reminders for them must stop too
+        row.active = False
     for m in meds:
         times = reminders_mod.parse_schedule(m.get("schedule"))
         db.add(Medicine(
             patient_id=c.patient_id, document_id=doc_id,
-            name=m["name"], generic=m["generic"], dose=m.get("dose"),
-            frequency=m.get("schedule"), times=times,
-            instructions=m.get("purpose"),
+            name=m["name"][:120], generic=m["generic"], dose=(m.get("dose") or None) and m["dose"][:60],
+            frequency=(m.get("schedule") or None) and m["schedule"][:60], times=times,
+            instructions=(m.get("purpose") or None) and m["purpose"][:200],
             start_date=date_s, prescribed_by=c.doctor_name,
             duration_days=reminders_mod.parse_duration_days(m.get("schedule"), m.get("duration")),
         ))
@@ -671,7 +758,11 @@ def approve(
     except Exception:
         pass
 
-    return {"record": record, "alerts": saved_alerts, "reminders": rem_list}
+    return {
+        "record": record, "alerts": saved_alerts, "reminders": rem_list,
+        "classification": final.get("classification") if classified else None,  # includes what the doctor removed
+        "stoppedMedicines": stopped_names,
+    }
 
 
 @router.get("/{cid}")

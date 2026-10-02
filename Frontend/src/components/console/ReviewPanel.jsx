@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { approveConsultation, finalizeConsultation } from "../../api/client.js";
 import { Loading } from "../ui.jsx";
 import { FlagList } from "./FlagBanner.jsx";
+import { VisitClassification } from "./VisitClassification.jsx";
 
 /**
  * State 3 — Review & edit.
@@ -27,6 +28,9 @@ export function ReviewPanel({
   const [selectedField, setSelectedField] = useState(null);  // which field's source lines to highlight
   const [approving, setApproving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [classification, setClassification] = useState(null); // the visit sorted into diagnosis / medicines / tests ...
+  const [removed, setRemoved] = useState({});                 // { medicines: Set([1]), ... } items the doctor removed
+  const [hlLines, setHlLines] = useState(null);               // transcript lines of the classified item being inspected
 
   useEffect(() => {
     let alive = true;
@@ -35,6 +39,7 @@ export function ReviewPanel({
         if (!alive) return;
         setOriginal(d.finalNote);
         setDraft(d.finalNote);
+        setClassification(d.finalNote?.classification || null);
         setLoading(false);
       })
       .catch((e) => {
@@ -60,10 +65,23 @@ export function ReviewPanel({
   };
 
   const highlighted = useMemo(() => {
+    if (hlLines) return new Set(hlLines);
     if (!selectedField) return new Set();
     const src = (draft?.[selectedField]?.source_lines) || [];
     return new Set(src);
-  }, [selectedField, draft]);
+  }, [selectedField, draft, hlLines]);
+
+  const toggleRemoved = (kind, idx) => {
+    setRemoved((r) => {
+      const set = new Set(r[kind] || []);
+      if (set.has(idx)) set.delete(idx); else set.add(idx);
+      return { ...r, [kind]: set };
+    });
+  };
+  const showSource = (lines) => {
+    setSelectedField(null);
+    setHlLines((cur) => (cur && cur.join() === lines.join() ? null : lines));
+  };
 
   const askApprove = () => {
     setConfirming(true);
@@ -76,7 +94,9 @@ export function ReviewPanel({
       // Build an edits payload that only contains fields the doctor changed.
       const edits = {};
       for (const key of edited) edits[key] = draft[key];
-      const result = await approveConsultation(consultationId, edits, shareToken);
+      const removedItems = {};
+      for (const [kind, set] of Object.entries(removed)) if (set.size) removedItems[kind] = [...set];
+      const result = await approveConsultation(consultationId, edits, shareToken, removedItems);
       onApproved(result);
     } catch (e) {
       setError(e.message);
@@ -124,7 +144,7 @@ export function ReviewPanel({
                     {srcLines.length > 0 && (
                       <button
                         className="small"
-                        onClick={() => setSelectedField(selectedField === f.key ? null : f.key)}
+                        onClick={() => { setHlLines(null); setSelectedField(selectedField === f.key ? null : f.key); }}
                         aria-pressed={selectedField === f.key}
                         aria-label={`Highlight source lines for ${f.label}`}
                       >
@@ -144,6 +164,14 @@ export function ReviewPanel({
               </div>
             );
           })}
+
+          <VisitClassification data={classification} removed={removed} onToggle={toggleRemoved} onSource={showSource} />
+          {!classification && (
+            <div className="card" style={{ background: "var(--accent-soft)" }} role="note">
+              <strong>The visit could not be sorted automatically right now.</strong>{" "}
+              Medicines will be read from the Plan text above, so check the Plan carefully before approving.
+            </div>
+          )}
 
           <div className="row" style={{ gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <button onClick={onBack}>Keep editing</button>

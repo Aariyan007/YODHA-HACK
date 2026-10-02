@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { TimelineItem } from "../ui.jsx";
 import { LangContext } from "../../i18n.js";
+import { VisitClassification } from "./VisitClassification.jsx";
 
 /**
  * State 4 — Approved.
@@ -96,6 +97,8 @@ export function ApprovedPanel({ result, patient, onNewConsultation, onBack }) {
           <p className="muted small">{result.reminders.length} reminder(s) created.</p>
         )}
       </section>
+
+      <VisitClassification data={result.classification} readOnly stopped={result.stoppedMedicines || []} />
 
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
         <button className="primary" onClick={onNewConsultation}>Start new consultation</button>

@@ -68,6 +68,9 @@ def parse_duration_days(schedule: str | None, duration: str | None) -> int | Non
         m = re.search(r"(\d+)\s*(?:w|wk|week|weeks)\b", s)
         if m:
             return int(m.group(1)) * 7
+        m = re.search(r"(\d+)\s*(?:month|months)\b", s)
+        if m:
+            return int(m.group(1)) * 30
         m = re.search(r"x\s*(\d+)\b", s)
         if m:
             return int(m.group(1))

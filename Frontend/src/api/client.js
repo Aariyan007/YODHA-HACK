@@ -349,7 +349,7 @@ export function finalizeConsultation(consultationId, shareToken) {
 }
 
 // -> { record, alerts, reminders }
-export function approveConsultation(consultationId, edits, shareToken) {
+export function approveConsultation(consultationId, edits, shareToken, removedItems) {
   if (USE_MOCK) {
     const merged = structuredClone(mock.mockApprovedRecord);
     for (const k of ["subjective", "objective", "assessment", "plan"]) {
@@ -362,7 +362,7 @@ export function approveConsultation(consultationId, edits, shareToken) {
   }
   return shareReq(`/api/consultations/${encodeURIComponent(consultationId)}/approve`, {
     method: "POST",
-    body: { edits: edits || {} },
+    body: { edits: edits || {}, removedItems: removedItems || {} },
     shareToken,
   });
 }

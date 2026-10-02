@@ -1273,6 +1273,28 @@ export const mockFinalNote = {
   },
 };
 
+// Sample of what the real backend classifies from the scripted demo conversation above. Every item is
+// grounded in a transcript line (indexes match consultationScript) and details the doctor did not say are null.
+export const mockClassification = {
+  source: "ai",
+  complaints: [
+    { text: "Cough for 4 days", source_lines: [1] },
+    { text: "Breathless on climbing stairs for 3 weeks", source_lines: [3] },
+  ],
+  diagnoses: [],
+  medicines: [
+    { name: "Clarithromycin", generic: "clarithromycin", action: "start", dose: "500 mg", frequency: "BD", timing: null,
+      duration: "7 days", instructions: null, source_lines: [9] },
+    { name: "Glycomet", generic: "metformin", action: "start", dose: "500 mg", frequency: "BD", timing: null,
+      duration: null, instructions: null, source_lines: [10] },
+  ],
+  tests: [{ text: "Repeat chest check", source_lines: [12] }],
+  advice: [],
+  referrals: [],
+  follow_up: { text: "Follow-up review in 7 days", source_lines: [12] },
+  ignored_lines: [0, 11, 13],
+};
+
 export const mockApprovedRecord = {
   record: {
     id: "visit-mock",
@@ -1348,3 +1370,8 @@ export const fhirAlreadyImported = {
   total: 0, duplicates: 2, alreadyImported: true, ignored: [], skippedInvalid: 0,
   message: "You already imported this hospital record. Nothing new was added.", records: [], alerts: [],
 };
+
+// Attach the sample classification to the offline demo's review and approved screens.
+mockFinalNote.classification = mockClassification;
+mockApprovedRecord.classification = mockClassification;
+mockApprovedRecord.stoppedMedicines = [];

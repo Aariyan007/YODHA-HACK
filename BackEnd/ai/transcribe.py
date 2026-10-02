@@ -41,7 +41,8 @@ def _client() -> Groq:
     key = os.getenv("GROQ_API_KEY")
     if not key:
         raise TranscribeError("Voice transcription is not set up on this server yet (the Groq key is missing).", 503)
-    return Groq(api_key=key, timeout=TIMEOUT_S)
+    # max_retries=0: clips are uploaded in order; a hidden retry-after wait would stall every clip behind it.
+    return Groq(api_key=key, timeout=TIMEOUT_S, max_retries=0)
 
 
 def _get(obj: Any, name: str, default=None):
