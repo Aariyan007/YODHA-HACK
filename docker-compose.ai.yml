@@ -2,7 +2,10 @@
 #   docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build --wait
 # Needs a fine-tuned checkpoint in ./models/laya (see ml/README.md). For a quick look with the zero-shot Hub model
 # instead (NOT gated, development only):  LAYA_FALLBACK=typed-decisions LAYA_ALLOW_UNGATED=1 docker compose -f ... up
-# Docker Desktop's memory should be at least 6 GB (Settings > Resources); Laya alone uses about 1.6 GB.
+# Docker Desktop's memory should be at least 6 GB (Settings > Resources); Laya alone uses about 1.6 GB. On a Mac, inference inside Docker
+# is 3-5x slower than running the service natively (about 1.5-3 s against 0.1-0.5 s). Faster: run it on the host
+#   cd laya && LAYA_MODEL_DIR=../models/laya ../path/to/venv/bin/uvicorn app:app --port 8090
+# and start the stack WITHOUT this file, with  LAYA_URL=http://host.docker.internal:8090  set for the backend.
 services:
   laya:
     build: ./laya
@@ -15,6 +18,7 @@ services:
       LAYA_MIN_SPECIALIST_ACC: ${LAYA_MIN_SPECIALIST_ACC:-0.70}
     volumes:
       - ./models/laya:/models/laya:ro
+      - hf-cache:/hf   # only used by the LAYA_FALLBACK development path (downloads the Hub model once)
     read_only: true
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]
@@ -27,5 +31,9 @@ services:
       LAYA_URL: http://laya:8080
       LAYA_API_KEY: ${LAYA_API_KEY:-}
       LAYA_ALLOW_UNGATED: ${LAYA_ALLOW_UNGATED:-0}
+      LAYA_TIMEOUT_MS: ${LAYA_TIMEOUT_MS:-4000}
     depends_on:
       laya: { condition: service_healthy }
+
+volumes:
+  hf-cache:

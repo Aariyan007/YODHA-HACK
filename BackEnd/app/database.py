@@ -16,9 +16,16 @@ def _make_engine():
     # Normalise any Postgres scheme (postgres://, postgresql+psycopg://, ...) to psycopg2.
     if url.startswith("postgres") and "://" in url:
         url = "postgresql+psycopg2://" + url.split("://", 1)[1]
+    if url.startswith("postgresql") and (os.getenv("DB_POOL_MODE") or "").strip().lower() == "transaction":
+        # Supabase's session pooler (port 5432) allows few clients in total; the transaction pooler (6543) allows many.
+        # Safe here: we use plain SQL with no prepared statements, advisory locks or session state.
+        url = url.replace(":5432/", ":6543/")
     if url.startswith("postgresql"):
         try:
-            eng = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 8})
+            # Supabase's session pooler allows only a handful of client connections per project, so keep this process small:
+            # 3 + 2 overflow, recycled every 5 minutes (the default 5 + 10 can starve other processes and the tests).
+            eng = create_engine(url, pool_pre_ping=True, pool_size=3, max_overflow=2, pool_recycle=300,
+                                connect_args={"connect_timeout": 8})
             with eng.connect() as conn:
                 conn.execute(text("select 1"))
             print("[db] Connected to Supabase Postgres")

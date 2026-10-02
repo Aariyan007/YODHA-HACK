@@ -1,11 +1,11 @@
 # Laya decision service (CPU). Weights are NOT in the image: mount your fine-tuned folder at /models/laya.
 FROM python:3.12-slim
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 HF_HOME=/tmp/hf
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 HF_HOME=/hf
 WORKDIR /srv
 # CPU-only torch keeps the image near 1.5 GB instead of 4 GB
 RUN pip install --index-url https://download.pytorch.org/whl/cpu torch && pip install "laya" fastapi "uvicorn[standard]"
 COPY app.py .
-RUN useradd --system --uid 10002 --no-create-home laya
+RUN useradd --system --uid 10002 --no-create-home laya && mkdir /hf && chown laya /hf
 USER laya
 EXPOSE 8080
 HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=5 \

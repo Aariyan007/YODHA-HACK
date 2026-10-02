@@ -7,7 +7,8 @@ Contract (see docs in README, "AI decision layer"):
     rules alone. Nothing here ever raises into a request.
   * Answers are cached in Redis (key = model + hash of the input) and audited in `ai_decisions` (hash only, no text).
 
-Env: LAYA_URL (e.g. http://laya:8080; empty = disabled), LAYA_API_KEY, LAYA_TIMEOUT_MS (default 800),
+Env: LAYA_URL (e.g. http://laya:8080; empty = disabled), LAYA_API_KEY, LAYA_TIMEOUT_MS (triage, default 4000: CPU
+inference takes 0.1-0.5 s natively but 1.5-3 s inside Docker on a Mac), LAYA_LINE_TIMEOUT_MS (consultation lines, default 1200),
 LAYA_ALLOW_UNGATED=1 to use a model whose evaluation gate has not passed (development).
 """
 from __future__ import annotations
@@ -49,7 +50,7 @@ def _headers() -> dict:
 def _http() -> httpx.Client:
     global _client
     if _client is None:
-        _client = httpx.Client(timeout=httpx.Timeout(float(os.getenv("LAYA_TIMEOUT_MS", "800")) / 1000.0, connect=0.5))
+        _client = httpx.Client(timeout=httpx.Timeout(10.0, connect=0.5))  # per-call budgets are set in _call
     return _client
 
 
@@ -97,6 +98,11 @@ def _record_success() -> None:
     _fails = 0
 
 
+def _budget(kind: str) -> httpx.Timeout:
+    ms = float(os.getenv("LAYA_LINE_TIMEOUT_MS", "1200")) if kind == "line" else float(os.getenv("LAYA_TIMEOUT_MS", "4000"))
+    return httpx.Timeout(ms / 1000.0, connect=0.5)
+
+
 def _call(kind: str, state: dict, questions: dict) -> tuple[dict | None, bool, float | None, str | None]:
     """(answers, cached, latency_ms, model). answers is None on any failure."""
     model_tag = (service_info() or {}).get("model") or "?"
@@ -110,7 +116,7 @@ def _call(kind: str, state: dict, questions: dict) -> tuple[dict | None, bool, f
             pass
     t = time.perf_counter()
     try:
-        r = _http().post(f"{_url()}/decide", json={"state": state, "questions": questions}, headers=_headers())
+        r = _http().post(f"{_url()}/decide", json={"state": state, "questions": questions}, headers=_headers(), timeout=_budget(kind))
         r.raise_for_status()
         body = r.json()
         _record_success()

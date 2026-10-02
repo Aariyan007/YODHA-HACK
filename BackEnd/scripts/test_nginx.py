@@ -56,9 +56,13 @@ big2 = http.post("/api/import/fhir", content=b"0" * (4 * 1024 * 1024), headers={
 check("hospital import over 3 MB refused by nginx (413)", big2.status_code == 413, f"got {big2.status_code}")
 
 # SSE: stage events must arrive one by one, not all at the end
-tok = None
+tok, job = None, ""
 try:
-    reg = http.post("/api/auth/register", json={"role": "patient", "name": "Edge Test", "email": f"edge-{os.urandom(3).hex()}@example.com", "password": "edge-pass-123"})
+    for _ in range(6):  # the auth zone may still be draining from a previous run of this script (10 per minute)
+        reg = http.post("/api/auth/register", json={"role": "patient", "name": "Edge Test", "email": f"edge-{os.urandom(3).hex()}@example.com", "password": "edge-pass-123"})
+        if reg.status_code != 429:
+            break
+        time.sleep(12)
     tok = {"Authorization": f"Bearer {reg.json()['token']}"}
     png = (ROOT / "BackEnd" / "test_docs" / "sunrise_prescription.png").read_bytes()
     job = http.post("/api/documents", files={"file": ("rx.png", png, "image/png")}, headers=tok).json()["jobId"]
@@ -76,11 +80,16 @@ except Exception as e:
 
 # log redaction: ask nginx for its recent log lines
 logs = subprocess.run(["docker", "compose", "logs", "--no-log-prefix", "--tail", "200", "nginx"], capture_output=True, text=True, cwd=ROOT).stdout
-check("nginx log never shows a job id", job not in logs if tok else False)
+check("nginx log never shows a job id", bool(job) and job not in logs)
 check("nginx log uses the redacted path", "/api/jobs/<redacted>/events" in logs)
 
-# rate limit last: 10/min + burst 5 on /api/auth/
-codes = [http.post("/api/auth/login", json={"email": "rl@example.com", "password": "nope-nope"}).status_code for _ in range(25)]
+# rate limit last: 10/min + burst 5 on /api/auth/. First let the zone drain from the registrations above.
+for _ in range(25):
+    if http.post("/api/auth/login", json={"email": "probe@example.com", "password": "nope-nope"}).status_code != 429:
+        break
+    time.sleep(6)
+time.sleep(15)
+codes = [http.post("/api/auth/login", json={"email": f"rl-{os.urandom(3).hex()}@example.com", "password": "nope-nope"}).status_code for _ in range(25)]
 check("sign-in is rate limited by nginx (429 after the burst)", 429 in codes, f"{codes.count(429)} of 25 were 429")
 check("the first few attempts were allowed through", codes[0] == 401, f"first={codes[0]}")
 

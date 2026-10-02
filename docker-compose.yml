@@ -41,6 +41,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0   # beats the localhost value in .env
       DEMO_MODE: ${DEMO_MODE:-false}
+      DB_POOL_MODE: ${DB_POOL_MODE:-transaction}   # Supabase transaction pooler (6543); set "session" to keep port 5432
       CORS_ORIGINS: ""                  # same origin behind nginx, so no CORS needed
     volumes:
       - ./BackEnd/demo_cache:/app/demo_cache
