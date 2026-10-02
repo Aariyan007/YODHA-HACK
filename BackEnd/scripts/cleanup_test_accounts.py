@@ -19,7 +19,7 @@ from app.database import SessionLocal
 from app.models import (AccessLog, Alert, CareLink, Consultation, Document, InviteCode, Medicine, Observation, Patient,
                         ReminderSettings, SentDose, SentNotice, ShareLink, User)
 
-PREFIXES = ("smoke-", "sweep-")
+PREFIXES = ("smoke-", "sweep-", "edge-")
 
 
 def cleanup(extra_emails: tuple[str, ...] = ()) -> int:

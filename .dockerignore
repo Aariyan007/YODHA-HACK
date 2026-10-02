@@ -1,0 +1,12 @@
+.git
+.env
+.claude
+.agents
+BackEnd/venv
+BackEnd/uploads
+BackEnd/demo_cache
+BackEnd/*.db
+Frontend/node_modules
+Frontend/dist
+Frontend/dist-single
+models

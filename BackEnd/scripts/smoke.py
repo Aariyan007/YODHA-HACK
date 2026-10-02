@@ -251,6 +251,7 @@ def _():
 
 
 try:
+    sys.path.insert(0, str(ROOT))
     from scripts.cleanup_test_accounts import cleanup  # noqa: E402
     print(f"cleanup: removed {cleanup()} throwaway account(s)")
 except Exception as e:  # never fail a run because of cleanup

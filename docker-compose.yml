@@ -1,0 +1,83 @@
+# MediThread stack:  docker compose up --build --wait
+#   https://localhost:8443  (self-signed cert, accept the warning once)   http://localhost:8080 also works
+# LAN friend:  CERT_SANS="DNS:localhost,IP:127.0.0.1,IP:<your-LAN-IP>" docker compose up --build --wait
+# Postgres stays external (Supabase, DATABASE_URL in .env). Secrets come from .env at run time, never baked into an image.
+name: medithread
+
+services:
+  certs:   # one-shot: makes a self-signed certificate in a volume if there is none yet
+    image: alpine:3.20
+    restart: "no"
+    environment:
+      CERT_SANS: ${CERT_SANS:-DNS:localhost,IP:127.0.0.1}
+    volumes: [certs:/certs]
+    command:
+      - sh
+      - -c
+      - |
+        [ -f /certs/fullchain.pem ] && echo "certificate exists" && exit 0
+        apk add --no-cache openssl >/dev/null
+        openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj "/CN=localhost" \
+          -addext "subjectAltName=$$CERT_SANS" -keyout /certs/privkey.pem -out /certs/fullchain.pem
+        chmod 644 /certs/privkey.pem
+        echo "certificate created for $$CERT_SANS"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-lru"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 192m
+
+  backend:
+    build: ./BackEnd
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0   # beats the localhost value in .env
+      DEMO_MODE: ${DEMO_MODE:-false}
+      CORS_ORIGINS: ""                  # same origin behind nginx, so no CORS needed
+    volumes:
+      - ./BackEnd/demo_cache:/app/demo_cache
+      - uploads:/app/uploads
+    depends_on:
+      redis: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 768m
+    # no published port: only nginx can reach it
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+      - "${HTTPS_PORT:-8443}:8443"
+    volumes: [certs:/certs:ro]
+    depends_on:
+      backend: { condition: service_healthy }
+      certs: { condition: service_completed_successfully }
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/nginx-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    mem_limit: 128m
+
+volumes:
+  redis-data:
+  uploads:
+  certs:

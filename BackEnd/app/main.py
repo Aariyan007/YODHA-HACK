@@ -1,10 +1,13 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import reminder_service, store
+from .observability import RequestLogMiddleware, configure_logging
+from sqlalchemy import text
+
 from .database import DB_KIND, Base, SessionLocal, add_missing_columns, engine
 from .routers import auth, care, consultations, demo, doctor, doctors, documents, imports, patients, reminders, shares
 from .seed import ensure_demo_reminder_settings, seed_if_empty
@@ -30,6 +33,7 @@ async def lifespan(app: FastAPI):
         reminder_service.stop()
 
 
+configure_logging()
 app = FastAPI(title="MediThread API", lifespan=lifespan)
 
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -57,6 +61,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(RequestLogMiddleware)  # added last = outermost: logs every request, sets X-Request-Id
+
 app.include_router(auth.router)
 app.include_router(patients.router)
 app.include_router(shares.router)
@@ -74,3 +80,23 @@ app.include_router(doctors.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok", "db": DB_KIND, "store": store.KIND}
+
+
+@app.get("/api/health/ready")
+def ready(response: Response):
+    """Readiness for Docker/nginx: database, store (Redis or memory), scheduler. Never returns secrets."""
+    checks: dict[str, dict] = {}
+    try:
+        with engine.connect() as c:
+            c.execute(text("select 1"))
+        checks["database"] = {"ok": True, "kind": DB_KIND}
+    except Exception as e:
+        checks["database"] = {"ok": False, "detail": type(e).__name__}
+    checks["store"] = store.status()
+    sch = reminder_service._scheduler
+    checks["scheduler"] = {"ok": bool(sch is not None and sch.running)}
+    checks["laya"] = {"ok": True, "enabled": bool((os.getenv("LAYA_URL") or "").strip())}
+    ok = all(v["ok"] for v in checks.values())
+    if not ok:
+        response.status_code = 503
+    return {"ready": ok, **checks}

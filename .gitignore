@@ -57,3 +57,5 @@ desktop.ini
 # Antigravity IDE (agent scratch files — not source code)
 .gemini/
 .agents/
+models/
+deploy/certs/
