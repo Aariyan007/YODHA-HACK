@@ -54,6 +54,7 @@ def metrics(days: int = Query(default=7, ge=1, le=30), _: User = Depends(admin_u
                                     "declined": sum(r.status == "declined" for r in tools)},
                   "perTool": per_tool, "daily": [{"date": d, "calls": n} for d, n in sorted(daily.items())]},
         "tasks": {"total": len(tasks), "byStatus": dict(Counter(t.status for t in tasks)), "answeredBy": dict(src)},
+        "tokensToday": __import__("app.tokens", fromlist=["today"]).today(),
         "voice": {"clips": sum(voice.values()), "byEngine": dict(voice)},
         "files": {"stored": files[0], "bytes": int(files[1])},
         "recentProblems": [{"tool": r.tool, "status": r.status, "agent": r.agent_type, "detail": (r.detail or "")[:80], "at": iso(r.created_at)} for r in recent_fail],

@@ -124,14 +124,19 @@ class AgentEngine:
         by_fn = {loop.fn_name(s.name): s for s in specs}
         defs = loop.tool_defs(specs)
         msgs: list[dict] = [{"role": "system", "content": loop.system_prompt(ctx.role, ctx.session)}]
-        for h in history[-5:]:  # earlier turns, so "same but 1 hour" or "no, the other one" make sense
-            msgs += [{"role": "user", "content": h["u"]}, {"role": "assistant", "content": h["a"]}]
+        for h in history[-3:]:  # earlier turns, so "same but 1 hour" or "no, the other one" make sense (capped: every turn is re-sent each round)
+            msgs += [{"role": "user", "content": h["u"][:300]}, {"role": "assistant", "content": h["a"][:400]}]
         user = text + (f"\n(The person attached a file; its id is {ctx.file_id}. Read it with documents_extract first.)" if ctx.file_id else "")
         msgs.append({"role": "user", "content": user})
         tasks.set_status(ctx.db, task, "running")
         results, evidence_text, reply, ran, retried, called, done = [], text, "", False, False, [], {}
-        for _ in range(loop.MAX_ROUNDS):
-            turn = self.llm.chat_tools(msgs, defs)
+        ran_tools: list[str] = []
+        wants_more = loop.may_chain(text)
+        for rnd in range(loop.MAX_ROUNDS):
+            # The tool list is about 2,500 tokens and is re-sent every round. After the first round a simple question only needs the
+            # reply, so leave the tools out unless the request has several parts or the tools run so far lead on to another one.
+            offer = defs if (rnd == 0 or wants_more or any(n in loop.CHAINS for n in ran_tools)) else []
+            turn = self.llm.chat_tools(msgs, offer)
             if turn is None:
                 if not ran:
                     return None
@@ -158,6 +163,9 @@ class AgentEngine:
                     args = args if isinstance(args, dict) else {}
                 except ValueError:
                     args = {}
+                if spec is not None:  # the model sometimes adds arguments a tool does not have (a date for 'doses today'): keep only real ones
+                    allowed = (spec.input_schema or {}).get("properties", {})
+                    args = {k: v for k, v in args.items() if k in allowed and v is not None}
                 key = (c["name"], json.dumps(args, sort_keys=True))
                 if key in done:  # the model asked for exactly what it already has: do not run (or audit) it again
                     msgs.append({"role": "tool", "tool_call_id": c["id"], "content": done[key]})
@@ -167,6 +175,7 @@ class AgentEngine:
                 r = self.executor.run(ctx, name, args) if spec else self.executor.run(ctx, "unknown.tool", {})
                 ctx.db.commit()
                 ran = True
+                ran_tools.append(name)
                 results.append(r)
                 step = {"status": r.status, "result": tasks.result_to_dict(r)}
                 if r.status == "needs_confirmation":

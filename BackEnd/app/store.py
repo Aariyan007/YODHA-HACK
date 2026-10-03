@@ -114,3 +114,12 @@ def delete_prefix(prefix: str) -> int:
             return _redis.delete(*keys) if keys else 0
         return _redis_call(real, mem)
     return mem()
+
+
+def keys_with_prefix(prefix: str) -> list[str]:
+    def mem() -> list[str]:
+        return [k for k in _memory if k.startswith(prefix)]
+
+    if _redis is not None:
+        return _redis_call(lambda: [k.decode() if isinstance(k, bytes) else k for k in _redis.scan_iter(match=f"{prefix}*", count=500)], mem)
+    return mem()

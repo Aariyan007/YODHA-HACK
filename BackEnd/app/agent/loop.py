@@ -35,19 +35,26 @@ Examples of casual requests and what to do (people write loosely, in English, Ma
 - "any tablets i missed today?" / "what do i need to take now" / "what medicine is left for me to eat today" / "did i take everything" -> careloop_due.  "took my thyroid pill" -> careloop_mark_taken.
 - "how's my sugar lately" / "is my bp getting worse" -> health_trend (code hba1c / fbs / sbp).  "ente bp ethra" -> health_latest.
 - "anything scary in my reports" -> health_risks and health_alerts.  "what did the doc say last time" -> timeline_list.
-- "pdf for the doctor" -> pdf_generate patient_summary.  "list of my meds as pdf" -> pdf_generate medication_summary.
-- "log bp 130 over 85" -> health_log_reading sbp=130 dbp=85.  "stop sharing" -> sharing_revoke all=true.
-- "closest hospital near me" / "emergency" / "casualty" -> doctors_search with emergency=true.  "heart doctor near me" -> doctors_search specialty=Cardiologist.
-- "i have chest pain" / "my head hurts a lot" / "feeling dizzy" -> triage_check with their words.
+- "log bp 130 over 85" -> health_log_reading.  "stop sharing" -> sharing_revoke all=true.
+- "closest hospital" / "casualty" -> doctors_search emergency=true.  "heart doctor near me" -> doctors_search specialty=Cardiologist.
 - "those unclear medicines are correct, add them" / "yes the handwritten ones are right" -> medications_confirm_unclear (use medications_unclear first if you need the names).
 - "shelcal 500 once daily in the morning for 30 days" / "set telma to 8am and 8pm" -> medications_update (name + dose / frequency / times / duration_days).
 - "when should I take pantocid, before or after food?" / "no timing was written, look it up" -> medications_usage_lookup; "add that timing" -> medications_add_usual_timing (only fills medicines whose prescription gives no instructions).
 - "my telegram id is 123456789, add it" / "set up telegram reminders with chat id 123456789" -> reminders_setup_telegram (target=family for the family chat).
 - "any bad combination of my medicines?" / "can I take these together" / "do my tablets clash" -> medications_check_interactions.  "side effects of telma?" / "what can pantocid cause" -> medications_side_effects.
 - "how do I upload a report?" / "where do I share with my doctor" / "I don't know how to use this" -> app_help (topic = upload | reading | medicines | reminders | share | doctors | timeline | agent | profile). "show me around" / "play the demo" / "give me a tour" -> app_tour (auto=true for the demo).
-- "open meds" / "take me to reminders" -> navigation_navigate.  "find a heart doctor near me" -> doctors_search.
 - Follow-ups like "same but 1 hour", "no the other one", "do it again" refer to the earlier turns shown to you.
 {extra}"""
+
+# Tools whose result usually leads to another tool call (names first, then the change; read the file, then save it).
+CHAINS = {"medications.unclear", "medications.usage_lookup", "documents.extract", "documents.entities", "triage.check", "sharing.create"}
+_MULTI = re.compile(r"\b(and|also|then|plus|after that|too)\b|[;&]|\s,\s|\w,\s\w", re.I)
+
+
+def may_chain(text: str) -> bool:
+    """True when the request looks like it has more than one part, so later rounds keep the tool list."""
+    return bool(_MULTI.search(text or ""))
+
 
 FILE_TOOLS = {"documents.extract", "documents.entities", "documents.evidence", "documents.summarize", "documents.compare", "records.add_from_file"}
 
@@ -70,8 +77,8 @@ def fn_name(tool: str) -> str:
 def tool_defs(specs) -> list[dict]:
     defs = []
     for s in specs:
-        props = {k: {kk: vv for kk, vv in v.items() if kk in ("type", "enum", "description", "minimum", "maximum")} for k, v in s.input_schema.get("properties", {}).items()}
-        defs.append({"type": "function", "function": {"name": fn_name(s.name), "description": s.description.split(". ")[0][:110],
+        props = {k: {kk: vv for kk, vv in v.items() if kk in ("type", "enum", "description")} for k, v in s.input_schema.get("properties", {}).items()}
+        defs.append({"type": "function", "function": {"name": fn_name(s.name), "description": s.description.split(". ")[0][:90],
                                                      "parameters": {"type": "object", "properties": props, "required": s.input_schema.get("required", [])}}})
     return defs
 
@@ -165,4 +172,4 @@ def fixed_reply(conf: dict | None) -> str | None:
     return "I need your OK before I do that." if conf else None
 
 
-__all__ = ["MAX_ROUNDS", "pick_tools", "tool_defs", "fn_name", "view", "reply_ok", "system_prompt", "to_blocks", "fixed_reply", "block"]
+__all__ = ["CHAINS", "may_chain", "MAX_ROUNDS", "pick_tools", "tool_defs", "fn_name", "view", "reply_ok", "system_prompt", "to_blocks", "fixed_reply", "block"]

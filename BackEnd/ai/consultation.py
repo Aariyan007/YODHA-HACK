@@ -100,6 +100,11 @@ def _chat_json_once(system: str, user: str, max_tokens: int, model: str | None =
         r = client.chat.completions.create(**kwargs, reasoning_effort="low")
     except TypeError:
         r = client.chat.completions.create(**kwargs)
+    try:
+        from app import tokens
+        tokens.record("json-calls", model or MODEL, getattr(r, "usage", None))  # consultation, visit classification, agent planner fallback
+    except Exception:
+        pass
     text = (r.choices[0].message.content or "").strip()
     if not text:
         return None

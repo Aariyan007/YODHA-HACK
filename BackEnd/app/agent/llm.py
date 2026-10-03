@@ -44,6 +44,8 @@ def _groq_chat(messages: list[dict], tools: list[dict], max_tokens: int) -> dict
             if type(e).__name__ == "RateLimitError":
                 continue
             return None
+        from app import tokens
+        tokens.record("agent-loop", model, getattr(r, "usage", None))
         m = r.choices[0].message
         calls = [{"id": c.id, "name": c.function.name, "arguments": c.function.arguments or "{}"} for c in (m.tool_calls or [])]
         return {"content": (m.content or "").strip(), "tool_calls": calls, "model": model}
@@ -79,6 +81,8 @@ def _groq_judge(system: str, user: str) -> dict | None:
         r = Groq(api_key=key, timeout=15.0, max_retries=0).chat.completions.create(
             model=FALLBACK_MODEL, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             max_tokens=500, temperature=0, reasoning_effort="medium", response_format={"type": "json_object"})
+        from app import tokens
+        tokens.record("agent-judge", FALLBACK_MODEL, getattr(r, "usage", None))
         out = json.loads(r.choices[0].message.content or "{}")
         return out if isinstance(out, dict) else None
     except Exception:
