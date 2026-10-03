@@ -650,3 +650,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-evd-foot { display: flex; flex-wrap: wrap; gap: var(--u1); justify-content: flex-end; margin-top: var(--u3); padding-top: var(--u2); border-top: 1px solid var(--mt-line); }
 @keyframes mt-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mt-evd { animation: none; } }
+
+/* Title Case: first letter of each word in headings */
+.mt-display, .mt-ch-title, #main-content h1, #main-content h2, #main-content h3,
+.mt-tour-card h3, .mt-tour-wbox h2 { text-transform: capitalize; }
