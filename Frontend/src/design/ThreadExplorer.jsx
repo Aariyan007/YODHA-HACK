@@ -65,7 +65,16 @@ export default function ThreadExplorer({
   const [openId, setOpenId] = useState(initialId || null); // narrow screens: which event is expanded
   const linked = useLinkedDoc();
 
-  useEffect(() => { if (initialId && list.some((d) => d.id === initialId)) { setActive(initialId); setOpenId(initialId); } }, [initialId, listKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (initialId && list.some((d) => d.id === initialId)) {
+      setActive(initialId);
+      setOpenId(initialId);
+      // "View evidence" on a Documents card only changes the URL hash on this same page, and the thread is far above it:
+      // bring the record into view, or nothing visibly happens.
+      const t = setTimeout(() => document.getElementById(`ev-${initialId}`)?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "center" }), 120);
+      return () => clearTimeout(t);
+    }
+  }, [initialId, listKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shownId = linked && list.some((d) => d.id === linked) ? linked
     : list.some((d) => d.id === activeId) ? activeId : list[0]?.id;
