@@ -179,7 +179,7 @@ def health_allergies(ctx: AgentContext, args: dict) -> dict:
 @tool("health.alerts", "Open warnings from checks on medicines and results.", permission="health:read", roles=ROLES,
       audit_category="health")
 def health_alerts(ctx: AgentContext, args: dict) -> dict:
-    rows = [a for a in ctx.db.scalars(select(Alert).where(Alert.patient_id == ctx.patient_id, Alert.resolved.is_(False)))]
+    rows = [a for a in ctx.db.scalars(select(Alert).where(Alert.patient_id == ctx.patient_id, Alert.resolved.is_(False), *([Alert.kind.not_in(("handwriting",))] if ctx.role == "doctor" else [])))]
     order = {"high": 0, "medium": 1, "low": 2}
     rows.sort(key=lambda a: order.get(a.severity, 9))
     blocks = [block("warning", id=a.id, severity=a.severity, kind=a.kind, title=a.title, text=a.message) for a in rows[:8]]

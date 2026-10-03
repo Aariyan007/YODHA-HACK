@@ -70,7 +70,7 @@ def changes_since_visit(ctx: AgentContext, args: dict) -> dict:
         blocks.append(block("medication", id=m.id, name=m.name, dose=m.dose, frequency=m.frequency, times=m.times or [], instructions=None,
                             prescribedBy=m.prescribed_by, startDate=m.start_date, durationDays=m.duration_days, active=True))
     cutoff = datetime.fromisoformat(since).replace(tzinfo=timezone.utc)
-    for a in ctx.db.scalars(select(Alert).where(Alert.patient_id == ctx.patient_id, Alert.resolved.is_(False))):
+    for a in ctx.db.scalars(select(Alert).where(Alert.patient_id == ctx.patient_id, Alert.resolved.is_(False), Alert.kind.not_in(("handwriting",)))):
         ca = a.created_at if a.created_at.tzinfo else a.created_at.replace(tzinfo=timezone.utc)
         if ca > cutoff:
             blocks.append(block("warning", severity=a.severity, title=a.title, text=a.message))
@@ -169,7 +169,7 @@ def missing_info(ctx: AgentContext, args: dict) -> dict:
 def doctor_brief(ctx: AgentContext, args: dict) -> dict:
     p = ctx.db.get(Patient, ctx.patient_id)
     from ...routers.patients import build_health_check
-    hc = build_health_check(ctx.db, p, use_ai=False)
+    hc = build_health_check(ctx.db, p, use_ai=False, for_doctor=True)
     blocks = [block("text", text=f"{p.name}" + (f", {p.age}" if p.age else "") + (f", {p.gender}" if p.gender else "") + ".")]
     if condition_names(p):
         blocks.append(block("text", text="Conditions: " + ", ".join(condition_names(p)) + "."))

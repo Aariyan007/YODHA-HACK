@@ -92,7 +92,7 @@ def patient_snapshot(patient_id: str, doctor: User = Depends(current_doctor), db
     return {
         "patient": profile_out(patient), "scope": "full", "expiresAt": None,
         "timeline": build_timeline(db, patient.id), "medicines": build_medicines(db, patient.id),
-        "alerts": build_alerts(db, patient.id), "insights": build_insights(db, patient), "risks": assess(db, patient.id),
+        "alerts": build_alerts(db, patient.id, for_doctor=True), "insights": build_insights(db, patient), "risks": assess(db, patient.id),
     }
 
 

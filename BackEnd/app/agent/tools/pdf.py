@@ -45,7 +45,7 @@ def _data(ctx: AgentContext) -> dict:
         labs.append({"name": lab_name(o.code, o.name), "value": o.value, "unit": o.unit, "date": o.date,
                      "status": {"good": "usual", "watch": "watch", "alert": "needs attention"}.get(lab_status(o.code, o.value, o.ref_range), "-"),
                      "sourceTitle": t, "sourceDate": d})
-    alerts = [{"title": a.title, "message": a.message} for a in db.scalars(select(Alert).where(Alert.patient_id == ctx.patient_id, Alert.resolved.is_(False)))]
+    alerts = [{"title": a.title, "message": a.message} for a in db.scalars(select(Alert).where(Alert.patient_id == ctx.patient_id, Alert.resolved.is_(False), Alert.kind.not_in(("handwriting",))))]
     records = [{"title": d.title, "date": d.date, "type": d.type} for d in sorted(docs.values(), key=lambda d: d.date, reverse=True)
                if allowed is None or d.type in allowed]
     from ...routers.patients import build_health_check

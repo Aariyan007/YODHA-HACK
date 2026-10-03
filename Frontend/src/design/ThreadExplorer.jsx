@@ -53,6 +53,33 @@ export function EvidenceBody({ doc, compact = false }) {
   );
 }
 
+// The record behind a card, opened right where the person is (no scrolling to somewhere else on the page).
+export function EvidenceDialog({ doc, onClose }) {
+  const ref = useRef(null);
+  const { t } = useT();
+  useEffect(() => {
+    const prev = document.activeElement;
+    ref.current?.focus();
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; prev?.focus?.({ preventScroll: true }); };
+  }, [onClose]);
+  if (!doc) return null;
+  return (
+    <div className="mt-evd" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="mt-evd-box" role="dialog" aria-modal="true" aria-label={doc.title} tabIndex={-1} ref={ref} data-lenis-prevent>
+        <button type="button" className="mt-evd-x" onClick={onClose} aria-label="Close">×</button>
+        <EvidenceBody doc={doc} />
+        <div className="mt-evd-foot">
+          <Link className="mt-btn secondary sm" to={{ pathname: "/timeline", hash: `#${doc.id}` }} onClick={onClose}>Show in my thread <Arrow /></Link>
+          <button type="button" className="mt-btn sm" onClick={onClose}>{t("close") === "close" ? "Close" : t("close")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ThreadExplorer({
   docs = [], limit, panel = true, initialId, newId, showToday = true, moreHref, moreLabel,
 }) {

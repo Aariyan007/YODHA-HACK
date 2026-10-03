@@ -55,7 +55,7 @@ def snapshot(token: str, viewer: str = "Share link viewer", db: Session = Depend
         "expiresAt": iso(expires),
         "timeline": timeline,
         "medicines": build_medicines(db, patient.id),
-        "alerts": build_alerts(db, patient.id),
+        "alerts": build_alerts(db, patient.id, for_doctor=True),
         "insights": build_insights(db, patient) if link.scope != "medicines" else None,
         "risks": assess(db, patient.id) if link.scope != "medicines" else [],
     }

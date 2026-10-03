@@ -8,6 +8,7 @@
 //   DocumentPreview  a paper-like preview linked to its node in the Health Thread
 //   ActionPanel      a quiet dashed call to action
 import { useState } from "react";
+import { EvidenceDialog } from "./ThreadExplorer.jsx";
 import { Link } from "react-router-dom";
 import { Sparkline } from "../components/charts.jsx";
 import { useT } from "../i18n.js";
@@ -242,13 +243,14 @@ export function CareLoop({ doses, openCount = 0, followUp }) {
 }
 
 // ── DocumentPreview ─────────────────────────────────────────────────────────
-export function DocumentPreview({ doc }) {
+export function DocumentPreview({ doc, onOpen }) {
   const { t } = useT();
   const figs = docFigures(doc);
   const first = figs[0];
+  const Wrap = onOpen ? "button" : Link;
   return (
-    <Link
-      to={{ pathname: "/timeline", hash: `#${doc.id}` }}
+    <Wrap
+      {...(onOpen ? { type: "button", onClick: () => onOpen(doc) } : { to: { pathname: "/timeline", hash: `#${doc.id}` } })}
       className={`mt-doc cat-${doc.type}`}
       onMouseEnter={() => threadLink.set(doc.id)}
       onMouseLeave={() => threadLink.set(null)}
@@ -276,7 +278,7 @@ export function DocumentPreview({ doc }) {
         </span>
         <span className="view">View evidence <Arrow /></span>
       </span>
-    </Link>
+    </Wrap>
   );
 }
 
@@ -284,11 +286,15 @@ export function DocumentStrip({ docs = [], limit = 3, addTo = "/upload" }) {
   const { lang } = useT();
   const ml = lang === "ml";
   const list = docs.slice(0, limit);
+  const [open, setOpen] = useState(null);
   return (
-    <RV className="mt-docs" stagger={0.09} selector=":scope > *">
-      {list.map((d) => <DocumentPreview key={d.id} doc={d} />)}
-      <ActionPanel to={addTo} title={ml ? "ഒരു രേഖ ചേർക്കുക" : "Add a record"} text={ml ? "ഫോട്ടോ എടുക്കുക അല്ലെങ്കിൽ PDF അപ്‌ലോഡ് ചെയ്യുക" : "Upload a photo or PDF. It joins your thread."} />
-    </RV>
+    <>
+      <RV className="mt-docs" stagger={0.09} selector=":scope > *">
+        {list.map((d) => <DocumentPreview key={d.id} doc={d} onOpen={setOpen} />)}
+        <ActionPanel to={addTo} title={ml ? "ഒരു രേഖ ചേർക്കുക" : "Add a record"} text={ml ? "ഫോട്ടോ എടുക്കുക അല്ലെങ്കിൽ PDF അപ്‌ലോഡ് ചെയ്യുക" : "Upload a photo or PDF. It joins your thread."} />
+      </RV>
+      {open && <EvidenceDialog doc={open} onClose={() => setOpen(null)} />}
+    </>
   );
 }
 

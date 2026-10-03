@@ -641,3 +641,12 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .adm-table th, .adm-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--mt-line); white-space: nowrap; } .adm-table .bad { color: var(--rust-ink); font-weight: 600; }
 .adm-svc { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--u1); margin: 0 0 var(--u3); }
 .adm-svc li { padding: 6px 12px; border-radius: 999px; background: var(--mt-paper); border: 1px solid var(--mt-line); font-size: 0.85rem; } .adm-svc .off { color: var(--rust-ink); }
+
+/* evidence dialog: the record behind a document card, opened in place */
+.mt-doc { font: inherit; text-align: left; background: none; border: 0; padding: 0; width: 100%; cursor: pointer; }
+.mt-evd { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: var(--u3); background: color-mix(in srgb, #16241E 55%, transparent); animation: mt-fade var(--d2) ease both; }
+.mt-evd-box { position: relative; width: min(640px, 100%); max-height: min(86vh, 760px); overflow: auto; background: var(--mt-paper); border-radius: var(--rad-l); box-shadow: var(--e3); padding: var(--u4) var(--u4) var(--u3); outline: none; overscroll-behavior: contain; }
+.mt-evd-x { position: absolute; top: 12px; right: 14px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--mt-pale); color: var(--mt-ink); font-size: 1.5rem; line-height: 1; cursor: pointer; }
+.mt-evd-foot { display: flex; flex-wrap: wrap; gap: var(--u1); justify-content: flex-end; margin-top: var(--u3); padding-top: var(--u2); border-top: 1px solid var(--mt-line); }
+@keyframes mt-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mt-evd { animation: none; } }

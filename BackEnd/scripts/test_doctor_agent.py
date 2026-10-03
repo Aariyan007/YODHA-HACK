@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 import test_agent_files as base
 from ai import consultation as consult_ai, visit_classify
-from app.models import (AgentAudit, AgentFile, CareLink, Consultation, Document, Medicine, Observation, Patient, User)
+from app.models import (Alert, AgentAudit, AgentFile, CareLink, Consultation, Document, Medicine, Observation, Patient, User)
 from app.routers import consultations as C
 
 SOAP = {"subjective": {"text": "Fatigue for two weeks.", "source_lines": [1]}, "objective": {"text": "BP 150/90.", "source_lines": [2]},
@@ -198,6 +198,55 @@ class DraftTests(DoctorBase):
             ctx = AgentContext(db=db, role="doctor", actor_id=do.id, actor_name="Dr Other", patient_id=self.pid)
             r = AgentExecutor().run(ctx, "consult.approve_draft", {"consultationId": cid})
         self.assertEqual(r.status, "failed")  # the preview refuses: it is not their draft
+
+
+class PatientOnlyNotes(DoctorBase):
+    """"Handwriting unclear" is a note to the patient about their own upload. Doctors and share links never see it."""
+    def setUp(self):
+        super().setUp()
+        with self.Session() as db:
+            db.add(Alert(patient_id=self.pid, severity="medium", kind="handwriting", title="Handwriting unclear: Zerodol SP", message="I could not read this."))
+            db.add(Alert(patient_id=self.pid, severity="high", kind="lab", title="Platelets are very low", message="Low."))
+            db.commit()
+
+    def titles(self, alerts):
+        return {a["title"] for a in alerts}
+
+    def test_patient_still_sees_both(self):
+        self.assertEqual(self.titles(self.c.get("/api/patients/me/alerts", headers=self.h1).json()),
+                         {"Handwriting unclear: Zerodol SP", "Platelets are very low"})
+
+    def test_share_link_snapshot_hides_it(self):
+        tok = self.c.post("/api/shares", json={"hours": 2, "scope": "full"}, headers=self.h1).json()["token"]
+        got = self.titles(self.c.get(f"/api/shares/{tok}/snapshot").json()["alerts"])
+        self.assertEqual(got, {"Platelets are very low"})
+
+    def test_linked_doctor_view_hides_it(self):
+        got = self.titles(self.c.get(f"/api/doctor/patients/{self.pid}/snapshot", headers=self.hd).json()["alerts"])
+        self.assertEqual(got, {"Platelets are very low"})
+
+    def test_doctor_agent_hides_it(self):
+        from app.agent.context import AgentContext
+        from app.agent.executor import AgentExecutor
+        with self.Session() as db:
+            ctx = AgentContext(db=db, role="doctor", actor_id=db.scalar(select(User).where(User.email == "rao@example.com")).id,
+                               actor_name="Dr Rao", patient_id=self.pid)
+            for tool, args in (("health.alerts", {}), ("doctor.changes_since_visit", {"since": "2020-01-01"}), ("doctor.brief", {})):
+                r = AgentExecutor().run(ctx, tool, args)
+                self.assertTrue(r.ok, tool)
+                self.assertNotIn("Handwriting", str(r.blocks), tool)
+                self.assertNotIn("Zerodol", str(r.blocks), tool)
+
+    def test_pdfs_that_get_handed_over_hide_it(self):
+        import io
+        from pypdf import PdfReader
+        for who, h, text in (("patient", self.h1, "make a pdf summary"),):
+            j = self.chat(text, None, h).json()
+            fid = next(b for b in j["blocks"] if b["type"] == "pdf")["fileId"]
+            data = self.c.get(f"/api/agent/files/{fid}/content", headers=h).content
+            pdf_text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(data)).pages)
+            self.assertIn("Platelets are very low", pdf_text)
+            self.assertNotIn("Zerodol", pdf_text)
 
 
 class DoctorFilesAndPdf(DoctorBase):

@@ -41,8 +41,16 @@ def build_medicines(db: Session, patient_id: str) -> list[dict]:
     return [medicine_out(m) for m in meds]
 
 
-def build_alerts(db: Session, patient_id: str) -> list[dict]:
-    alerts = list(db.scalars(select(Alert).where(Alert.patient_id == patient_id)))
+# Alert kinds that are a note to the PATIENT about their own upload (e.g. "I could not read this handwriting, check it with your
+# pharmacist"). A doctor, a share link or a PDF handed to a doctor must never carry them.
+PATIENT_ONLY_KINDS = ("handwriting",)
+
+
+def build_alerts(db: Session, patient_id: str, for_doctor: bool = False) -> list[dict]:
+    q = select(Alert).where(Alert.patient_id == patient_id)
+    if for_doctor:
+        q = q.where(Alert.kind.not_in(PATIENT_ONLY_KINDS))
+    alerts = list(db.scalars(q))
     alerts.sort(key=lambda a: (a.resolved, SEVERITY_ORDER.get(a.severity, 9), -a.created_at.timestamp()))
     return [alert_out(a) for a in alerts]
 
@@ -243,11 +251,11 @@ def health_check(ai: bool = True, patient: Patient = Depends(current_patient), d
     return build_health_check(db, patient, use_ai=ai)
 
 
-def build_health_check(db: Session, patient: Patient, use_ai: bool = True) -> dict:
+def build_health_check(db: Session, patient: Patient, use_ai: bool = True, for_doctor: bool = False) -> dict:
     risks = assess(db, patient.id)
     ins = build_insights(db, patient)
     meds = build_medicines(db, patient.id)
-    alerts = build_alerts(db, patient.id)
+    alerts = build_alerts(db, patient.id, for_doctor=for_doctor)
     # Single-reading tests still help the AI ("only one BP reading"), so pass every test.
     obs_series = {s["code"]: s for s in ins["series"]}
     for l in ins["labs"]:
