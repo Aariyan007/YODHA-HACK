@@ -46,11 +46,11 @@
 
 .ag-body { overflow-y: auto; padding: var(--u3); display: grid; gap: var(--u3); align-content: start; overscroll-behavior: contain; }
 .ag-ctx { display: grid; gap: 6px; padding-bottom: var(--u3); border-bottom: 1px solid var(--mt-line); }
-.ag-ctx-title { font-family: var(--f-display); font-size: 1.5rem; font-weight: 500; color: var(--mt-ink); }
+.ag-ctx-title { font-family: var(--f-display); font-size: 1.5rem; font-weight: 600; color: var(--mt-ink); }
 .ag-ctx-note { margin: 0; font-size: 0.875rem; color: var(--mt-ink-3); line-height: 1.5; }
 .ag-facts { display: flex; gap: var(--u3); margin: 6px 0 0; flex-wrap: wrap; }
 .ag-facts div { display: flex; flex-direction: column-reverse; gap: 2px; }
-.ag-facts dd { margin: 0; font-family: var(--f-display); font-size: 1.7rem; line-height: 1; font-weight: 500; color: var(--mt-ink); font-variant-numeric: tabular-nums; }
+.ag-facts dd { margin: 0; font-family: var(--f-display); font-size: 1.7rem; line-height: 1; font-weight: 600; color: var(--mt-ink); font-variant-numeric: tabular-nums; }
 .ag-facts dt { font-size: 0.75rem; color: var(--mt-ink-3); }
 .ag-skel { display: flex; gap: var(--u3); margin-top: 6px; } .ag-skel i { width: 56px; height: 34px; border-radius: 6px; background: linear-gradient(90deg, var(--mt-pale), var(--mt-paper-2), var(--mt-pale)); background-size: 200% 100%; animation: mt-shimmer 1.4s linear infinite; }
 
@@ -81,7 +81,7 @@
 .ag-proc-s { margin-top: 4px; font-size: 0.8125rem; color: var(--mt-ink-3); }
 
 .ag-res { display: grid; gap: var(--u1); }
-.ag-res-title { margin: 4px 0 0; font-family: var(--f-display); font-size: 1.5rem; line-height: 1.15; font-weight: 500; color: var(--mt-ink); }
+.ag-res-title { margin: 4px 0 0; font-family: var(--f-display); font-size: 1.5rem; line-height: 1.15; font-weight: 600; color: var(--mt-ink); }
 .ag-res-lead { margin: 0; font-size: 0.9375rem; line-height: 1.5; color: var(--mt-ink-2); }
 .ag-res-list { list-style: none; margin: var(--u1) 0 0; padding: 0; display: grid; }
 .ag-res-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px var(--u1); align-items: baseline; padding: 11px 0; border-top: 1px solid var(--mt-line); }
