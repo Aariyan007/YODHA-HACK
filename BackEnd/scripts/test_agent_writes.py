@@ -316,6 +316,52 @@ class UpdateMedicine(Writes):
             self.assertEqual(ex.confirm(ctx, r.confirmation["id"], True).status, "failed")                          # invalid clock refused
 
 
+class UsualTiming(Writes):
+    LABEL = {"hint": "with or without food", "quote": "Take once daily, with or without food.", "field": "x", "generic": "g", "source": "US FDA drug label (openFDA)"}
+
+    def setUp(self):
+        super().setUp()
+        from ai import drug_usage
+        self.du = drug_usage
+        p = mock.patch.object(drug_usage, "usage", lambda name: dict(self.LABEL) if "found" in name.lower() else None)
+        p.start()
+        self.addCleanup(p.stop)
+        with self.Session() as db:
+            db.add(Medicine(id="a", patient_id=self.pid, name="Found Tab", times=[], start_date="2026-10-03"))
+            db.add(Medicine(id="b", patient_id=self.pid, name="Other Tab", times=[], start_date="2026-10-03"))
+            db.add(Medicine(id="c", patient_id=self.pid, name="Found Pill", times=["08:00"], instructions="before breakfast", start_date="2026-10-03"))
+            db.add(Medicine(id="d", patient_id=self.pid2, name="Found Tab", times=[], start_date="2026-10-03"))
+            db.commit()
+
+    def instr(self, mid):
+        with self.Session() as db:
+            return db.get(Medicine, mid).instructions
+
+    def test_lookup_quotes_the_label_and_admits_what_it_cannot_find(self):
+        r = self.say("when should i take my medicines, before or after food?")
+        text = " ".join(b.get("text", "") for b in r["blocks"])
+        self.assertIn("with or without food", text)
+        self.assertIn("US FDA drug label", text)
+        self.assertIn("could not find", text)                      # Other Tab
+        self.assertIn("Your prescription says: before breakfast", text)
+        self.assertIn("not your doctor's instruction", text)
+
+    def test_adds_only_where_the_prescription_is_silent_after_a_yes(self):
+        r = self.say("some medicines have no timing, look it up and add it")
+        self.assertEqual(r["status"], "waiting_for_confirmation")
+        self.assertIsNone(self.instr("a"))                          # nothing yet
+        self.assertEqual(self.confirm(r)["status"], "completed")
+        self.assertTrue(self.instr("a").startswith("General label info: usually taken with or without food"))
+        self.assertIsNone(self.instr("b"))                          # nothing found, nothing invented
+        self.assertEqual(self.instr("c"), "before breakfast")       # the prescription is never overwritten
+        self.assertIsNone(self.instr("d"))                          # another patient's medicine untouched
+
+    def test_no_reminder_times_are_invented(self):
+        self.confirm(self.say("some medicines have no timing, look it up and add it"))
+        with self.Session() as db:
+            self.assertEqual(db.get(Medicine, "a").times, [])
+
+
 class SafetyTests(Writes):
     def test_medicine_changes_are_explained_never_done(self):
         with self.Session() as db:

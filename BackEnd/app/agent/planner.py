@@ -53,6 +53,8 @@ R_LOG = _P(r"\b(log|add|record|enter|save|note down|note)\b")
 R_MED_CHANGE = _P(r"\b(stop|skip|quit|double|increase|reduce|lower|raise|change|switch|start)\b.{0,25}\b(medicine|medication|tablet|pill|dose|metformin|insulin|telma|atorva|amlodipine)", r"\bshould i (stop|take|skip|change|increase|reduce)\b")
 R_SYMPTOM = _P(r"\b(i have|i've got|i am having|i'm having|i feel|i am feeling|i'm feeling|having|feeling)\b.{0,25}\b(pain|ache|aching|hurts?|hurting|dizzy|dizziness|fever|short of breath|breathless|nausea|vomiting|cough|palpitation|weak(ness)?)\b", r"\b(heart ache|chest pain|can'?t breathe)\b")
 R_UNCLEAR = _P(r"(unclear|handwrit|could ?n.?t read|couldn.?t read|not read).{0,60}(correct|right|fine|ok|add|confirm)", r"(correct|right|fine|add|confirm).{0,40}(unclear|handwrit)", r"\b(those|these|they|them)\b.{0,25}\b(are |is )?(correct|right)\b.{0,30}\badd")
+R_TIMING_ADD = _P(r"(look it up|search|google|find).{0,40}\b(add|save|put|fill)\b", r"\b(add|save|fill)\b.{0,30}\b(timing|when to take|before or after food|usual time|food)\b", r"no timing.{0,40}\b(add|fill)\b")
+R_TIMING = _P(r"before or after (food|meals?)", r"(with|without) food", r"when (should|do|to) i? ?take", r"what time (should|do) i", r"how (should|do) i take", r"empty stomach", r"\b(timing|time) (of|for) (my )?(medicine|tablet|pill)s?")
 R_NAV = re.compile(r"^\s*(?:please\s+)?(?:open|go to|take me to|show me the|navigate to)\s+(?:the\s+|my\s+)?(.+?)(?: page| tab| screen)?\s*$", re.I)
 R_MEDS = _P(r"medicin", r"tablet", r"\bpills?\b", r"prescri", r"മരുന്ന്", r"\bdrugs?\b")
 R_DUE = _P(r"\bleft\b.{0,25}\b(eat|take|taking|tablet|medicine|pill)", r"\b(still|remaining|yet)\b.{0,20}\b(take|eat|tablet|medicine|pill)", r"\bdue\b", r"reminder", r"dose", r"care.?loop", r"today'?s", r"missed", r"taken")
@@ -79,7 +81,7 @@ class AgentPlanner:
             return Plan("empty", clarify="What would you like me to do?", source="none")
         p = self._doctor_rules(text, session or {}) if role == "doctor" else None
         p = p or (self._file_rules(text, file_id) if file_id else None)
-        p = p or self._compound(role, text) or self._rules(role, text)
+        p = p or self._timing(role, text) or self._compound(role, text) or self._rules(role, text)
         if p is None:
             p = self._llm(role, text, history or [])
         if p is not None and p.steps:  # a plan may only use tools this role has (e.g. no write tools for doctors)
@@ -90,12 +92,25 @@ class AgentPlanner:
         return p or Plan("unknown", clarify="I am not sure what you need. Try 'latest records', 'my medicines', or 'what is due today'.",
                          source="none")
 
+    @staticmethod
+    def _timing(role: str, text: str) -> Plan | None:
+        """"Before or after food?" / "look it up and add the timing": a question about HOW a medicine is usually taken (label info),
+        not a decision to start, stop or change one."""
+        if role != "patient":
+            return None
+        low = text.lower()
+        if R_TIMING_ADD.search(low) and re.search(r"timing|time|food|take", low):
+            return Plan("add_timing", [Step("medications.add_usual_timing")])
+        if R_TIMING.search(low) and not re.search(r"\b(stop|skip|quit|double|increase|reduce|lower|raise|change|switch)\b", low):
+            return Plan("timing_lookup", [Step("medications.usage_lookup")])
+        return None
+
     def guard(self, role: str, text: str) -> Plan | None:
         """Fixed answers that hold whatever a model would say: medicine changes (L4) and delivery to a doctor."""
         if role != "patient":
             return None
         low = text.lower()
-        if R_MED_CHANGE.search(low) and not R_NAV.match(text):
+        if R_MED_CHANGE.search(low) and not R_NAV.match(text) and self._timing(role, text) is None:
             return self._rules(role, text)
         if R_SEND.search(low):
             return self._rules(role, text)

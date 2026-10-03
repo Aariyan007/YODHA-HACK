@@ -399,3 +399,71 @@ def medications_update(ctx: AgentContext, args: dict) -> dict:
             "blocks": [block("medication", id=m.id, name=m.name, dose=m.dose, frequency=m.frequency, times=m.times or [], instructions=m.instructions,
                              prescribedBy=m.prescribed_by, startDate=m.start_date, durationDays=m.duration_days, active=True),
                        block("text", text=f"Updated {m.name}.{when}")]}
+
+
+# ---------------------------------------------------------------- general "how is it usually taken" from a public label (never overwrites the prescription)
+
+def _meds_missing_timing(ctx: AgentContext, names: list[str] | None) -> list[Medicine]:
+    meds = list(ctx.db.scalars(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.active.is_(True))))
+    if names:
+        keys = [n.strip().lower() for n in names]
+        meds = [m for m in meds if any(k in m.name.lower() or m.name.lower() in k for k in keys)]
+        if not meds:
+            raise ToolError("I could not find a current medicine with that name.")
+    return meds
+
+
+@tool("medications.usage_lookup", "Look up, from the public FDA drug label, whether a medicine is usually taken with or without food or at a certain time of day. General information only.",
+      {"type": "object", "properties": {"names": {"type": "array", "items": {"type": "string", "maxLength": 80}, "maxItems": 10}}, "additionalProperties": False},
+      permission="meds:read", roles=("patient",), audit_category="medications", slow=True)
+def medications_usage_lookup(ctx: AgentContext, args: dict) -> dict:
+    from ai import drug_usage
+    meds = _meds_missing_timing(ctx, args.get("names"))
+    blocks, found = [], 0
+    for m in meds[:8]:
+        u = drug_usage.usage(m.name)
+        mine = f" Your prescription says: {m.instructions}." if m.instructions else ""
+        if u:
+            found += 1
+            blocks.append(block("text", text=f'{m.name}: usually taken {u["hint"]}. The label says: "{u["quote"]}" ({u["source"]}).{mine}'))
+        else:
+            blocks.append(block("text", text=f"{m.name}: I could not find this in the public label database (common for some Indian brands).{mine} Ask your pharmacist."))
+    blocks.append(block("text", text="This is general information from a drug label, not your doctor's instruction. If your prescription says something different, follow the prescription."))
+    return {"data": {"found": found}, "blocks": blocks}
+
+
+def _usage_plan(ctx: AgentContext, args: dict) -> list[tuple[Medicine, dict]]:
+    from ai import drug_usage
+    plan = []
+    for m in _meds_missing_timing(ctx, args.get("names")):
+        if (m.instructions or "").strip():
+            continue  # the prescription already says something: never overwrite it
+        u = drug_usage.usage(m.name)
+        if u:
+            plan.append((m, u))
+    if not plan:
+        raise ToolError("Nothing to add: each medicine either already has instructions or has no public label information I could find.")
+    return plan
+
+
+def _usage_preview(ctx: AgentContext, args: dict) -> list[dict]:
+    rows = [{"label": m.name, "value": f'{u["hint"]} — "{u["quote"][:120]}"'} for m, u in _usage_plan(ctx, args)]
+    rows.append({"label": "Source", "value": "US FDA drug label. General information, shown as such. It will not change any reminder time and never replaces your prescription."})
+    return rows
+
+
+@tool("medications.add_usual_timing", "For medicines whose prescription gives no instructions, add the usual way to take them (with or without food, time of day) from the public FDA label, marked as general information.",
+      {"type": "object", "properties": {"names": {"type": "array", "items": {"type": "string", "maxLength": 80}, "maxItems": 10}}, "additionalProperties": False},
+      permission="records:write", level=L3, confirmation_required=True, roles=("patient",), audit_category="write", preview=_usage_preview, slow=True,
+      verify=lambda ctx, a, out: all((ctx.db.get(Medicine, i).instructions or "").startswith("General label info") for i in out["_ids"]))
+def medications_add_usual_timing(ctx: AgentContext, args: dict) -> dict:
+    plan = _usage_plan(ctx, args)
+    ids, lines = [], []
+    for m, u in plan:
+        m.instructions = f'General label info: usually taken {u["hint"]}. Follow your doctor if told otherwise.'[:200]
+        ids.append(m.id)
+        lines.append(f'{m.name}: {u["hint"]}')
+    ctx.db.add(AccessLog(patient_id=ctx.patient_id, who=ctx.actor_name, role="Patient", action=f"Added general label timing to {len(ids)} medicine(s)", via="Agent"))
+    ctx.db.flush()
+    return {"data": {"added": lines}, "_ids": ids, "target": ",".join(ids)[:80],
+            "blocks": [block("text", text="Added as general information: " + "; ".join(lines) + ". Your own prescription instructions were not touched.")]}
