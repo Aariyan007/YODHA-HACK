@@ -4,7 +4,7 @@ const TITLES = {
   agent: "MediThread",
   latest_records: "Your latest records", search: "Matching records", medications: "Your medicines", care_loop: "Today's doses",
   labs: "Your latest results", alerts: "What needs attention", find_doctor: "Doctors (sample directory)", sharing_status: "Sharing",
-  trend: "How it has changed", pdf: "Your PDF", share_create: "Share link ready", share_stop: "Sharing stopped", log_reading: "Reading added", mark_taken: "Dose marked", file_add: "Added to your thread", medicine_change: "About your medicines", send_to_doctor: "Sending to a doctor", doctor_remove: "Access removed", file_summary: "About this file", file_entities: "What the file contains", file_compare: "Compared with your thread", file_evidence: "Where it says that", allergies: "Allergies", conditions: "Conditions", navigate: "Opening",
+  trend: "How it has changed", help: "How to do it", tour: "Guided tour", pdf: "Your PDF", share_create: "Share link ready", share_stop: "Sharing stopped", log_reading: "Reading added", mark_taken: "Dose marked", file_add: "Added to your thread", medicine_change: "About your medicines", send_to_doctor: "Sending to a doctor", doctor_remove: "Access removed", file_summary: "About this file", file_entities: "What the file contains", file_compare: "Compared with your thread", file_evidence: "Where it says that", allergies: "Allergies", conditions: "Conditions", navigate: "Opening",
 };
 const tone = (s) => (s === "alert" || s === "high" ? "alert" : s === "watch" || s === "medium" ? "watch" : s === "good" ? "good" : "steady");
 const cite = (e) => (e?.quote ? `Page ${e.page || 1}: "${e.quote}"` : undefined);
@@ -39,6 +39,7 @@ export function resultFromResponse(r) {
     items,
     note: [texts.slice(1).join(" "), r.disclaimer].filter(Boolean).join(" ") || undefined,
     navigate: nav?.route,
+    tour: (() => { const t = blocks.find((b) => b.type === "action" && b.kind === "start_tour"); return t ? { name: t.tour, auto: !!t.auto } : undefined; })(),
     qr: blocks.find((b) => b.type === "action" && b.kind === "show_qr") || undefined,
     pdf: blocks.find((b) => b.type === "pdf") || undefined,
     confirmation: r.confirmation || undefined,

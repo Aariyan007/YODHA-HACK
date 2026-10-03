@@ -6,6 +6,7 @@ import { factsFor } from "./agentContext.js";
 import { loadAgentData, useAgentData } from "./agentData.js";
 import { DOCTOR_ASK, intentFor, runAction } from "./agentActions.js";
 import { apiFor } from "./agentApi.js";
+import { startTour } from "../tour/tourStore.js";
 import { useAgentPatient } from "./agentPatient.js";
 import { resultFromResponse } from "./agentBlocks.js";
 import AgentHeader from "./AgentHeader.jsx";
@@ -60,7 +61,11 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     try { result = await runAction(actionId, data || (await loadAgentData())); }
     catch { result = { title: "That did not work", lead: "Something went wrong reading your records.", note: "Try again in a moment." }; }
     const wait = Math.max(0, 1100 - (Date.now() - started)); // long enough to see the thread being worked through
-    setTimeout(() => { if (alive.current) setView({ kind: "result", result }); }, wait);
+    setTimeout(() => {
+      if (!alive.current) return;
+      setView({ kind: "result", result });
+      if (result.tour) { onClose(); setTimeout(() => startTour(result.tour.name, { auto: result.tour.auto }), 250); }
+    }, wait);
   }, [data]);
 
   const noPatient = () => setView({ kind: "result", result: { title: "Open a patient first", lead: "The doctor agent works on one linked patient at a time.", note: "Open a patient's record, then ask again." } });
@@ -102,6 +107,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
       if (!alive.current) return;
       setView({ kind: "result", result });
       if (result.navigate) go(result.navigate); // a navigation request really navigates
+      if (result.tour) { onClose(); setTimeout(() => startTour(result.tour.name, { auto: result.tour.auto }), 250); } // "show me" starts the tour on screen
     }, wait);
   };
 

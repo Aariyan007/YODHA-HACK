@@ -44,6 +44,7 @@ Examples of casual requests and what to do (people write loosely, in English, Ma
 - "when should I take pantocid, before or after food?" / "no timing was written, look it up" -> medications_usage_lookup; "add that timing" -> medications_add_usual_timing (only fills medicines whose prescription gives no instructions).
 - "my telegram id is 123456789, add it" / "set up telegram reminders with chat id 123456789" -> reminders_setup_telegram (target=family for the family chat).
 - "any bad combination of my medicines?" / "can I take these together" / "do my tablets clash" -> medications_check_interactions.  "side effects of telma?" / "what can pantocid cause" -> medications_side_effects.
+- "how do I upload a report?" / "where do I share with my doctor" / "I don't know how to use this" -> app_help (topic = upload | reading | medicines | reminders | share | doctors | timeline | agent | profile). "show me around" / "play the demo" / "give me a tour" -> app_tour (auto=true for the demo).
 - "open meds" / "take me to reminders" -> navigation_navigate.  "find a heart doctor near me" -> doctors_search.
 - Follow-ups like "same but 1 hour", "no the other one", "do it again" refer to the earlier turns shown to you.
 {extra}"""

@@ -284,6 +284,28 @@ class ToolOutputTests(Base_):
         self.assertTrue(any(b["type"] == "doctor_match" for b in r.blocks))  # nearest emergency care is shown at once
         self.assertEqual(AgentExecutor().run(self.ctx(), "triage.check", {"text": "i have a mild headache"}).blocks[0]["type"], "text")
 
+    def test_help_explains_in_steps_offers_to_do_it_and_to_show_on_screen(self):
+        r = AgentExecutor().run(self.ctx(), "app.help", {"topic": "upload"})
+        text = " ".join(b.get("text", "") for b in r.blocks)
+        self.assertIn("1. Open Add", text)
+        self.assertIn("I can do this for you", text)
+        act = next(b for b in r.blocks if b["type"] == "action")
+        self.assertEqual((act["kind"], act["tour"]), ("start_tour", "upload"))
+
+    def test_help_overview_lists_topics_and_roles_see_their_own(self):
+        over = AgentExecutor().run(self.ctx(), "app.help", {})
+        self.assertIn("Add a report or prescription", str(over.blocks))
+        doc = AgentExecutor().run(self.ctx(role="doctor", actor="du"), "app.help", {"topic": "upload"})  # a patient topic: a doctor gets the overview
+        self.db.add(CareLink(patient_id="pa", doctor_user_id="du")); self.db.commit()
+        doc = AgentExecutor().run(self.ctx(role="doctor", actor="du"), "app.help", {"topic": "upload"})
+        self.assertNotIn("paperclip", str(doc.blocks).split("Take the full")[0].lower().replace("start", ""))
+        self.assertEqual(AgentExecutor().run(self.ctx(role="doctor", actor="du"), "app.tour", {}).blocks[-1]["tour"], "doctor")
+
+    def test_tour_rejects_unknown_names_and_marks_the_demo(self):
+        self.assertEqual(AgentExecutor().run(self.ctx(), "app.tour", {"name": "../../etc"}).status, "failed")
+        demo = AgentExecutor().run(self.ctx(), "app.tour", {"auto": True})
+        self.assertEqual(next(b for b in demo.blocks if b["type"] == "action")["auto"], True)
+
     def test_engine_end_to_end(self):
         out = AgentEngine(llm=NullLLM()).chat(self.ctx(), "what medicines am I on")
         self.assertEqual(out["intent"], "medications")

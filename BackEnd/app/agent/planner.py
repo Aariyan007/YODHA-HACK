@@ -58,6 +58,8 @@ R_TIMING = _P(r"before or after (food|meals?)", r"(with|without) food", r"when (
 R_TELEGRAM = re.compile(r"telegram|chat ?id", re.I)
 R_INTERACT = _P(r"(bad|dangerous|harmful|wrong|any|safe).{0,25}(combination|combo|mix|mixing)", r"\binteract", r"\bclash", r"(take|taking|safe).{0,20}\btogether", r"(medicines?|tablets?|pills?|drugs?).{0,25}(together|combined|mix)")
 R_SIDE = _P(r"side ?effects?", r"adverse (effects?|reactions?)", r"what (can|could|will|might).{0,25}(cause|do to me)", r"(does|do|is).{0,25}\bcause\b")
+R_TOUR = _P(r"\b(tour|demo|walk ?through|walk me|show me around|getting started|new here|first time|how does (this|it|the app) work|how to use (this|the) app|guide me)\b")
+R_HOWTO = _P(r"\bhow (do|can|should|to|would) (i|we|you)?\b", r"\bhow to\b", r"\bwhere (do|can|is|are) (i|the)\b", r"\b(help me|show me how|teach me|i (do not|don't|dont) know how|not sure how|can'?t find|cannot find)\b", r"\bwhat can (you|i) do\b")
 R_NAV = re.compile(r"^\s*(?:please\s+)?(?:open|go to|take me to|show me the|navigate to)\s+(?:the\s+|my\s+)?(.+?)(?: page| tab| screen)?\s*$", re.I)
 R_MEDS = _P(r"medicin", r"tablet", r"\bpills?\b", r"prescri", r"മരുന്ന്", r"\bdrugs?\b")
 R_DUE = _P(r"\bleft\b.{0,25}\b(eat|take|taking|tablet|medicine|pill)", r"\b(still|remaining|yet)\b.{0,20}\b(take|eat|tablet|medicine|pill)", r"\bdue\b", r"reminder", r"dose", r"care.?loop", r"today'?s", r"missed", r"taken")
@@ -84,7 +86,7 @@ class AgentPlanner:
             return Plan("empty", clarify="What would you like me to do?", source="none")
         p = self._doctor_rules(text, session or {}) if role == "doctor" else None
         p = p or (self._file_rules(text, file_id) if file_id else None)
-        p = p or self._timing(role, text) or self._compound(role, text) or self._rules(role, text)
+        p = p or self._timing(role, text) or self._help(role, text) or self._compound(role, text) or self._rules(role, text)
         if p is None:
             p = self._llm(role, text, history or [])
         if p is not None and p.steps:  # a plan may only use tools this role has (e.g. no write tools for doctors)
@@ -103,6 +105,19 @@ class AgentPlanner:
         m = (re.search(r"side ?effects? (?:of|for|from|with) (?:my |the )?([a-z][a-z0-9\-]+)", low) or
              re.search(r"(?:what (?:can|could|will|might)|does|do|is) (?:my |the )?([a-z][a-z0-9\-]+) (?:cause|do)\b", low))
         return m.group(1) if m and m.group(1) not in generic else None
+
+    @staticmethod
+    def _help(role: str, text: str) -> Plan | None:
+        """"Show me around" / "how do I upload a report?" for someone who does not know the app: fixed, instant, no model needed."""
+        from .tools.help import topic_for
+        low = text.lower()
+        if R_TOUR.search(low):
+            auto = bool(re.search(r"\b(demo|play|automatic|watch)\b", low))
+            return Plan("tour", [Step("app.tour", {"auto": True} if auto else {})])
+        if R_HOWTO.search(low):
+            key = topic_for(low, role)
+            return Plan("help", [Step("app.help", {"topic": key} if key else {})])
+        return None
 
     @staticmethod
     def _timing(role: str, text: str) -> Plan | None:
@@ -127,7 +142,7 @@ class AgentPlanner:
         if role != "patient":
             return None
         low = text.lower()
-        if (t := self._timing(role, text)) is not None:  # precise, safe, and the model tends to pick the lookup when asked to add
+        if (t := self._timing(role, text) or self._help(role, text)) is not None:  # precise, safe, and the model tends to pick the lookup when asked to add
             return t
         if R_MED_CHANGE.search(low) and not R_NAV.match(text):
             return self._rules(role, text)

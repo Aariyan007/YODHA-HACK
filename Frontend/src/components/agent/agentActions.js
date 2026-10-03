@@ -21,6 +21,9 @@ export const DOCTOR_ASK = {
 };
 
 const RUN = {
+  async tour() {
+    return { title: "Guided tour", lead: "I will show you around the app, one screen at a time. Use Next to move on, or Skip any time.", tour: { name: "full", auto: false } };
+  },
   async changes(d) {
     const deltas = deltaList(d.insights);
     if (!deltas.length) return { title: "What changed", lead: "Nothing to compare yet.", note: "Two results of the same test are needed to show a change." };

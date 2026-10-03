@@ -6,6 +6,7 @@ import { getToken, setToken } from "./api/client.js";
 import { LangContext, useT } from "./i18n.js";
 import { getTheme, setTheme } from "./theme.js";
 import MediThreadAgent from "./components/agent/MediThreadAgent.jsx";
+import { Tour, TourButton, TourWelcome } from "./components/tour/Tour.jsx";
 import StartupScreen from "./components/StartupScreen.jsx";
 import Login from "./pages/Login.jsx";
 import Home from "./pages/Home.jsx";
@@ -163,6 +164,7 @@ function Layout() {
       <header className="top" role="banner">
         <span className="brand" aria-label="MediThread">MediThread</span>
         <div className="top-actions">
+          <TourButton />
           <LangToggle />
           <NavLink to="/profile" className="profile-chip" aria-label="My profile">
             <span className="avatar" aria-hidden="true">{(profile?.name || "?").trim().charAt(0).toUpperCase()}</span>
@@ -191,6 +193,8 @@ function Layout() {
         </div>
       </main>
       <MediThreadAgent />
+      <Tour />
+      <TourWelcome />
     </div>
   );
 }
@@ -215,6 +219,7 @@ function DoctorLayout() {
       <header className="top" role="banner">
         <span className="brand" aria-label="MediThread">MediThread <span className="pill accent" style={{ marginLeft: 8 }}>Doctor</span></span>
         <div className="top-actions">
+          <TourButton />
           <LangToggle />
           <span className="profile-chip">
             <span className="avatar" aria-hidden="true">{(profile?.name || "?").trim().charAt(0).toUpperCase()}</span>
@@ -232,6 +237,8 @@ function DoctorLayout() {
         </div>
       </main>
       <MediThreadAgent />
+      <Tour />
+      <TourWelcome />
     </div>
   );
 }

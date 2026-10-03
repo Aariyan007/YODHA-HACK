@@ -6,7 +6,7 @@ const ACTION = (id, title, sub) => ({ id, title, sub });
 export const CONTEXTS = [
   { match: (p) => p === "/", id: "home", label: "Your health story", title: "Home",
     actions: [ACTION("changes", "What changed recently?", "Compare your latest records"), ACTION("open", "What still needs attention?", "Find open care items"),
-      ACTION("explain", "Explain a report", "In simple language"), ACTION("prepare", "Prepare for my next visit", "Questions and what to bring"), ACTION("doctor", "Find a relevant doctor", "Match care to your records")] },
+      ACTION("explain", "Explain a report", "In simple language"), ACTION("prepare", "Prepare for my next visit", "Questions and what to bring"), ACTION("doctor", "Find a relevant doctor", "Match care to your records"), ACTION("tour", "Show me how to use MediThread", "A one-minute guided tour")] },
   { match: (p) => p.startsWith("/timeline"), id: "thread", label: "Your health thread", title: "Health thread",
     actions: [ACTION("explain", "Explain this thread", "How your records connect"), ACTION("changes", "Show what changed", "Compare results over time"),
       ACTION("open", "Find unresolved follow-ups", "Open care items"), ACTION("summary", "Summarise this period", "A short written summary")] },

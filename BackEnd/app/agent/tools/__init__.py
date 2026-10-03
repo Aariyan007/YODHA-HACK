@@ -4,3 +4,4 @@ from . import files  # noqa: F401
 from . import pdf  # noqa: F401
 from . import writes  # noqa: F401
 from . import doctor  # noqa: F401
+from . import help as help_tools  # noqa: F401
