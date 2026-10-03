@@ -11,7 +11,7 @@ Team FullSleeve: S. Aariyan, Jithin P R, Mathew Maijo. Built for the YODHA hacka
 1. [Features](#features)
 2. [Architecture](#architecture)
 3. [Request flows](#request-flows)
-4. [The Agent](#the-agent)
+4. [The Agent](#the-agent), [AI architecture](#ai-architecture)
 5. [Data model](#data-model)
 6. [Safety and privacy](#safety-and-privacy)
 7. [Repository layout](#repository-layout)
@@ -231,6 +231,92 @@ flowchart TD
 - **Memory** keeps the person's words, tool names and verified replies for 2 hours. It never stores record or document text.
 - **Voice.** Audio becomes text in the input box (ElevenLabs Scribe, falling back to Groq Whisper). Speech never runs a tool by itself.
 - **Audit.** Every tool call writes ids and outcomes (never record text or secrets) to `agent_audit`. An admin page (`/admin`, allow-listed emails) shows counts only.
+
+## AI architecture
+
+One principle runs through every AI feature: **the model proposes, code decides.** Models read messy input and write words. Plain code checks facts, permissions and safety, and only code writes to the database.
+
+```mermaid
+flowchart TB
+  subgraph IN[Inputs]
+    I1[Photo or PDF]
+    I2[Typed or spoken request]
+    I3[Doctor's spoken visit]
+    I4[Symptom text]
+  end
+
+  subgraph PRE[Plain code first - free, instant, testable]
+    R1[Upload checks<br/>size, real file type, duplicate hash]
+    R2[Agent guards<br/>medicine change, send to doctor, how-to]
+    R3[Emergency keyword rules<br/>English, Malayalam, Manglish]
+  end
+
+  subgraph MODELS[Models - they propose]
+    M1[Gemini Flash<br/>reads documents]
+    M2[Groq gpt-oss-120b<br/>summaries, Agent tool choice, visit notes]
+    M3[Groq gpt-oss-20b<br/>fallback + reply judge]
+    M4[ElevenLabs Scribe / Groq Whisper<br/>speech to text]
+    M5[Laya classifier<br/>optional, currently off]
+    M6[TrOCR reader<br/>optional, handwriting]
+  end
+
+  subgraph POST[Plain code after - it decides]
+    C1[Safety rules<br/>duplicates, allergies, DDInter interactions, lab ranges]
+    C2[Risk and trend checks<br/>whole record, no AI]
+    C3[Grounding checks<br/>value must be in the document or transcript, with line]
+    C4[Executor<br/>schema, role, ownership, care link, Yes or No for writes]
+    C5[Reply checks<br/>numbers must be in tool results, no diagnosis wording]
+  end
+
+  subgraph OUT[Outputs]
+    O1[Timeline card, EN + Malayalam summary]
+    O2[Alerts and emergency banner]
+    O3[Agent reply + data cards]
+    O4[SOAP note, doctor approves first]
+  end
+
+  I1 --> R1 --> M1 --> C3 --> C1 --> C2 --> O2
+  M1 --> M2 --> O1
+  I2 --> R2 --> M2 --> C4 --> C5 --> M3 --> O3
+  I2 -.voice.-> M4 --> I2
+  I3 --> M4 --> M2 --> C3 --> O4
+  I4 --> R3 --> M5 -.can only raise.-> R3
+  R3 --> O2
+  M1 -.handwriting.-> M6 -.third opinion.-> C3
+```
+
+### Which model does what
+
+| Job | Model | If it fails |
+| --- | --- | --- |
+| Read a photo or PDF into data | Gemini Flash (falls through a model list when the free quota runs out) | plain error; a cached result still replays |
+| Plain summary and Malayalam | Groq `gpt-oss-120b` | plain-text summary |
+| Agent: pick tools, write the reply | Groq `gpt-oss-120b`, then `gpt-oss-20b` | the rule planner answers |
+| Check the Agent's reply | Groq `gpt-oss-20b` (own quota) | the reply stays, the code checks already passed |
+| Live visit note, classification | Groq (+ fallback model) | cautious rule extraction; the screen says so |
+| Speech to text | ElevenLabs Scribe, then Groq Whisper `large-v3` | browser speech recognition |
+| Handwriting | Gemini twice, optional TrOCR | medicines shown as "unclear", never saved |
+| Triage urgency | keyword rules first; optional Laya (ModernBERT) | rules only |
+| Drug interactions | DDInter dataset (no model) | no alert for unknown pairs |
+| Side effects, usual timing | openFDA label text, quote verified in code | honest "not found" |
+
+### What keeps the AI safe
+
+1. **Guards before the model.** Medicine changes and "send to my doctor" are refused before any model sees them. There is no tool that changes a medicine.
+2. **Only registered tools.** The model can only ask for one of 46 tools. The executor checks the tool exists, the arguments are valid, the role and ownership are right, and a doctor has an active care link.
+3. **Writes need a Yes.** Every change shows an exact preview first and is verified in the database afterwards.
+4. **Grounding.** An extracted value, visit item or reply number is kept only if it is found in the document, transcript or tool results. Handwriting counts only when two readings agree.
+5. **Raise-only.** Laya can raise an urgency level but never lower what the rules decided.
+6. **A second model removes unsupported claims,** and code blocks diagnosis and medicine-advice wording.
+7. **Failing safe.** If any model is slow, rate limited or down, the plain-code version answers. Danger checks and the emergency banner never depend on AI.
+
+### Cost and quota control
+
+- No model is called for safety checks, alerts, trends, reminders, search or how-to help.
+- A file already read is replayed from a saved copy, and the AI health review is reused for 2 minutes while the record is unchanged.
+- The Agent tool list is not re-sent after round 1 unless the request has several parts. One simple question went from about 8,800 tokens to about 2,500.
+- Daily limits per person (Agent 80, uploads 30, doctor search 60, AI review 40) protect the shared free quota.
+- Tokens are counted per feature per day (`/admin`, `app/tokens.py`).
 
 ## Data model
 
