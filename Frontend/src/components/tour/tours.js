@@ -14,6 +14,8 @@ const S = {
   doctors: { route: "/doctors", target: [".mt-ask", "#main-content h1", nav("/doctors")], title: "Find the right doctor", text: "Doctors matched to your record, not just the nearest. Use Which doctor? to describe a symptom and get a suggestion. These are sample doctors in this demo." },
   share: { route: "/sharing", target: [".mt-invite", "#main-content h1", nav("/sharing")], title: "Share with your doctor", text: "Make a QR or link a doctor can open, or an invite code to link their account. You choose what they see and can stop access any time." },
   agent: { target: [".ag-launch"], title: "Ask the assistant", text: "Type or tap the microphone, in English, Malayalam or a mix. Tap the paperclip to give it a photo or PDF. It always asks Yes or No before it saves or shares anything.", last: true },
+  doctorWelcome: { title: "Welcome, doctor", text: "Link your patients with a one-time code, review their record before the visit, and speak the consultation to get a draft note. Nothing reaches a patient until you approve it. This takes under a minute." },
+  doctorAgent: { target: [".ag-launch"], title: "Ask the assistant", text: "Ask for a brief of a patient, what changed since the last visit, or missing information. It reads the linked record only, and never saves or sends anything without your Yes.", last: true },
   doctorHome: { route: "/doctor", target: ["#main-content section.card", "#main-content .page-header"], title: "Your patients", text: "Patients who linked you appear here. Ask a patient for their invite code (Sharing page) and paste it to link them." },
   doctorConsole: { target: [], title: "The consultation console", text: "Open a patient, then start a consultation. Speak the visit and a draft note appears with medicines, diagnoses and advice sorted out. Nothing reaches the patient until you approve it." },
 };
@@ -22,5 +24,5 @@ export const TOURS = {
   full: [S.welcome, S.home, S.upload, S.timeline, S.medicines, S.reminders, S.reading, S.doctors, S.share, S.agent],
   upload: [S.upload, S.agent], reading: [S.reading], medicines: [S.medicines], reminders: [S.reminders], share: [S.share],
   doctors: [S.doctors], timeline: [S.timeline], agent: [S.agent],
-  doctor: [S.welcome, S.doctorHome, S.doctorConsole, S.agent],
+  doctor: [S.doctorWelcome, S.doctorHome, S.doctorConsole, S.doctorAgent],
 };
