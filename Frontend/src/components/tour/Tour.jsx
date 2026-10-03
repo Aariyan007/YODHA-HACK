@@ -28,6 +28,7 @@ export function Tour() {
   const step = run?.steps[run.index];
   const cardRef = useRef(null);
   const [nudge, setNudge] = useState(0);
+  const [measured, setMeasured] = useState(0);
 
   // go to the screen this step is about
   useEffect(() => {
@@ -40,11 +41,12 @@ export function Tour() {
   useLayoutEffect(() => {
     if (!step) { setRect(null); return; }
     let alive = true, tries = 0, timer;
+    let first = true;
     const locate = () => {
       if (!alive) return;
       const el = findTarget(step.target);
       if (el) {
-        el.scrollIntoView({ block: "center", behavior: "auto" });
+        if (first) { first = false; el.scrollIntoView({ block: "center", behavior: "auto" }); }
         const r = el.getBoundingClientRect();
         setRect({ x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 });
       } else if (tries++ < 20 && step.target?.length) {
@@ -81,6 +83,7 @@ export function Tour() {
 
   // the card is taller than my first guess on some steps: slide it up so its bottom edge is always on screen
   useLayoutEffect(() => {
+    setMeasured((t) => t + 1);
     setNudge(0);
     const el = cardRef.current;
     if (!el || window.innerWidth < 640) return;
@@ -91,12 +94,17 @@ export function Tour() {
 
   const place = useCallback(() => {
     const w = Math.min(380, window.innerWidth - 24);
-    if (window.innerWidth < 640 || !rect) return { left: "50%", top: rect && window.innerWidth >= 640 ? undefined : undefined, centered: true, w };
-    const below = rect.y + rect.h + 16 + 220 < window.innerHeight;
-    const top = below ? rect.y + rect.h + 16 : Math.max(12, rect.y - 16 - 220);
-    const left = Math.min(Math.max(12, rect.x), window.innerWidth - w - 12);
-    return { left, top, w };
-  }, [rect]);
+    if (window.innerWidth < 640 || !rect) return { centered: true, w };
+    const vw = window.innerWidth, vh = window.innerHeight, gap = 16;
+    const h = cardRef.current?.offsetHeight || 300; // real card height, so it never lands on the thing it explains
+    const clampL = (x) => Math.min(Math.max(12, x), vw - w - 12);
+    const clampT = (y) => Math.min(Math.max(12, y), vh - h - 12);
+    if (rect.y + rect.h + gap + h <= vh - 12) return { left: clampL(rect.x), top: rect.y + rect.h + gap, w };
+    if (rect.y - gap - h >= 12) return { left: clampL(rect.x), top: rect.y - gap - h, w };
+    if (rect.x + rect.w + gap + w <= vw - 12) return { left: rect.x + rect.w + gap, top: clampT(rect.y), w };
+    if (rect.x - gap - w >= 12) return { left: rect.x - gap - w, top: clampT(rect.y), w };
+    return { left: clampL(vw - w - 24), top: clampT(12), w }; // target fills the screen: park the card at the top edge
+  }, [rect, measured]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!run || !step) return null;
   const p = place();
