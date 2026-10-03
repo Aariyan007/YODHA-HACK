@@ -653,3 +653,11 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 
 /* the document card's label row shares the class "top" with the page header bar: undo the header's sticky/z-index/background there */
 .mt-doc .paper .top { position: static; z-index: auto; top: auto; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; border: 0; box-shadow: none; padding: 0; height: auto; min-height: 0; }
+
+/* lab report card: a compact list of the tests inside the report */
+.mt-doc .fig.tests { gap: 6px; }
+.mt-doc .trow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 0.8125rem; padding-bottom: 5px; border-bottom: 1px solid var(--mt-line); }
+.mt-doc .trow .tn { color: var(--mt-ink-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-doc .trow .tv { font-weight: 600; color: var(--mt-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mt-doc .trow.st-watch .tv { color: var(--amber-ink); } .mt-doc .trow.st-alert .tv { color: var(--rust-ink); }
+.mt-doc .tmore { font-size: 0.75rem; font-weight: 600; color: var(--mt-deep-ink); }

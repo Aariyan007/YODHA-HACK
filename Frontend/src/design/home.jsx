@@ -13,7 +13,7 @@ import { Link } from "react-router-dom";
 import { Sparkline } from "../components/charts.jsx";
 import { useT } from "../i18n.js";
 import { Arrow, RV, threadLink } from "./primitives.jsx";
-import { ARROW, KIND_LABEL, docFigures, fmt, lab, lastChange, longDate, shortDate, unitText } from "./data.js";
+import { ARROW, KIND_LABEL, docFigures, fmt, lab, labTests, lastChange, longDate, prettyUnit, shortDate, unitText } from "./data.js";
 
 const SparkMark = () => (
   <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
@@ -247,6 +247,8 @@ export function DocumentPreview({ doc, onOpen }) {
   const { t } = useT();
   const figs = docFigures(doc);
   const first = figs[0];
+  const tests = doc.type === "lab" ? labTests(doc) : null;
+  const shown = tests ? tests.slice(0, 4) : [];
   const Wrap = onOpen ? "button" : Link;
   return (
     <Wrap
@@ -259,14 +261,21 @@ export function DocumentPreview({ doc, onOpen }) {
     >
       <span className="paper">
         <span className="top"><b>{t(doc.type)}</b><i>{shortDate(doc.date)}</i></span>
-        {first ? (
+        {tests ? (
+          <span className="fig tests">
+            {shown.length ? shown.map((x, i) => (
+              <span key={i} className={`trow st-${x.status || "none"}`}><span className="tn">{x.name}</span><span className="tv">{x.value}{x.unit ? ` ${prettyUnit(x.unit)}` : ""}</span></span>
+            )) : <span className="fn">No test results extracted yet.</span>}
+            {tests.length > shown.length && <span className="tmore">+ {tests.length - shown.length} more {tests.length - shown.length === 1 ? "test" : "tests"}</span>}
+          </span>
+        ) : first ? (
           <span className="fig">
             <span className="fn">{first.name}</span>
             <span className={`fv st-${first.status || "none"}`}>{first.value}</span>
             {figs[1] && <span className="f2">{figs[1].name} · {figs[1].value}</span>}
           </span>
         ) : (
-          <span className="fig"><span className="fn">{doc.title}</span></span>
+          <span className="fig"><span className="fn">{doc.type === "prescription" ? "No medicines read from this prescription." : doc.title}</span></span>
         )}
         <span className="lines" aria-hidden="true"><i /><i /><i /></span>
       </span>

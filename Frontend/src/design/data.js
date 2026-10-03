@@ -60,12 +60,37 @@ export function greeting(ml = false) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-/** The values shown for a record: lab results, or medicines. */
+/** The values shown for a record: lab results, or medicines. A prescription leads with its medicines (readings written on the same
+ *  sheet, like BP or sugar, are left to the full evidence view), so a card never mixes the two. */
 export function docFigures(doc) {
   const items = doc?.items || [];
   const labs = items.filter((i) => "value" in i);
-  if (labs.length) return labs.map((i) => ({ name: i.name, value: `${i.value}${i.unit ? ` ${i.unit}` : ""}`, status: i.status }));
-  return items.map((i) => ({ name: i.name, value: [i.dose, i.frequency].filter(Boolean).join(" · "), status: null }));
+  const meds = items.filter((i) => !("value" in i));
+  const asLab = (i) => ({ name: i.name, value: `${i.value}${i.unit ? ` ${i.unit}` : ""}`, status: i.status });
+  const asMed = (i) => ({ name: i.name, value: [i.dose, i.frequency].filter(Boolean).join(" · "), status: null });
+  if (doc?.type === "prescription") return meds.map(asMed); // readings on the same sheet stay in the full evidence view
+  if (labs.length) return labs.map(asLab);
+  return meds.map(asMed);
+}
+
+/** Everything on the record (medicines first, then readings), for the full evidence view. */
+export function docAllFigures(doc) {
+  const items = doc?.items || [];
+  const meds = items.filter((i) => !("value" in i)).map((i) => ({ name: i.name, value: [i.dose, i.frequency].filter(Boolean).join(" · "), status: null }));
+  const labs = items.filter((i) => "value" in i).map((i) => ({ name: i.name, value: `${i.value}${i.unit ? ` ${i.unit}` : ""}`, status: i.status }));
+  return [...meds, ...labs];
+}
+
+/** Every test in a lab report as { name, value, unit, status } (presentation only; nothing is changed or invented). */
+export function labTests(doc) {
+  return (doc?.items || []).filter((i) => "value" in i && i.name).map((i) => ({ name: i.name, value: i.value, unit: i.unit || "", status: i.status }));
+}
+
+/** 10^6 / uL -> 10⁶/µL for display only. */
+export function prettyUnit(u) {
+  if (!u) return "";
+  const sup = { 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁵", 6: "⁶", 7: "⁷", 8: "⁸", 9: "⁹", "-": "⁻" };
+  return String(u).replace(/10\^(-?\d+)/g, (_, n) => "×10" + [...n].map((c) => sup[c] || c).join("")).replace(/\s*\/\s*/g, "/").replace(/\buL\b/g, "µL").replace(/\bug\b/g, "µg");
 }
 
 /** Course progress for a medicine from its real start date + duration. null when either is missing. */

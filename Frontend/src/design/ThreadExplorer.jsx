@@ -13,14 +13,14 @@ import { Link } from "react-router-dom";
 import { reducedMotion } from "../anim.js";
 import { useT } from "../i18n.js";
 import { Arrow, useLinkedDoc, useMedia } from "./primitives.jsx";
-import { docFigures, eventTime, longDate, shortDate, yearOf } from "./data.js";
+import { docAllFigures, eventTime, longDate, shortDate, yearOf } from "./data.js";
 
 const clamp = (n, lo, hi) => Math.min(Math.max(n, lo), hi);
 
 export function EvidenceBody({ doc, compact = false }) {
   const { t, pick } = useT();
   const time = eventTime(doc);
-  const figures = docFigures(doc);
+  const figures = docAllFigures(doc);
   const lines = doc.sourceDoc?.lines || [];
   return (
     <div className="mt-ev-body">
@@ -30,7 +30,7 @@ export function EvidenceBody({ doc, compact = false }) {
       {pick(doc, "summary") && <p className="mt-ev-sum">{pick(doc, "summary")}</p>}
       {figures.length > 0 && (
         <dl className="mt-ev-fig">
-          {figures.slice(0, 8).map((f, i) => (
+          {figures.slice(0, doc.type === "lab" ? figures.length : 8).map((f, i) => (
             <div key={i} className={`st-${f.status || "none"}`}>
               <dt>{f.name}</dt>
               <dd>
