@@ -49,6 +49,11 @@ def notify_patient(db: Session, patient_id: str, message: str, family: bool = Fa
 
 def after_new_data(db: Session, patient_id: str) -> list[dict]:
     """Run trend + risk checks. Returns the trend alerts touched (for upload results). Does not commit."""
+    try:
+        from . import store
+        store.delete_prefix(f"hc:{patient_id}:")  # the cached health review is for the old record
+    except Exception:
+        pass
     touched = check_trends(db, patient_id)
     _risks, emergencies = refresh_risk_alerts(db, patient_id)
     if emergencies:

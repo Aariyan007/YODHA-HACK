@@ -1,8 +1,10 @@
+import hashlib
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from .. import store
@@ -248,7 +250,32 @@ def add_vitals(body: VitalsIn, patient: Patient = Depends(current_patient), db: 
 @router.get("/health-check")
 def health_check(ai: bool = True, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
     """Danger checks (Python) + an AI review of the whole record. The AI never changes a risk level."""
-    return build_health_check(db, patient, use_ai=ai)
+    if not ai:
+        return build_health_check(db, patient, use_ai=False)
+    # The AI review is the slow, quota-limited part. Reuse it for 2 minutes, but only while the record is unchanged.
+    key = f"hc:{patient.id}:{_record_fingerprint(db, patient.id)}"
+    hit = store.get_value(key)
+    if hit:
+        try:
+            return json.loads(hit)
+        except ValueError:
+            pass
+    out = build_health_check(db, patient, use_ai=True)
+    if (out.get("review") or {}).get("source") != "rules":  # do not keep a fallback answer from a moment when the AI was down
+        store.set_value(key, json.dumps(out), ttl=120)
+    return out
+
+
+def _record_fingerprint(db: Session, pid: str) -> str:
+    """Changes whenever the record does: counts and newest ids of everything the review reads."""
+    from sqlalchemy import func
+    parts = []
+    for model, extra in ((Document, None), (Observation, None), (Medicine, None), (Alert, Alert.resolved)):
+        q = select(func.count(), func.max(model.id)).where(model.patient_id == pid)
+        if extra is not None:
+            q = select(func.count(), func.max(model.id), func.sum(case((extra.is_(True), 1), else_=0))).where(model.patient_id == pid)
+        parts.append("-".join(str(x) for x in db.execute(q).one()))
+    return hashlib.sha1("|".join(parts).encode()).hexdigest()[:16]
 
 
 def build_health_check(db: Session, patient: Patient, use_ai: bool = True, for_doctor: bool = False) -> dict:

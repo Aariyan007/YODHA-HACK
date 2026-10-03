@@ -2,6 +2,7 @@
 (documents, shares and reminders keep their routes). Patient agent here; the doctor agent has its own router."""
 from __future__ import annotations
 
+import os
 import time
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -60,9 +61,23 @@ def _limit(actor: str) -> None:
         raise HTTPException(429, "You are asking quickly. Please wait a moment.")
 
 
+DAILY_LIMIT = int(os.getenv("AGENT_DAILY_LIMIT", "80"))
+
+
+def _daily_budget(actor: str) -> None:
+    """One person cannot use up the shared free AI quota: N questions a day, then a plain message."""
+    from datetime import date
+    key = f"agent:day:{actor}:{date.today().isoformat()}"
+    n = int(store.get_value(key) or 0) + 1
+    store.set_value(key, str(n), ttl=90000)
+    if n > DAILY_LIMIT:
+        raise HTTPException(429, "You have reached today's limit for the assistant. It resets tomorrow.")
+
+
 @router.post("/chat")
 def chat(body: ChatBody, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
     _limit(patient.id)
+    _daily_budget(patient.id)
     ctx = patient_ctx(patient, db, body.conversationId)
     if body.fileId:
         ctx.file_id = owned_file(db, patient, body.fileId).id  # 404 for someone else's file

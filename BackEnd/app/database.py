@@ -70,6 +70,27 @@ def add_missing_columns() -> list[str]:
     return added
 
 
+_INDEXES = [
+    ("ix_documents_patient_date", "documents", "patient_id, date"),
+    ("ix_observations_patient_date", "observations", "patient_id, date"),
+    ("ix_alerts_patient_resolved", "alerts", "patient_id, resolved"),
+    ("ix_agent_audit_actor", "agent_audit", "actor_id"),
+]
+
+
+def add_missing_indexes() -> list[str]:
+    """Composite indexes for the queries every page makes (patient + date, open alerts). Idempotent and safe to re-run."""
+    made: list[str] = []
+    for name, table, cols in _INDEXES:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(f'CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})'))
+            made.append(name)
+        except Exception as e:  # an index is an optimisation: never stop the server over one
+            print(f"[db] index {name} skipped: {e}")
+    return made
+
+
 def get_db():
     db = SessionLocal()
     try:

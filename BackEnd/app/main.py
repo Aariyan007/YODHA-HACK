@@ -8,7 +8,7 @@ from . import reminder_service, store
 from .observability import RequestLogMiddleware, configure_logging
 from sqlalchemy import text
 
-from .database import DB_KIND, Base, SessionLocal, add_missing_columns, engine
+from .database import DB_KIND, Base, SessionLocal, add_missing_columns, add_missing_indexes, engine
 from .routers import admin, agent, auth, doctor_agent, care, consultations, demo, doctor, doctors, documents, imports, patients, reminders, shares
 from .seed import ensure_demo_reminder_settings, seed_if_empty
 
@@ -20,6 +20,7 @@ async def lifespan(app: FastAPI):
         Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     added = add_missing_columns()
+    add_missing_indexes()
     if added:
         print(f"[db] Added missing columns: {', '.join(added)}")
     with SessionLocal() as db:
