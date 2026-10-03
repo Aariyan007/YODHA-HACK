@@ -55,6 +55,7 @@ R_SYMPTOM = _P(r"\b(i have|i've got|i am having|i'm having|i feel|i am feeling|i
 R_UNCLEAR = _P(r"(unclear|handwrit|could ?n.?t read|couldn.?t read|not read).{0,60}(correct|right|fine|ok|add|confirm)", r"(correct|right|fine|add|confirm).{0,40}(unclear|handwrit)", r"\b(those|these|they|them)\b.{0,25}\b(are |is )?(correct|right)\b.{0,30}\badd")
 R_TIMING_ADD = _P(r"(look it up|search|google|find).{0,40}\b(add|save|put|fill)\b", r"\b(add|save|fill)\b.{0,30}\b(timing|when to take|before or after food|usual time|food)\b", r"no timing.{0,40}\b(add|fill)\b")
 R_TIMING = _P(r"before or after (food|meals?)", r"(with|without) food", r"when (should|do|to) i? ?take", r"what time (should|do) i", r"how (should|do) i take", r"empty stomach", r"\b(timing|time) (of|for) (my )?(medicine|tablet|pill)s?")
+R_TELEGRAM = re.compile(r"telegram|chat ?id", re.I)
 R_NAV = re.compile(r"^\s*(?:please\s+)?(?:open|go to|take me to|show me the|navigate to)\s+(?:the\s+|my\s+)?(.+?)(?: page| tab| screen)?\s*$", re.I)
 R_MEDS = _P(r"medicin", r"tablet", r"\bpills?\b", r"prescri", r"മരുന്ന്", r"\bdrugs?\b")
 R_DUE = _P(r"\bleft\b.{0,25}\b(eat|take|taking|tablet|medicine|pill)", r"\b(still|remaining|yet)\b.{0,20}\b(take|eat|tablet|medicine|pill)", r"\bdue\b", r"reminder", r"dose", r"care.?loop", r"today'?s", r"missed", r"taken")
@@ -196,6 +197,8 @@ class AgentPlanner:
                                 "Here is your current list; I can also prepare questions for your next visit.")
         if R_SHARE_STOP.search(low) and role == "patient":
             return Plan("share_stop", [Step("sharing.revoke", {"all": True})])
+        if role == "patient" and R_TELEGRAM.search(low) and (m := re.search(r"(-?\d{5,20})", text.replace(" ", ""))):
+            return Plan("telegram_setup", [Step("reminders.setup_telegram", {"chatId": m.group(1), **({"target": "family"} if re.search(r"famil|son|daughter|husband|wife", low) else {})})])
         if role == "patient" and R_UNCLEAR.search(low):  # "those unclear handwriting ones are correct, add them"
             return Plan("confirm_unclear", [Step("medications.confirm_unclear")])
         if role == "patient" and (m := R_DOC_REMOVE.search(text)) and re.search(r"\bdr\b", m.group(1), re.I):

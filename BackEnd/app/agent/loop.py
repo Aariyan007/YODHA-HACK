@@ -42,6 +42,7 @@ Examples of casual requests and what to do (people write loosely, in English, Ma
 - "those unclear medicines are correct, add them" / "yes the handwritten ones are right" -> medications_confirm_unclear (use medications_unclear first if you need the names).
 - "shelcal 500 once daily in the morning for 30 days" / "set telma to 8am and 8pm" -> medications_update (name + dose / frequency / times / duration_days).
 - "when should I take pantocid, before or after food?" / "no timing was written, look it up" -> medications_usage_lookup; "add that timing" -> medications_add_usual_timing (only fills medicines whose prescription gives no instructions).
+- "my telegram id is 123456789, add it" / "set up telegram reminders with chat id 123456789" -> reminders_setup_telegram (target=family for the family chat).
 - "open meds" / "take me to reminders" -> navigation_navigate.  "find a heart doctor near me" -> doctors_search.
 - Follow-ups like "same but 1 hour", "no the other one", "do it again" refer to the earlier turns shown to you.
 {extra}"""

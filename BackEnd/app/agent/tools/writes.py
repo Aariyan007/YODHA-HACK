@@ -467,3 +467,48 @@ def medications_add_usual_timing(ctx: AgentContext, args: dict) -> dict:
     ctx.db.flush()
     return {"data": {"added": lines}, "_ids": ids, "target": ",".join(ids)[:80],
             "blocks": [block("text", text="Added as general information: " + "; ".join(lines) + ". Your own prescription instructions were not touched.")]}
+
+
+# ---------------------------------------------------------------- Telegram reminders: save the chat id and switch them on
+
+def _chat_id(raw: str) -> str:
+    from ...routers.reminders import CHAT_ID_RE
+    v = (raw or "").strip().replace(" ", "")
+    if not CHAT_ID_RE.match(v):
+        raise ToolError("A Telegram chat ID is only digits (5 to 20 of them, sometimes with a minus sign at the start). "
+                        "Open Telegram, message the MediThread bot first, then send me the number.")
+    return v
+
+
+def _tg_preview(ctx: AgentContext, args: dict) -> list[dict]:
+    cid = _chat_id(args["chatId"])
+    who = "your family chat (missed-dose messages)" if args.get("target") == "family" else "you (dose reminders)"
+    return [{"label": "Telegram chat ID", "value": cid}, {"label": "Sends to", "value": who},
+            {"label": "Then", "value": "I switch Telegram reminders on and send one test message to check it reaches you."},
+            {"label": "Note", "value": "Telegram only delivers if you have already sent a message to the MediThread bot."}]
+
+
+@tool("reminders.setup_telegram", "Save the person's Telegram chat ID, turn on Telegram reminders, and send a test message. target=family saves the family chat for missed-dose messages instead.",
+      {"type": "object", "properties": {"chatId": {"type": "string", "minLength": 3, "maxLength": 30, "description": "digits only, from Telegram"},
+                                        "target": {"type": "string", "enum": ["me", "family"]}}, "required": ["chatId"], "additionalProperties": False},
+      permission="careloop:write", level=L3, confirmation_required=True, roles=("patient",), audit_category="reminders", preview=_tg_preview,
+      verify=lambda ctx, a, out: (lambda s: s is not None and (s.family_chat_id if a.get("target") == "family" else s.telegram_chat_id) == out["_cid"])(
+          ctx.db.get(__import__("app.models", fromlist=["ReminderSettings"]).ReminderSettings, ctx.patient_id)))
+def reminders_setup_telegram(ctx: AgentContext, args: dict) -> dict:
+    from ai import telegram
+    from ...routers.reminders import _get_or_create
+    cid = _chat_id(args["chatId"])
+    s = _get_or_create(ctx.db, ctx.patient_id)
+    if args.get("target") == "family":
+        s.family_chat_id, s.channel_family = cid, True
+    else:
+        s.telegram_chat_id, s.channel_telegram = cid, True
+    s.enabled = True
+    ctx.db.add(AccessLog(patient_id=ctx.patient_id, who=ctx.actor_name, role="Patient", action="Set up Telegram reminders", via="Agent"))
+    ctx.db.flush()
+    ok, err = telegram.send_to(cid, "MediThread is connected. You will get your medicine reminders here.")
+    blocks = [block("text", text="Saved, and Telegram reminders are on." + (" I sent a test message: please check Telegram." if ok else ""))]
+    if not ok:  # saved is true, delivery is not: say exactly which
+        blocks.append(block("warning", severity="medium", title="The test message did not reach Telegram", text=(err or "Unknown error") +
+                            " The ID is saved. Open Telegram, send any message to the MediThread bot, then ask me to test again."))
+    return {"data": {"saved": True, "testSent": ok}, "_cid": cid, "target": "telegram", "blocks": blocks}

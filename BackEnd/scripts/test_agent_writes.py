@@ -362,6 +362,56 @@ class UsualTiming(Writes):
             self.assertEqual(db.get(Medicine, "a").times, [])
 
 
+class TelegramSetup(Writes):
+    def setUp(self):
+        super().setUp()
+        from ai import telegram
+        self.sent = []
+        self.ok = True
+        p = mock.patch.object(telegram, "send_to", lambda cid, msg: (self.sent.append((cid, msg)) or (self.ok, None if self.ok else "Chat not found")))
+        p.start()
+        self.addCleanup(p.stop)
+
+    def settings(self):
+        from app.models import ReminderSettings
+        with self.Session() as db:
+            return db.get(ReminderSettings, self.pid)
+
+    def test_saves_after_a_yes_turns_reminders_on_and_sends_a_test(self):
+        r = self.say("add my telegram id 123456789")
+        self.assertEqual(r["status"], "waiting_for_confirmation")
+        self.assertIn("123456789", str(r["confirmation"]["preview"]))
+        self.assertIsNone(self.settings())                       # nothing yet, no message sent
+        self.assertEqual(self.sent, [])
+        done = self.confirm(r)
+        self.assertEqual(done["status"], "completed")
+        s = self.settings()
+        self.assertEqual((s.telegram_chat_id, s.channel_telegram, s.enabled), ("123456789", True, True))
+        self.assertEqual(self.sent[0][0], "123456789")
+        self.assertIn("test message", str(done["blocks"]))
+
+    def test_failed_test_message_is_reported_not_hidden(self):
+        self.ok = False
+        done = self.confirm(self.say("my telegram chat id is 987654321"))
+        self.assertEqual(self.settings().telegram_chat_id, "987654321")        # saved
+        self.assertTrue(any(b["type"] == "warning" and "did not reach" in b["title"] for b in done["blocks"]))
+        self.assertNotIn("I sent a test message", str(done["blocks"]))         # and it does not claim it worked
+
+    def test_family_chat_is_separate(self):
+        self.confirm(self.say("set my family telegram chat id 555555555 for missed doses"))
+        s = self.settings()
+        self.assertEqual((s.family_chat_id, s.channel_family), ("555555555", True))
+        self.assertIsNone(s.telegram_chat_id)
+
+    def test_bad_ids_are_refused(self):
+        from app.agent.context import AgentContext
+        from app.agent.executor import AgentExecutor
+        with self.Session() as db:
+            ctx = AgentContext(db=db, role="patient", actor_id=self.pid, actor_name="one", patient_id=self.pid)
+            for bad in ("12ab", "@myname", "123", "1" * 30):
+                self.assertEqual(AgentExecutor().run(ctx, "reminders.setup_telegram", {"chatId": bad}).status, "failed", bad)
+
+
 class SafetyTests(Writes):
     def test_medicine_changes_are_explained_never_done(self):
         with self.Session() as db:
