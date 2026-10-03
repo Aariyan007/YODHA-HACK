@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "seed"))
 
 from ai import laya_schema as S  # noqa: E402
 import handwritten  # noqa: E402
+import handwritten_train  # noqa: E402
 
 DATA = Path(__file__).resolve().parent / "data"
 RAW = DATA / "raw"
@@ -156,6 +157,16 @@ def main() -> None:
     hand = [triage_row(t, urgency=u, specialist=s, meta={"source": "handwritten", "lang": l}) for t, u, s, l in handwritten.TEST]
     red = [triage_row(t, urgency="emergency", meta={"source": "handwritten-redteam", "lang": l}) for t, l in handwritten.REDTEAM]
 
+    # Person-written Malayalam / Manglish TRAINING rows. They must never appear in the held-out test or red-team sets.
+    test_texts = {t.strip().lower() for t, *_ in handwritten.TEST} | {t.strip().lower() for t, _ in handwritten.REDTEAM}
+    clash = [t for t, *_ in handwritten_train.TRAIN if t.strip().lower() in test_texts]
+    if clash:
+        raise SystemExit(f"handwritten_train.py overlaps the held-out test set (would inflate the score): {clash[:3]}")
+    for t, u, sp, l in handwritten_train.TRAIN:
+        for _ in range(handwritten_train.UPSAMPLE):
+            train.append(triage_row(t, urgency=u, specialist=sp, meta={"source": "handwritten-train", "lang": l}))
+    counts["handwritten_train"] = len(handwritten_train.TRAIN)
+
     lines_src = SEED / "generated_lines.jsonl"
     line_train, line_test = [], []
     for r in (jl(lines_src) if lines_src.exists() else []):
@@ -178,6 +189,7 @@ def main() -> None:
             "syntech-ai/medical-triage-500": "CC BY-NC 4.0 (non-commercial); synthetic; 250 rows used with 'immediate' downgraded to urgent unless a chest-pain or breathlessness red flag",
             "groq-generated": "wording by openai/gpt-oss-120b, labels from ml/scenarios.py; synthetic; 14% held out",
             "handwritten": "ml/seed/handwritten.py, written by a person, test only",
+            "handwritten-train": "ml/seed/handwritten_train.py, written by a person, Malayalam + Manglish, repeated x4 in training; checked for no overlap with the test set",
         }}, indent=2))
 
 
