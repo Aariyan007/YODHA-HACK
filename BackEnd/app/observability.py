@@ -9,12 +9,16 @@ import json
 import logging
 import re
 import sys
+import os
 import time
 import uuid
 
 log = logging.getLogger("access")
 _SECRET_PATHS = re.compile(r"(/api/shares/|/api/jobs/|/console/|/share/)[^/]+")
 _QUIET = {"/api/health", "/health", "/api/health/ready"}  # Docker polls these every few seconds
+
+
+SLOW_MS = float(os.getenv("SLOW_REQUEST_MS", "1000"))  # requests slower than this are logged as warnings with "slow":true
 
 
 def configure_logging() -> None:
@@ -55,8 +59,9 @@ class RequestLogMiddleware:
             path = scope.get("path", "")
             if path not in _QUIET:
                 client = scope.get("client")
-                log.info(json.dumps({
+                ms = round((time.perf_counter() - started) * 1000, 1)
+                (log.warning if ms >= SLOW_MS else log.info)(json.dumps({
                     "t": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "rid": rid, "method": scope.get("method"),
                     "path": _SECRET_PATHS.sub(r"\1<redacted>", path), "status": status["code"],
-                    "ms": round((time.perf_counter() - started) * 1000, 1), "ip": client[0] if client else None,
+                    "ms": ms, **({"slow": True} if ms >= SLOW_MS else {}), "ip": client[0] if client else None,
                 }, separators=(",", ":")))

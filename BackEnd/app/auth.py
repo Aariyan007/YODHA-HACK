@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import os
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException
@@ -21,11 +22,19 @@ bearer = HTTPBearer(auto_error=False)
 
 # ---- passwords: stdlib scrypt, random salt, constant-time compare (no extra dependency)
 _N, _R, _P = 2 ** 14, 8, 1
+# One scrypt run needs about 16 MB. A burst of sign-ins on 40 worker threads would need 640 MB and push a small container
+# into swap, stalling every other request. Only a few run at once; the rest wait their turn (milliseconds each).
+_SCRYPT_SLOTS = threading.BoundedSemaphore(int(os.getenv("SCRYPT_CONCURRENCY", "3")))
+
+
+def _scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
+    with _SCRYPT_SLOTS:
+        return hashlib.scrypt(password.encode(), salt=salt, n=n, r=r, p=p, dklen=32)
 
 
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
-    dk = hashlib.scrypt(password.encode(), salt=salt, n=_N, r=_R, p=_P, dklen=32)
+    dk = _scrypt(password, salt, _N, _R, _P)
     return f"scrypt${_N}${_R}${_P}${salt.hex()}${dk.hex()}"
 
 
@@ -33,7 +42,7 @@ def verify_password(password: str, stored: str | None) -> bool:
     """Always does one scrypt run, even for an unknown user (stored=None), so timing does not reveal accounts."""
     try:
         _, n, r, p, salt, dk = (stored or _DUMMY_HASH).split("$")
-        calc = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=int(n), r=int(r), p=int(p), dklen=32)
+        calc = _scrypt(password, bytes.fromhex(salt), int(n), int(r), int(p))
         return hmac.compare_digest(calc, bytes.fromhex(dk)) and stored is not None
     except Exception:
         return False

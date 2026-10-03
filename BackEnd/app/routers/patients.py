@@ -252,6 +252,7 @@ def health_check(ai: bool = True, patient: Patient = Depends(current_patient), d
     """Danger checks (Python) + an AI review of the whole record. The AI never changes a risk level."""
     if not ai:
         return build_health_check(db, patient, use_ai=False)
+    from .. import budget
     # The AI review is the slow, quota-limited part. Reuse it for 2 minutes, but only while the record is unchanged.
     key = f"hc:{patient.id}:{_record_fingerprint(db, patient.id)}"
     hit = store.get_value(key)
@@ -260,6 +261,8 @@ def health_check(ai: bool = True, patient: Patient = Depends(current_patient), d
             return json.loads(hit)
         except ValueError:
             pass
+    if not budget.try_spend(patient.id, "review"):  # over today's AI budget: the rules-only review still works
+        return build_health_check(db, patient, use_ai=False)
     out = build_health_check(db, patient, use_ai=True)
     if (out.get("review") or {}).get("source") != "rules":  # do not keep a fallback answer from a moment when the AI was down
         store.set_value(key, json.dumps(out), ttl=120)

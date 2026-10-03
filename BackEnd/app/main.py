@@ -67,6 +67,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from .concurrency import InflightLimit
+app.add_middleware(InflightLimit)  # keeps in-flight requests below the connection pool
 app.add_middleware(RequestLogMiddleware)  # added last = outermost: logs every request, sets X-Request-Id
 
 app.include_router(auth.router)

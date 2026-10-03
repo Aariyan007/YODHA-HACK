@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ai import doctor_ai
 
 from .. import doctors as finder
+from .. import budget
 from ..auth import current_patient
 from ..database import get_db
 from ..models import Medicine, Observation, Patient
@@ -73,6 +74,7 @@ class AskBody(BaseModel):
 @router.post("/ask")
 def ask(body: AskBody, patient: Patient = Depends(current_patient)):
     """Free-text search: Python reads what it can, the AI fills the rest (only known values)."""
+    budget.spend(patient.id, "doctor_ai")
     rules = finder.parse_query(body.q)
     ai_filters = doctor_ai.parse(body.q)
     filters = {**ai_filters, **rules}  # a Python match is exact, so it wins over the AI's guess

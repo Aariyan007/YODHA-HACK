@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from ai import decision, laya_schema as S, pipeline
 from ai.triage_rules import EMERGENCY_PATTERNS, emergency_hit, merge_urgency
+from .. import budget
 from ..auth import current_patient
 from ..models import Patient
 
@@ -38,6 +39,7 @@ async def upload_document(
     file: UploadFile = File(...),
     patient: Patient = Depends(current_patient),
 ):
+    budget.spend(patient.id, "upload")
     data = await file.read(MAX_UPLOAD_BYTES + 1)  # never buffer more than the limit plus one byte
     if not data:
         raise HTTPException(400, "File is empty.")

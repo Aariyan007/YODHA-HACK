@@ -24,7 +24,12 @@ def _make_engine():
         try:
             # Supabase's session pooler allows only a handful of client connections per project, so keep this process small:
             # 3 + 2 overflow, recycled every 5 minutes (the default 5 + 10 can starve other processes and the tests).
-            eng = create_engine(url, pool_pre_ping=True, pool_size=3, max_overflow=2, pool_recycle=300,
+            # The transaction pooler (6543) multiplexes many clients over few server connections, so a bigger local pool is safe
+            # there; without it, 100 people at once queued behind 5 connections and timed out. Override with DB_POOL_SIZE / DB_MAX_OVERFLOW.
+            big = (os.getenv("DB_POOL_MODE") or "").strip().lower() == "transaction"
+            size = int(os.getenv("DB_POOL_SIZE") or (20 if big else 3))
+            over = int(os.getenv("DB_MAX_OVERFLOW") or (20 if big else 2))
+            eng = create_engine(url, pool_pre_ping=True, pool_size=size, max_overflow=over, pool_recycle=300, pool_timeout=15,
                                 connect_args={"connect_timeout": 8})
             with eng.connect() as conn:
                 conn.execute(text("select 1"))
