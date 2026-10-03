@@ -4,7 +4,7 @@ import { doctorsLink } from "../components/health.jsx";
 import { getNearbyDoctors, triage } from "../api/client.js";
 import { useT } from "../i18n.js";
 
-// Triage names like "Diabetologist / Endocrinologist" -> the finder's single specialty.
+// Triage names like "Diabetologist / Endocrinologist" map to the finder's single specialty.
 const FINDER = ["General Physician", "Cardiologist", "Diabetologist", "Nephrologist", "Pulmonologist", "Gastroenterologist",
   "Endocrinologist", "Haematologist", "Neurologist", "Orthopaedician", "Gynaecologist", "Paediatrician", "Dermatologist",
   "Ophthalmologist", "ENT specialist", "Psychiatrist", "Urologist", "Dentist"];
@@ -70,7 +70,7 @@ function TriageResult({ result, lang }) {
   );
 }
 
-// ── Name an actual doctor from the directory for this specialty ──────────────
+// -- Name a real doctor from the directory for this specialty --
 function DoctorSuggestion({ specialist, urgent, lang }) {
   const ml = lang === "ml";
   const finderSpecialty = urgent ? "Emergency" : toFinderSpecialty(specialist);

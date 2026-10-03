@@ -32,7 +32,7 @@ def _complete(prompt: str, system: str) -> str:
         r = client.chat.completions.create(**kwargs)
     out = (r.choices[0].message.content or "").strip()
     if not out and r.choices[0].finish_reason == "length":
-        # Reasoning ate the budget; retry without reasoning or with a bigger budget.
+        # Reasoning used up the budget, retry without reasoning or with a bigger budget.
         kwargs["max_tokens"] = 3000
         r = client.chat.completions.create(**kwargs)
         out = (r.choices[0].message.content or "").strip()
@@ -40,7 +40,7 @@ def _complete(prompt: str, system: str) -> str:
 
 
 def summarise(doc: dict, alerts: list[dict]) -> dict:
-    """Return {"en": ..., "ml": ...}. Degrades gracefully if Groq fails."""
+    """Returns {"en": ..., "ml": ...}. Falls back gracefully if Groq fails."""
     bullets = []
     if doc.get("hospital") or doc.get("doctor"):
         bullets.append(f"Place / doctor: {doc.get('hospital') or ''} {doc.get('doctor') or ''}".strip())

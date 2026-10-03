@@ -1,11 +1,12 @@
-"""Structured extraction with provenance. Null over fabrication.
+"""Structured extraction with a source for every value. Empty beats made up.
 
-The model (Gemini) reads the document and proposes fields. CODE then decides what survives: every value must be found in
-the document's own text lines, and each kept value carries the line numbers (and page) it came from. Anything that cannot be
-found is listed as unverified and is NOT part of `clean_doc`, which is the only thing a later confirmed write may use.
+The model (Gemini) reads the document and proposes fields. Then code decides what stays: every value has to be
+found in the document's own text lines, and each kept value carries the line numbers (and page) it came from.
+Anything not found goes in `unverified` and is not part of `clean_doc`, which is the only thing a later confirmed
+write may use.
 
-Document text is untrusted data. It is searched and quoted; it is never executed or followed. Text that looks like an
-instruction to an AI is reported as a warning and otherwise ignored.
+Document text is untrusted. It's searched and quoted, never followed. Text that looks like an instruction to an AI
+is reported as a warning and otherwise ignored.
 """
 from __future__ import annotations
 
@@ -33,8 +34,9 @@ def _ev(line: dict) -> dict:
 
 
 def _find(lines: list[dict], pred: Callable[[str], bool], span: int = 1) -> dict | None:
-    """The line where pred(normalised text) holds. Single lines first (so the evidence is the line that really says it);
-    only then a line joined with the next one(s), because table cells sometimes wrap."""
+    """The line where pred(normalised text) is true. Single lines first (so the evidence is the line that really says it),
+    then a line joined with the next ones, since table cells sometimes wrap.
+    """
     for l in lines:
         if pred(_norm(l["text"])):
             return l
@@ -46,14 +48,14 @@ def _find(lines: list[dict], pred: Callable[[str], bool], span: int = 1) -> dict
 
 
 def lines_for(file_bytes_pages: list[str], gemini_lines: list[str]) -> list[dict]:
-    """The text layer if the PDF has one (page-accurate), else the lines the vision model read."""
+    """The PDF's text layer if it has one (accurate per page), else the lines the vision model read."""
     if any(file_bytes_pages):
         return ingest.text_lines(file_bytes_pages)
     return [{"n": i + 1, "page": 1, "text": str(t)[:300]} for i, t in enumerate(gemini_lines[:400]) if str(t).strip()]
 
 
 def verify(doc: dict, lines: list[dict]) -> dict:
-    """Return {clean_doc, items, unverified, warnings}. `items` is what the UI shows (with evidence)."""
+    """Returns {clean_doc, items, unverified, warnings}. `items` is what the UI shows, with evidence."""
     warnings: list[str] = []
     if any(INJECTION.search(l["text"]) for l in lines):
         warnings.append("This document contains text that reads like instructions to an AI. I ignored it and treated it as plain text.")
@@ -84,7 +86,7 @@ def verify(doc: dict, lines: list[dict]) -> dict:
         if dose and nd:
             ok = _find(lines, lambda t: first in t and nd in t.replace(" ", ""), span=1)
             if not ok:
-                m["dose"] = None  # the written dose could not be found next to the name: leave it blank rather than guess
+                m["dose"] = None  # couldn't find the written dose next to the name, leave it blank instead of guessing
         items["medicines"].append({"name": name[:120], "dose": m.get("dose"), "schedule": m.get("schedule"), "purpose": m.get("purpose"),
                                    "doseVerified": bool(m.get("dose")), "evidence": _ev(hit)})
         clean["medicines"].append(m)
@@ -130,7 +132,7 @@ def verify(doc: dict, lines: list[dict]) -> dict:
 
 
 def classification_check(gemini_type: str | None, text_cls: dict | None, found_any: bool) -> dict:
-    """Combine the model's type with the keyword check. Disagreement or an empty result means ask the person."""
+    """Combines the model's type with the keyword check. If they disagree or it's empty, ask the person."""
     if text_cls and text_cls.get("type") and gemini_type and text_cls["type"] != gemini_type:
         return {"type": None, "confidence": 0.3, "source": "disagree", "reason": "I read this one way and the words suggest another"}
     if not found_any:

@@ -111,10 +111,10 @@ ACCESS_LOG = [
 
 
 def load_demo(db: Session) -> None:
-    """Insert (or restore) Ammini and her clean demo data: 8 records, 3 medicines, 3 alerts.
-
-    Callers make sure her old rows are gone first; the patient row itself is
-    updated in place so share links that point at her keep working.
+    """Inserts (or restores) Ammini and her clean demo data: 8 records, 3 medicines, 3 alerts.
+    
+    Callers make sure her old rows are gone first. The patient row itself is updated in place so share links
+    pointing at her keep working.
     """
     patient = db.get(Patient, DEMO_ID)
     if patient is None:
@@ -153,9 +153,9 @@ def seed_if_empty(db: Session) -> bool:
 
 
 def ensure_demo_reminder_settings(db: Session, commit: bool = True) -> None:
-    """Phase 5: create Ammini's reminder settings if missing, pre-filling the
-    Telegram chat id from the env so the demo works out of the box. Reminders
-    stay off until the patient turns them on in the UI."""
+    """Creates Ammini's reminder settings if they're missing, filling in the Telegram chat id from the env so the demo
+    works out of the box. Reminders stay off until the patient turns them on in the UI.
+    """
     if db.get(Patient, DEMO_ID) is None or db.get(ReminderSettings, DEMO_ID) is not None:
         return
     chat = (os.getenv("TELEGRAM_CHAT_ID") or "").strip() or None

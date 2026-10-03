@@ -1,4 +1,4 @@
-/* MediThread Agent — inherits the design system tokens (mt.css). Launcher + panel. */
+/* MediThread Agent: uses the design system tokens (mt.css). Launcher and panel. */
 .ag-root { position: relative; z-index: 60; }
 
 /* Launcher: compact, calm, bottom-right. */

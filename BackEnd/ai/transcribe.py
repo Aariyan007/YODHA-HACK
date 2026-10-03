@@ -1,15 +1,13 @@
-"""Speech to text for the doctor console, using Groq-hosted Whisper.
+"""Speech to text for the doctor console, using Whisper on Groq.
 
-The browser sends short, sentence-sized audio clips (cut at pauses). This module turns one clip
-into clean text:
+The browser sends short audio clips, one sentence each (cut at pauses). This turns one clip into clean text:
 
-- Whisper `large-v3` is far better than the browser engine on Indian accents, drug names and
-  Malayalam / English mixing.
-- A short vocabulary prompt (the patient's own medicines) biases Whisper toward the right spellings.
-- Whisper is known to invent text on silence or noise ("Thank you.", "Thanks for watching").
-  We read the per-segment confidence and drop those segments, so noise never becomes a transcript line.
+- Whisper large-v3 is much better than the browser engine on Indian accents, drug names and Malayalam/English mixing.
+- A short word list (the patient's own medicines) nudges Whisper toward the right spellings.
+- Whisper invents text on silence or noise ("Thank you.", "Thanks for watching"). We read the confidence of each
+  segment and drop those, so noise never becomes a transcript line.
 
-Nothing here keeps audio. Audio bytes are sent to Groq and discarded; text is never logged.
+Nothing here keeps audio. It goes to Groq and is discarded, and text is never logged.
 """
 from __future__ import annotations
 
@@ -30,7 +28,7 @@ _PHANTOM = {
 
 
 class TranscribeError(Exception):
-    """A problem with a plain-language message that is safe to show to the user."""
+    """A problem with a plain message that is safe to show the user."""
 
     def __init__(self, message: str, status: int = 502):
         super().__init__(message)
@@ -41,7 +39,7 @@ def _client() -> Groq:
     key = os.getenv("GROQ_API_KEY")
     if not key:
         raise TranscribeError("Voice transcription is not set up on this server yet (the Groq key is missing).", 503)
-    # max_retries=0: clips are uploaded in order; a hidden retry-after wait would stall every clip behind it.
+    # max_retries=0 because clips upload in order and a hidden retry-after wait would stall every clip behind it.
     return Groq(api_key=key, timeout=TIMEOUT_S, max_retries=0)
 
 
@@ -55,7 +53,7 @@ def _norm(text: str) -> str:
     return re.sub(r"[^a-z ]+", "", (text or "").lower()).strip()
 
 
-# Sentences Whisper invents on quiet or noisy clips (it learned them from subtitles): thanks, goodbyes, sign-offs.
+# Sentences Whisper makes up on quiet or noisy clips (it learned them from subtitles): thanks, goodbyes, sign-offs.
 _INVENTED = re.compile(r"^(thanks?( you)?( so much| very much)?( for (watching|listening|your time|your attention|having me|the (help|video)))?[ ,.!]*"
                        r"([a-z]+)?|i would like to thank you( for your (time|attention))?|you'?re welcome|see you( (soon|later|next time))?|"
                        r"bye( bye)?|good ?bye|please (like|subscribe).*|thank you,? (doctor|sir|madam|jonathan|everyone))[ .!]*$", re.I)
@@ -66,7 +64,7 @@ def _invented(text: str) -> bool:
 
 
 def _keep_segment(seg: Any) -> bool:
-    """Standard Whisper reliability checks: no-speech + low confidence, or runaway repetition."""
+    """Standard Whisper checks: no speech plus low confidence, or runaway repetition."""
     text = (_get(seg, "text") or "").strip()
     if not text:
         return False
@@ -83,8 +81,9 @@ def _keep_segment(seg: Any) -> bool:
 
 
 def build_prompt(vocab: list[str] | None) -> str:
-    """Only a spelling list. A prompt written as a sentence ("doctor and patient talking...") makes Whisper echo or invent
-    sentences on quiet clips, so none is used; with no medicines to bias toward, no prompt is sent at all."""
+    """Only a spelling list. A prompt written as a sentence ("doctor and patient talking...") makes Whisper echo or
+    invent sentences on quiet clips, so we don't use one. With no medicines to bias toward, no prompt is sent.
+    """
     from .medterms import common_brands  # local import: medterms reads the drug datasets on first use
 
     words = [w.strip() for w in (vocab or []) if w and w.strip()] + common_brands(10)
@@ -93,7 +92,7 @@ def build_prompt(vocab: list[str] | None) -> str:
 
 def transcribe(data: bytes, filename: str = "clip.webm", mime: str = "audio/webm",
                language: str | None = None, vocab: list[str] | None = None) -> dict:
-    """Transcribe one clip. Returns {"text", "language", "dropped"}. Empty text means 'nothing real heard'."""
+    """Transcribes one clip. Returns {"text", "language", "dropped"}. Empty text means nothing real was heard."""
     client = _client()
     kwargs: dict[str, Any] = dict(
         file=(filename, data, mime),
@@ -104,7 +103,7 @@ def transcribe(data: bytes, filename: str = "clip.webm", mime: str = "audio/webm
     if prompt := build_prompt(vocab):
         kwargs["prompt"] = prompt
     if language:
-        kwargs["language"] = language  # a hint only; omit to let Whisper detect it
+        kwargs["language"] = language  # just a hint, leave it out to let Whisper detect the language
     try:
         r = client.audio.transcriptions.create(**kwargs)
     except Exception as e:  # network, quota, bad audio
@@ -122,7 +121,7 @@ def transcribe(data: bytes, filename: str = "clip.webm", mime: str = "audio/webm
         kept = [s for s in segments if _keep_segment(s)]
         text = " ".join((_get(s, "text") or "").strip() for s in kept).strip()
         dropped = len(segments) - len(kept)
-    else:  # model returned no segment detail; fall back to the plain text with the phantom check only
+    else:  # no segment detail came back, use the plain text and only do the phantom check
         raw = (_get(r, "text") or "").strip()
         text = "" if (_norm(raw) in _PHANTOM or _invented(raw)) else raw
         dropped = 0 if text else (1 if raw else 0)

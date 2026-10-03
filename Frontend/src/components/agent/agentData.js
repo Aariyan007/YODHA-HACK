@@ -1,4 +1,4 @@
-// What the Agent knows. Everything comes from the existing patient API (the same calls the pages make),
+// What the Agent knows. All of it comes from the existing patient API (the same calls the pages make),
 // loaded only when the panel is opened, cached briefly, and never invented.
 import { useEffect, useState } from "react";
 import { getAlerts, getInsights, getMedicines, getReminders, getTimeline } from "../../api/client.js";

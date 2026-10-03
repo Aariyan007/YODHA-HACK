@@ -1,12 +1,13 @@
-"""Handwritten prescriptions: preprocess, read twice, flag what is unclear. Null over fabrication.
+"""Handwritten prescriptions: clean up, read twice, flag what's unclear. Leave it empty rather than guess.
 
-Doctors' handwriting is where a model is most likely to guess a plausible drug name. So for a document the first pass calls
+A model is most likely to invent a believable drug name from doctors' handwriting. So when the first pass says
 handwritten:
-  1. the page is cleaned up (grey, contrast, upscaled, sharpened);
-  2. a second, separate reading transcribes line by line and writes [?] for any word it cannot read, with a confidence per medicine;
-  3. CODE compares the two readings. A medicine is "certain" only if both passes agree on the name and the name is a real drug
-     (known brand/generic). Anything else goes to `uncertain_medicines` with what each pass saw, and is NOT treated as a medicine.
-The person is told to check those with the doctor or pharmacist; nothing is silently guessed."""
+1. the page is cleaned up (grey, contrast, upscaled, sharpened)
+2. a second, separate reading goes line by line and writes [?] for any word it can't read
+3. code compares the two. A medicine is "certain" only if both passes agree on the name and it's a known drug.
+   Everything else goes to uncertain_medicines with what each pass saw, and is not treated as a medicine.
+The person is told to check those with the doctor or pharmacist. Nothing is guessed quietly.
+"""
 from __future__ import annotations
 
 import difflib
@@ -27,7 +28,7 @@ Rules:
 
 
 def preprocess(data: bytes, mime: str) -> bytes:
-    """Grey, auto-contrast, upscale small photos, sharpen. Returns PNG bytes, or the original if it is not a plain image."""
+    """Grey, auto contrast, upscale small photos, sharpen. Returns PNG bytes, or the original if it isn't a plain image."""
     if not mime.startswith("image/"):
         return data
     try:
@@ -60,12 +61,12 @@ DETAIL_KEYS = ("dose", "schedule", "times", "duration", "purpose")
 
 
 def _details(m: dict) -> dict:
-    """What the first reading saw next to the name, kept so a person who confirms the name does not lose it."""
+    """What the first reading saw next to the name, so confirming the name doesn't lose it."""
     return {k: m.get(k) for k in DETAIL_KEYS if m.get(k) not in (None, "", [])}
 
 
 def compare(first: list[dict], second: list[dict]) -> tuple[list[dict], list[dict]]:
-    """-> (certain, uncertain). A medicine is certain only if both readings agree, the second is confident and legible, and the name is a real drug."""
+    """Gives (certain, uncertain). Certain only if both readings agree, the second is confident and readable, and the name is a real drug."""
     certain, uncertain = [], []
     pool = [dict(m) for m in second or []]
     for m in first or []:
@@ -94,7 +95,7 @@ def compare(first: list[dict], second: list[dict]) -> tuple[list[dict], list[dic
 
 
 def second_pass(client, call, data: bytes, mime: str, doc: dict) -> dict:
-    """Run the second reading and rewrite doc's medicines/lines. `call` is extractor._call (retries and model cascade)."""
+    """Runs the second reading and rewrites the doc's medicines and lines. `call` is extractor._call (retries and model fallback)."""
     img = preprocess(data, mime)
     out_mime = "image/png" if img is not data and mime.startswith("image/") else mime
     try:
@@ -118,8 +119,9 @@ def second_pass(client, call, data: bytes, mime: str, doc: dict) -> dict:
 
 
 def _third_reader(img: bytes, doc: dict) -> None:
-    """Optional TrOCR reader (htr/ service). It only ADDS information: which accepted medicines it also saw, and an extra
-    caution on names it could not find while the page text it read was substantial. It never makes a medicine certain."""
+    """Optional TrOCR reader (htr/ service). It only adds info: which accepted medicines it also saw, and an extra
+    warning on names it couldn't find when the page text it read was long. It never makes a medicine certain.
+    """
     from . import htr
     lines = htr.read(img)
     if not lines:

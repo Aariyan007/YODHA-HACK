@@ -1,18 +1,18 @@
-"""Doctor-side consultation flow.
+"""Doctor side of the consultation flow.
 
-Seven endpoints:
+Endpoints:
     POST /api/consultations/start          start a visit from a share token
-    POST /api/consultations/{id}/line      append one transcript line
+    POST /api/consultations/{id}/line      add one transcript line
     POST /api/consultations/{id}/audio     one spoken clip -> Whisper -> a transcript line
     POST /api/consultations/{id}/finalize  build the full SOAP note (status=draft)
-    POST /api/consultations/{id}/approve   doctor signs off; writes patient timeline
+    POST /api/consultations/{id}/approve   doctor signs off, writes to the patient timeline
     GET  /api/consultations/{id}           full state for the review screen
     POST /api/consultations/demo/{id}      stage fallback: feed 14 scripted lines
 
-Rules enforced:
-- The AI never diagnoses. Assessment only restates the doctor.
+Rules:
+- The AI never diagnoses. Assessment only repeats what the doctor said.
 - Nothing reaches the patient timeline before /approve.
-- Every AI call has a 25 s cap; failure returns the transcript and an empty note.
+- Every AI call has a 25 s cap. On failure you get the transcript and an empty note.
 """
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ class LineBody(BaseModel):
 class ApproveBody(BaseModel):
     edits: dict[str, Any] = Field(default_factory=dict)
     # Items the doctor removed from the classified visit: {"medicines": [1], "diagnoses": [0], "follow_up": [0]}
-    # (indexes into what the server stored; the client can never add or change an item).
+    # (indexes into what the server stored, the client can never add or change an item).
     removedItems: dict[str, list[int]] = Field(default_factory=dict)
 
 
@@ -104,7 +104,7 @@ def _validate_share(db: Session, token: str) -> ShareLink:
 
 
 def _authorize(db: Session, cid: str, token: str | None) -> Consultation:
-    """Fetch the consultation and verify the share token still grants access."""
+    """Gets the consultation and checks the share token still gives access."""
     if not token:
         raise HTTPException(401, "Missing X-Share-Token header")
     c = _get_consult(db, cid)
@@ -123,10 +123,9 @@ _MED_TOKEN = re.compile(r"[A-Za-z][A-Za-z\-]{2,}")
 
 
 def _mentions_in_line(text: str, extra_known: list[dict]) -> list[dict]:
-    """Return medicines mentioned in a line as [{name, generic}].
-
-    Scans every word against BRAND_TO_GENERIC via to_generic, so patient-report
-    strings like 'Metformin' and brand names like 'Glycomet' both hit.
+    """Returns the medicines mentioned in a line as [{name, generic}].
+    
+    Checks every word against BRAND_TO_GENERIC with to_generic, so 'Metformin' and a brand like 'Glycomet' both match.
     """
     out: dict[str, dict] = {}
     for tok in _MED_TOKEN.findall(text or ""):
@@ -340,7 +339,7 @@ def _state_out(c: Consultation) -> dict:
 
 
 def _append_line(db: Session, c: Consultation, text: str, speaker_in: str, fixes: list[dict] | None = None) -> dict:
-    """Add one transcript line and run every per-line check. Shared by typed lines and voice clips."""
+    """Adds one transcript line and runs every per-line check. Used by typed lines and voice clips."""
     patient = db.get(Patient, c.patient_id)
 
     # Resolve speaker
@@ -351,7 +350,7 @@ def _append_line(db: Session, c: Consultation, text: str, speaker_in: str, fixes
     lines = list(c.transcript_lines or [])
     line = {"speaker": speaker, "text": text.strip()}
     if fixes:
-        line["fixes"] = fixes  # medicine names corrected after speech-to-text; shown so the doctor can verify
+        line["fixes"] = fixes  # medicine names corrected after speech to text, shown so the doctor can check
     new_index = len(lines)
     lines.append(line)
 
@@ -402,11 +401,11 @@ def _append_line(db: Session, c: Consultation, text: str, speaker_in: str, fixes
     }
 
 
-MAX_AUDIO_BYTES = 6 * 1024 * 1024  # one clip is a single sentence; a long one is a sign of misuse
+MAX_AUDIO_BYTES = 6 * 1024 * 1024  # one clip is a single sentence, a long one means misuse
 
 
 def _sniff_audio(head: bytes) -> tuple[str, str] | None:
-    """Return (mime, extension) from magic bytes, or None. Never trust the client's content type."""
+    """Returns (mime, extension) from the magic bytes, or None. Never trust the client's content type."""
     if head[:4] == b"\x1aE\xdf\xa3":
         return "audio/webm", "webm"
     if head[:4] == b"OggS":
@@ -430,8 +429,8 @@ def add_audio(
     x_share_token: str | None = Header(default=None, alias="X-Share-Token"),
 ):
     """One spoken clip -> Whisper -> a transcript line (same checks as a typed line).
-
-    Silence, noise and Whisper's phantom phrases return added=False with the unchanged state.
+    
+    Silence, noise and Whisper's phantom phrases return added=False and the state stays the same.
     """
     c = _authorize(db, cid, x_share_token)
     if c.status == "approved":
@@ -452,7 +451,7 @@ def add_audio(
     mime, ext = kind
 
     vocab = [m["name"] for m in _active_meds(db, c.patient_id)]
-    try:  # ElevenLabs when its key works (best for Malayalam), Groq Whisper otherwise; the vocabulary prompt only applies to Whisper
+    try:  # ElevenLabs when its key works (best for Malayalam), otherwise Groq Whisper. The word list prompt only applies to Whisper
         res = speech.transcribe(data, f"clip.{ext}", mime, language)
     except speech.SpeechError as e:
         raise HTTPException(e.status, str(e))
@@ -460,7 +459,7 @@ def add_audio(
     text = res["text"]
     if not text or len(text) < 2:
         return {**_state_out(c), "heard": "", "added": False}
-    # The same words twice in a row (a clip sent again, or a pause that split one sentence in two) are not a new line.
+    # The same words twice in a row (a clip sent again, or a pause that split one sentence in two) aren't a new line.
     import difflib
     norm = lambda t: re.sub(r"[^a-z0-9 ]+", "", t.lower()).strip()  # noqa: E731
     for prev in (c.transcript_lines or [])[-2:]:
@@ -483,13 +482,13 @@ def finalize(
         raise HTTPException(409, "Consultation already approved")
     lines = list(c.transcript_lines or [])
     active_names = [m["name"] for m in _active_meds(db, c.patient_id)]
-    # The SOAP note and the classification are independent AI calls: run them side by side.
+    # The SOAP note and the classification are separate AI calls, run them side by side.
     with ThreadPoolExecutor(max_workers=2) as pool:
         soap_f = pool.submit(consult_ai.final_soap, lines)
         cls_f = pool.submit(visit_classify.classify, lines, active_names)
         final = soap_f.result()
         cls = cls_f.result()
-    if cls:  # None when the AI was unavailable: approve then falls back to the old plan-text extraction
+    if cls:  # None when the AI was unavailable, approve then falls back to the old plan text extraction
         final["classification"] = cls
     c.final_note = final
     c.status = "draft"
@@ -502,8 +501,9 @@ _CLS_LISTS = ("complaints", "diagnoses", "medicines", "tests", "advice", "referr
 
 
 def _apply_removed(cls: dict, removed: dict[str, list[int]]) -> tuple[dict, list[dict]]:
-    """Drop the items the doctor removed on the review screen. The client sends only INDEXES into the
-    classification the server stored, so nothing the model did not produce (and code did not ground) can be saved."""
+    """Drops the items the doctor removed on the review screen. The client only sends INDEXES into the classification
+    the server stored, so nothing the model didn't produce (and code didn't ground) can be saved.
+    """
     out = dict(cls)
     gone: list[dict] = []
     for key in _CLS_LISTS:
@@ -550,12 +550,13 @@ _SENT_SPLIT = re.compile(r"[.!?;\n]+")
 
 
 def _extract_medicines_from_plan(plan_text: str | None, lines: list[dict], active: list[dict] | None = None) -> list[dict]:
-    """Fallback when the AI classification is unavailable: read known medicines out of the plan text and the
-    doctor's lines. Deliberately cautious:
-    - a sentence that says stop / avoid / do not never creates a prescription;
-    - dose / schedule / duration are read only from the SAME sentence as the medicine name;
-    - a medicine the patient is already on is not added a second time.
-    Returns extractor-style dicts."""
+    """Fallback when the AI classification isn't available: reads known medicines out of the plan text and the doctor's
+    lines. Careful on purpose:
+    - a sentence with stop / avoid / do not never creates a prescription
+    - dose, schedule and duration are only read from the SAME sentence as the medicine name
+    - a medicine the patient is already on isn't added twice
+    Returns extractor style dicts.
+    """
     meds: dict[str, dict] = {}
     already = {(a.get("generic") or "").lower() for a in (active or []) if a.get("generic")}
     raw_sources = [plan_text or ""]
@@ -640,7 +641,7 @@ def approve(
     else:
         meds = _extract_medicines_from_plan(plan_text, lines, _active_meds(db, c.patient_id))  # AI unavailable
 
-    # Follow-up: the classified one if present, else a "review in N days" hint from the plan text
+    # Follow-up: the classified one if there is one, else a "review in N days" hint from the plan text
     follow_up = None
     if classified and cls.get("follow_up"):
         follow_up = cls["follow_up"]["text"]
@@ -680,8 +681,8 @@ def approve(
         source_highlight=list(range(min(len(lines), 20))),
     ))
     # Postgres enforces the foreign keys (observations, medicines and this consultation point at the new document), and the
-    # unit of work does not order inserts across tables that have no relationship(). Without this flush, a visit that left no
-    # open flags tried to UPDATE the consultation before the document existed and answered 500.
+    # unit of work doesn't order inserts across tables with no relationship(). Without this flush, a visit with no open
+    # flags tried to UPDATE the consultation before the document existed and returned 500.
     db.flush()
 
     for v in said:

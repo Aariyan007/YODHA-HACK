@@ -46,8 +46,8 @@ DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 def cors_origins() -> list[str]:
-    """Allowed browser origins: CORS_ORIGINS (comma-separated) or the local dev servers.
-
+    """Allowed browser origins: CORS_ORIGINS (comma separated) or the local dev servers.
+    
     A bare "*" is never allowed unless DEMO_MODE=true, because the API sends credentials.
     """
     raw = [o.strip().rstrip("/") for o in (os.getenv("CORS_ORIGINS") or "").split(",") if o.strip()]
@@ -115,7 +115,7 @@ def ready(response: Response):
     return {"ready": ok, **checks}
 
 
-# Single-service hosting: serve the built frontend from here when a build is present (a no-op under the Docker stack).
+# Single service hosting: serve the built frontend from here when there is a build (does nothing in the Docker stack).
 from . import static_site  # noqa: E402
 
 static_site.mount(app)

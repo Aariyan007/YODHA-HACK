@@ -1,9 +1,9 @@
-"""Generate synthetic training messages with Groq. LABELS come from ml/scenarios.py; the LLM only writes wording.
+"""Generates synthetic training messages with Groq. The LABELS come from ml/scenarios.py, the LLM only writes wording.
 
     cd BackEnd && ./venv/bin/python ../ml/generate_synthetic.py            # triage messages -> ml/seed/generated_triage.jsonl
     cd BackEnd && ./venv/bin/python ../ml/generate_synthetic.py --lines    # consultation lines -> ml/seed/generated_lines.jsonl
 
-Output is committed, so training data can be rebuilt without Groq quota. Every row is marked synthetic.
+The output is committed, so training data can be rebuilt without Groq quota. Every row is marked synthetic.
 """
 from __future__ import annotations
 

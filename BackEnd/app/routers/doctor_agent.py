@@ -1,6 +1,7 @@
-"""Doctor Agent API. Same engine as the patient agent; the context is the doctor's own account plus ONE linked patient.
-Every call re-checks the care link (404 when there is none, so patient ids cannot be probed), and the permission manager checks it
-again for every tool."""
+"""Doctor Agent API. Same engine as the patient agent, but the context is the doctor's own account plus ONE linked
+patient. Every call re-checks the care link (404 if there is none, so patient ids can't be probed), and the
+permission manager checks it again for every tool.
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -90,8 +91,9 @@ def task_cancel(task_id: str, patientId: str = Query(min_length=1, max_length=32
 @router.post("/files")
 async def upload_file(patientId: str = Query(min_length=1, max_length=32), file: UploadFile = File(...),
                       doctor: User = Depends(current_doctor), db: Session = Depends(get_db)):
-    """A document the doctor brings to the visit. Stored encrypted under the doctor's own name; the patient does not see it
-    and it is never added to the patient's thread by the agent (the doctor agent can read, summarise and compare it)."""
+    """A document the doctor brings to the visit. Stored encrypted under the doctor's own name. The patient doesn't see it
+    and the agent never adds it to the patient's thread (the doctor agent can read, summarise and compare it).
+    """
     ctx = doctor_ctx(doctor, patientId, db)
     A._limit(doctor.id)
     data = await file.read(MAX_UPLOAD_BYTES + 1)

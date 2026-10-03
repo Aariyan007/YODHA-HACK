@@ -1,8 +1,9 @@
-"""AgentPlanner: words -> intent -> a short list of registered tool calls.
+"""Turns words into an intent and a short list of registered tool calls.
 
-Order: rules first (free, instant, safe), then the LLM for anything the rules do not understand. Whatever the LLM returns
-is filtered: unknown tools are dropped, at most MAX_STEPS steps, arguments are validated later by the executor.
-The person's text is the only free text sent to the model; record content never is."""
+Order: rules first (free, instant, safe), then the LLM for anything the rules don't understand. Whatever the LLM
+returns gets filtered: unknown tools are dropped, at most MAX_STEPS steps, and the executor checks arguments later.
+The person's text is the only free text sent to the model, record content never is.
+"""
 from __future__ import annotations
 
 import re
@@ -89,7 +90,7 @@ class AgentPlanner:
         p = p or self._timing(role, text) or self._help(role, text) or self._compound(role, text) or self._rules(role, text)
         if p is None:
             p = self._llm(role, text, history or [])
-        if p is not None and p.steps:  # a plan may only use tools this role has (e.g. no write tools for doctors)
+        if p is not None and p.steps:  # a plan can only use tools this role has (e.g. no write tools for doctors)
             kept = [st for st in p.steps if (sp := self.registry.get(st.tool)) is not None and role in sp.roles]
             if not kept:
                 return Plan(p.intent, clarify="That is not something I can do from this account.", source=p.source)
@@ -99,7 +100,7 @@ class AgentPlanner:
 
     @staticmethod
     def _named_medicine(low: str) -> str | None:
-        """'side effects of telma' / 'what can pantocid cause' / 'does metformin cause ...' -> 'telma'. Plain words like 'my medicines' give None (= all)."""
+        """'side effects of telma', 'what can pantocid cause' -> 'telma'. Plain words like 'my medicines' give None (all)."""
         generic = {"medicine", "medicines", "medication", "medications", "tablet", "tablets", "pill", "pills", "drug", "drugs", "these", "those", "them",
                    "it", "this", "that", "all", "my", "the", "any", "everything"}
         m = (re.search(r"side ?effects? (?:of|for|from|with) (?:my |the )?([a-z][a-z0-9\-]+)", low) or
@@ -108,7 +109,7 @@ class AgentPlanner:
 
     @staticmethod
     def _help(role: str, text: str) -> Plan | None:
-        """"Show me around" / "how do I upload a report?" for someone who does not know the app: fixed, instant, no model needed."""
+        """"Show me around" or "how do I upload a report?" for someone new to the app: fixed answer, instant, no model."""
         from .tools.help import topic_for
         low = text.lower()
         if R_TOUR.search(low):
@@ -121,8 +122,7 @@ class AgentPlanner:
 
     @staticmethod
     def _timing(role: str, text: str) -> Plan | None:
-        """"Before or after food?" / "look it up and add the timing": a question about HOW a medicine is usually taken (label info),
-        not a decision to start, stop or change one."""
+        """"Before or after food?" or "look it up and add the timing": a question about HOW a medicine is usually taken (label info), not a decision to start, stop or change one."""
         if role != "patient":
             return None
         low = text.lower()
@@ -176,7 +176,7 @@ class AgentPlanner:
     def _is_nav(text: str) -> bool:
         return bool(R_NAV.match(text))
 
-    # ---- "A, then B and C": every clause must be understood by the rules, otherwise the whole text goes to the LLM path
+    # ---- "A, then B and C": every part must be understood by the rules, otherwise the whole text goes to the LLM
     def _compound(self, role: str, text: str) -> Plan | None:
         clauses = [c.strip() for c in re.split(r"\s*(?:,|;|\band then\b|\bthen\b|\band\b|\balso\b)\s*", text) if len(c.strip()) > 3]
         if len(clauses) < 2:
@@ -191,7 +191,7 @@ class AgentPlanner:
                     steps.append(st)
         return Plan("multi_step", steps[:MAX_STEPS]) if len(steps) >= 2 else None
 
-    # ---- rules for an attached file: always read first (cached after the first time), then the asked step
+    # ---- rules for an attached file: read it first (cached after the first time), then do the asked step
     def _file_rules(self, text: str, fid: str) -> Plan | None:
         low = text.lower()
         read = Step("documents.extract", {"fileId": fid})
@@ -286,7 +286,7 @@ class AgentPlanner:
 
     @staticmethod
     def _reading(text: str) -> dict | None:
-        """Numbers only from the person's own words, with their meaning from the nearby label. Never from a model or from audio alone."""
+        """Numbers only from the person's own words, with the meaning from the nearby label. Never from a model or audio alone."""
         low = text.lower()
         out: dict = {}
         if m := re.search(r"(?:\bbp\b|blood pressure)\D{0,12}(\d{2,3})\s*(?:/|over|by)\s*(\d{2,3})", low):

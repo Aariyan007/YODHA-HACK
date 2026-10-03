@@ -1,7 +1,7 @@
-"""File ingestion helpers: PDF text layer + document classification.
+"""File helpers: the PDF text layer and document classification.
 
-Classification never guesses. Keyword scores give a type with a confidence; below the line the type is None and the
-agent must ask the person. The file's text is DATA: it is only counted and quoted, never read as instructions.
+Classification never guesses. Keyword scores give a type with a confidence, and below the line the type is None
+and the agent has to ask the person. The file's text is data: it's only counted and quoted, never read as instructions.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ LABELS = {"lab": "lab report", "prescription": "prescription", "visit": "visit o
 
 
 def pdf_pages(data: bytes) -> tuple[list[str], int]:
-    """Text per page (empty strings for scanned pages) and total page count. Never raises."""
+    """Text per page (empty for scanned pages) and the page count. Never raises."""
     try:
         from pypdf import PdfReader
         r = PdfReader(io.BytesIO(data))
@@ -45,7 +45,7 @@ def pdf_pages(data: bytes) -> tuple[list[str], int]:
 
 
 def text_lines(pages: list[str]) -> list[dict]:
-    """Numbered lines with their page, the provenance unit used for evidence."""
+    """Numbered lines with their page, the unit we use as evidence."""
     lines, used = [], 0
     for pno, text in enumerate(pages, 1):
         for raw in text.splitlines():

@@ -1,4 +1,4 @@
-"""Gemini vision: image / PDF → structured JSON about a medical document."""
+"""Gemini vision: reads an image or PDF into structured JSON about a medical document."""
 from __future__ import annotations
 
 import json
@@ -12,7 +12,7 @@ from google.genai import types
 from google.genai.errors import ClientError, ServerError
 
 # SPEC's gemini-2.5-flash is retired for new users. 3.8-flash is overloaded a
-# lot. Try the current stable alias first and fall back to older stable flashes.
+# lot. Try the current stable alias first, then older stable flash models.
 MODELS = ("gemini-flash-latest", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.8-flash")
 TIMEOUT_S = 25.0
 
@@ -81,7 +81,7 @@ def _call(client: genai.Client, data: bytes, mime: str, prompt: str | None = Non
                     config=cfg,
                 )
                 return r.text or ""
-            except ServerError as e:  # 503 UNAVAILABLE — Gemini is busy
+            except ServerError as e:  # 503 UNAVAILABLE: Gemini is busy
                 last = e
                 if attempt == 2:
                     break  # move to next model
@@ -90,7 +90,7 @@ def _call(client: genai.Client, data: bytes, mime: str, prompt: str | None = Non
                 code = getattr(e, "code", None) or getattr(e, "status_code", None)
                 print(f"[extractor] {model} attempt {attempt}: ClientError code={code} {str(e)[:200]}")
                 if code == 404:
-                    break  # model unavailable for this account; try next
+                    break  # model not available for this account, try the next one
                 if code == 429 and attempt < 2:
                     last = e
                     time.sleep(2.0 + attempt)
@@ -103,7 +103,7 @@ def _call(client: genai.Client, data: bytes, mime: str, prompt: str | None = Non
 
 
 def explain_error(e: Exception) -> str:
-    """Plain-language reason for a failed Gemini call. 'Try a sharper photo' is only right when the call worked."""
+    """Plain reason for a failed Gemini call. 'Try a sharper photo' is only right if the call worked."""
     code = getattr(e, "code", None) or getattr(e, "status_code", None)
     text = str(e).lower()
     if code == 429 or "resource_exhausted" in text or "quota" in text:
@@ -120,9 +120,9 @@ def explain_error(e: Exception) -> str:
 
 
 def extract(data: bytes, mime: str = "image/png") -> dict:
-    """Call Gemini. Returns the parsed dict (always with is_medical).
-
-    Raises ExtractError with a user-friendly message on any failure.
+    """Calls Gemini and returns the parsed dict (always has is_medical).
+    
+    Raises ExtractError with a friendly message on any failure.
     """
     client = _client()
     try:
@@ -147,7 +147,7 @@ def extract(data: bytes, mime: str = "image/png") -> dict:
             "This does not look like a medical document. Please upload a prescription, lab report, or visit note."
         )
 
-    # Normalise shape — fill defaults so downstream code is simple.
+    # Fix the shape and fill defaults so the rest of the code stays simple.
     obj.setdefault("date_of_record", None)
     obj.setdefault("doctor", None)
     obj.setdefault("hospital", None)
@@ -159,7 +159,7 @@ def extract(data: bytes, mime: str = "image/png") -> dict:
     obj.setdefault("follow_up", None)
     obj.setdefault("source_lines", [])
     obj.setdefault("uncertain_medicines", [])
-    if obj.get("handwritten"):  # doctors' handwriting: read again, compare, and never trust a guessed drug name
+    if obj.get("handwritten"):  # doctors' handwriting: read it again, compare, and never trust a guessed drug name
         from . import handwriting
         handwriting.second_pass(client, _call, data, mime, obj)
     return obj

@@ -3,8 +3,8 @@ import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
 // `npm run build:single` (mode "single") makes dist-single/index.html: one file that runs from file://
-// with no backend. It is pinned to mock data (VITE_USE_MOCK=true) and uses hash routes, because a
-// file:// page cannot reach /api and has no server to answer deep links.
+// with no backend. It's pinned to mock data (VITE_USE_MOCK=true) and uses hash routes, because a
+// file:// page can't reach /api and has no server to answer deep links.
 export default defineConfig(({ mode }) => {
   const single = mode === "single";
   return {

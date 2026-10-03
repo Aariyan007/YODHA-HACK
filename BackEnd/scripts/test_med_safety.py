@@ -1,4 +1,4 @@
-"""Medicine safety questions: bad combinations, side effects (grounded in the label), usual timing. No network.
+"""Medicine safety questions: bad combinations, side effects (from the label), usual timing. No network.
 
 Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_med_safety.py -v
 """

@@ -1,9 +1,4 @@
-/* ============================================================
-   MediThread — Design System v5
-   Warm white · Charcoal · Muted Sage
-   Human, calm, trustworthy healthcare.
-   NO CYAN. NO NEON. Light by default; dark follows the OS (see DARK MODE).
-   ============================================================ */
+/* MediThread : Design System v5 Warm white / Charcoal / Muted Sage Human, calm, trustworthy healthcare. NO CYAN. NO NEON. Light by default; dark follows the OS (see DARK MODE). */
 
 /* Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -26,7 +21,7 @@
   --text-3:   #56655F;
   --text-inv: #FFFFFF;
 
-  /* ── Brand — Muted Sage ── */
+  /* -- Brand: muted sage -- */
   --brand:          #3F7A67;
   --brand-hover:    #346655;
   --brand-soft:     #E3EFE9;
@@ -47,7 +42,7 @@
   --info-bg:        #F1F5F9;
   --info-border:    #CBD5E1;
 
-  /* ── Shadows — soft, floating, tinted to the ground ── */
+  /* -- Shadows: soft, floating, tinted to the ground -- */
   --shadow-xs:  0 1px 2px rgba(38,50,56,0.04);
   --shadow-sm:  0 2px 10px rgba(38,50,56,0.05), 0 1px 2px rgba(38,50,56,0.03);
   --shadow-md:  0 10px 28px rgba(38,50,56,0.07), 0 2px 6px rgba(38,50,56,0.04);
@@ -143,11 +138,7 @@
 }
 
 
-/* ═══════════════════════════════════════════════════════════
-   DARK MODE
-   Follows the OS. <html data-theme="dark|light"> forces one.
-   Same sage brand, warm off-black surfaces (no pure black/white).
-═══════════════════════════════════════════════════════════ */
+/* DARK MODE Follows the OS. <html data-theme="dark|light"> forces one. Same sage brand, warm off-black surfaces (no pure black/white). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) { 
   --bg:             #121714;
@@ -255,9 +246,7 @@
   color-scheme: dark;
  }
 
-/* ═══════════════════════════════════════════════════════════
-   RESET
-═══════════════════════════════════════════════════════════ */
+/* RESET */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 
@@ -274,19 +263,17 @@ body {
   overflow-x: hidden;
 }
 
-/* Safe resets — do NOT touch SVG elements globally */
+/* Safe resets. Don't touch SVG elements globally */
 p   { margin: 0; }
 ul, ol { margin: 0; padding: 0; list-style: none; }
 a   { color: var(--brand); text-decoration: none; transition: color var(--t-base); }
 a:hover { color: var(--brand-hover); }
 button, input, select, textarea { font-family: inherit; }
 
-/* img but NOT svg — keep svg at display:inline so it works in flow */
+/* img but NOT svg, keep svg inline so it works in the text flow */
 img { display: block; max-width: 100%; }
 
-/* ═══════════════════════════════════════════════════════════
-   TYPOGRAPHY
-═══════════════════════════════════════════════════════════ */
+/* TYPOGRAPHY */
 h1, h2, h3, h4, h5, h6 {
   margin: 0;
   font-weight: var(--fw-semi);
@@ -322,9 +309,7 @@ h4 { font-size: var(--font-base); font-weight: var(--fw-semi); }
 .small       { font-size: var(--font-sm); }
 .error       { color: var(--danger); font-size: var(--font-sm); }
 
-/* ═══════════════════════════════════════════════════════════
-   APP SHELL
-═══════════════════════════════════════════════════════════ */
+/* APP SHELL */
 .shell {
   min-height: 100vh;
   display: flex;
@@ -429,9 +414,7 @@ main {
   width: 100%;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   CARDS
-═══════════════════════════════════════════════════════════ */
+/* CARDS */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -473,9 +456,7 @@ main {
   color: var(--danger);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   LAYOUT UTILITIES
-═══════════════════════════════════════════════════════════ */
+/* LAYOUT UTILITIES */
 .list    { display: flex; flex-direction: column; gap: var(--sp-3); }
 .list-sm { display: flex; flex-direction: column; gap: var(--sp-2); }
 .row     { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
@@ -526,9 +507,7 @@ main {
 }
 .page-header h2 { margin: 0; }
 
-/* ═══════════════════════════════════════════════════════════
-   BUTTONS
-═══════════════════════════════════════════════════════════ */
+/* BUTTONS */
 button {
   font-family: inherit;
   font-size: var(--font-sm);
@@ -595,9 +574,7 @@ a.btn:hover { background: var(--surface-3); color: var(--text); }
 a.btn.primary { background: var(--brand-fill); border-color: var(--brand-fill); color: var(--on-fill); }
 a.btn.primary:hover { background: var(--brand-fill-hover); border-color: var(--brand-fill-hover); }
 
-/* ═══════════════════════════════════════════════════════════
-   FORMS
-═══════════════════════════════════════════════════════════ */
+/* FORMS */
 label {
   display: flex;
   flex-direction: column;
@@ -625,9 +602,7 @@ input:focus, select:focus, textarea:focus {
 input:disabled { opacity: 0.6; cursor: not-allowed; background: var(--surface-3); }
 textarea { resize: vertical; min-height: 90px; }
 
-/* ═══════════════════════════════════════════════════════════
-   PILLS & CHIPS
-═══════════════════════════════════════════════════════════ */
+/* PILLS & CHIPS */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -661,9 +636,7 @@ textarea { resize: vertical; min-height: 90px; }
 .chip:hover { border-color: var(--brand-border); color: var(--brand); background: var(--brand-soft); }
 .chip.on    { background: var(--brand-fill); color: var(--on-fill); border-color: var(--brand-fill); }
 
-/* ═══════════════════════════════════════════════════════════
-   SPINNER & LOADING
-═══════════════════════════════════════════════════════════ */
+/* SPINNER & LOADING */
 .spinner {
   width: 22px; height: 22px;
   border-radius: 50%;
@@ -694,9 +667,7 @@ textarea { resize: vertical; min-height: 90px; }
 @media (prefers-reduced-motion: reduce) { .em-pulse { animation: none; stroke-dashoffset: 0; } }
 .empty p    { color: var(--text-2); font-size: var(--font-sm); max-width: 300px; line-height: 1.6; }
 
-/* ═══════════════════════════════════════════════════════════
-   LEAD / QUOTE
-═══════════════════════════════════════════════════════════ */
+/* LEAD / QUOTE */
 .lead {
   font-size: var(--font-lg);
   color: var(--text-2);
@@ -708,16 +679,14 @@ textarea { resize: vertical; min-height: 90px; }
   box-shadow: var(--shadow-xs);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   HBA1C CHART  — fully scoped, no global SVG pollution
-═══════════════════════════════════════════════════════════ */
+/* HBA1C CHART : fully scoped, no global SVG pollution */
 .hba1c-chart {
   display: block;
   width: 100%;
   height: auto;
   overflow: visible;
 }
-/* ALL chart elements are scoped — never style path/circle/text globally */
+/* ALL chart elements are scoped, never style path/circle/text globally */
 .hba1c-chart .trend-line {
   fill: none;
   stroke: var(--brand);
@@ -795,9 +764,7 @@ textarea { resize: vertical; min-height: 90px; }
 .num-watch { fill: var(--warning); color: var(--warning); }
 .num-alert { fill: var(--danger);  color: var(--danger);  }
 
-/* ═══════════════════════════════════════════════════════════
-   TIMELINE  (vertical thread — /timeline page)
-═══════════════════════════════════════════════════════════ */
+/* TIMELINE (vertical thread : /timeline page) */
 .timeline {
   list-style: none;
   margin: 0; padding: 0;
@@ -889,9 +856,7 @@ textarea { resize: vertical; min-height: 90px; }
   .tl-card { flex: 1; margin-left: 16px; }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   TIMELINE SKELETON (loading state)
-═══════════════════════════════════════════════════════════ */
+/* TIMELINE SKELETON (loading state) */
 .tl-skeleton { padding: var(--sp-4) 0; }
 .tl-skeleton-label {
   font-size: var(--font-sm); color: var(--text-3);
@@ -935,9 +900,7 @@ textarea { resize: vertical; min-height: 90px; }
   .tl-sk-card { flex: 1; margin-left: 16px; }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   SKELETON SHIMMER
-═══════════════════════════════════════════════════════════ */
+/* SKELETON SHIMMER */
 .skeleton {
   background: linear-gradient(90deg,var(--surface-3) 25%,var(--border) 50%,var(--surface-3) 75%);
   background-size: 200% 100%;
@@ -947,9 +910,7 @@ textarea { resize: vertical; min-height: 90px; }
 @keyframes shimmer { 100% { background-position: -200% 0; } }
 .skeleton-text { height: 13px; margin-bottom: 8px; }
 
-/* ═══════════════════════════════════════════════════════════
-   ENCOUNTER CARDS  (Doctor Console — full-width list)
-═══════════════════════════════════════════════════════════ */
+/* ENCOUNTER CARDS (Doctor Console : full-width list) */
 .encounter-list { display: flex; flex-direction: column; gap: var(--sp-4); }
 .encounter-card {
   background: var(--surface); border: 1px solid var(--border);
@@ -966,9 +927,7 @@ textarea { resize: vertical; min-height: 90px; }
 .ec-item-name { font-weight: var(--fw-medium); color: var(--text); }
 .ec-item-desc { font-size: var(--font-sm); color: var(--text-2); margin-top: 2px; }
 
-/* ═══════════════════════════════════════════════════════════
-   LAB TABLE
-═══════════════════════════════════════════════════════════ */
+/* LAB TABLE */
 .labs { width: 100%; border-collapse: collapse; }
 .labs th,
 .labs td { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
@@ -977,9 +936,7 @@ textarea { resize: vertical; min-height: 90px; }
 .labs-value { font-weight: var(--fw-semi); white-space: nowrap; }
 .labs-range { font-size: var(--font-xs); color: var(--text-3); }
 
-/* ═══════════════════════════════════════════════════════════
-   DOSE PROGRESS
-═══════════════════════════════════════════════════════════ */
+/* DOSE PROGRESS */
 .dose-progress {
   height: 8px; background: var(--border); border-radius: var(--r-full);
   overflow: hidden; margin-bottom: var(--sp-5);
@@ -989,9 +946,7 @@ textarea { resize: vertical; min-height: 90px; }
   transition: width 0.7s cubic-bezier(0.34,1.56,0.64,1);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   PATIENT HOME — REMINDER CARDS
-═══════════════════════════════════════════════════════════ */
+/* PATIENT HOME : REMINDER CARDS */
 .reminder-card {
   display: flex;
   align-items: center;
@@ -1015,9 +970,7 @@ textarea { resize: vertical; min-height: 90px; }
 .greet-name { color: var(--brand-dark); }
 .greet-sub { color: var(--text-3); font-size: var(--font-lg); font-weight: var(--fw-medium); }
 
-/* ═══════════════════════════════════════════════════════════
-   DOCTOR CONSOLE
-═══════════════════════════════════════════════════════════ */
+/* DOCTOR CONSOLE */
 .console-shell {
   min-height: 100vh;
   background: var(--bg);
@@ -1065,15 +1018,11 @@ textarea { resize: vertical; min-height: 90px; }
   color: var(--danger); font-size: var(--font-sm); font-weight: var(--fw-medium);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   QR / SHARING
-═══════════════════════════════════════════════════════════ */
+/* QR / SHARING */
 .qr { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); padding: var(--sp-8) 0; }
 .qr-actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; justify-content: center; }
 
-/* ═══════════════════════════════════════════════════════════
-   ANIMATIONS
-═══════════════════════════════════════════════════════════ */
+/* ANIMATIONS */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -1092,9 +1041,7 @@ textarea { resize: vertical; min-height: 90px; }
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   RESPONSIVE — MOBILE ADJUSTMENTS
-═══════════════════════════════════════════════════════════ */
+/* RESPONSIVE : MOBILE ADJUSTMENTS */
 @media (max-width: 640px) {
   .tabs a { padding: 0 var(--sp-3); }
   .tab-label { display: none; }
@@ -1109,10 +1056,7 @@ textarea { resize: vertical; min-height: 90px; }
   .tab-label { display: block; }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   RESTORED — classes the v5 redesign dropped (console, upload,
-   reminders, snapshot). Ported to the sage tokens.
-═══════════════════════════════════════════════════════════ */
+/* RESTORED : classes the v5 redesign dropped (console, upload, reminders, snapshot). Ported to the sage tokens. */
 @keyframes fade-up-fast { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .animate-in-fast { animation: fade-up-fast 0.25s cubic-bezier(0.22,1,0.36,1) both; }
 .card-good  { background: var(--success-bg); border-color: var(--success-border); }
@@ -1204,12 +1148,10 @@ input[type="file"] { min-height: 0; }
 .approved-banner { background: var(--success-bg); border-color: var(--success-border); }
 .approved-tick { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: var(--success-fill); color: var(--on-fill); font-size: 1.4rem; font-weight: 700; flex-shrink: 0; }
 
-/* Startup screen nodes are animated by GSAP; keep them hidden until then. */
+/* Startup screen nodes are animated by GSAP, keep them hidden until then. */
 .nd { transform-box: fill-box; }
 
-/* ═══════════════════════════════════════════════════════════
-   PHASE 7 — profile chip, health check, risks, vitals, charts
-═══════════════════════════════════════════════════════════ */
+/* PHASE 7 : profile chip, health check, risks, vitals, charts */
 .profile-chip { display: inline-flex; align-items: center; gap: var(--sp-2); padding: 3px 10px 3px 3px; border-radius: var(--r-full); color: var(--text-2); font-size: var(--font-xs); font-weight: var(--fw-semi); border: 1px solid var(--border); background: var(--surface); transition: all var(--t-base); }
 .profile-chip:hover, .profile-chip.active { border-color: var(--brand-border); color: var(--brand-dark); background: var(--brand-soft); }
 .avatar { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--brand-fill); color: var(--on-fill); font-size: 0.75rem; font-weight: 700; }
@@ -1307,9 +1249,7 @@ input[type="file"] { min-height: 0; }
 .form-grid .span-2 { grid-column: 1 / -1; }
 @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
 
-/* ═══════════════════════════════════════════════════════════
-   DOCTOR FINDER
-═══════════════════════════════════════════════════════════ */
+/* DOCTOR FINDER */
 .ask-bar { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4); margin-bottom: var(--sp-4); border-radius: var(--r-full); }
 .ask-bar input { border: none; box-shadow: none; padding: var(--sp-2) 0; background: transparent; }
 .ask-bar input:focus { box-shadow: none; }
@@ -1390,11 +1330,7 @@ input[type="file"] { min-height: 0; }
 .vitals-form input::placeholder { color: var(--text-3); font-weight: 400; }
 
 
-/* ═══════════════════════════════════════════════════════════
-   TOUCH TARGETS (48 px minimum) and dark-mode map tiles.
-   One block on purpose: later rules win, so this restores the
-   target size after the component rules above.
-═══════════════════════════════════════════════════════════ */
+/* TOUCH TARGETS (48 px minimum) and dark-mode map tiles. One block on purpose: later rules win, so this restores the target size after the component rules above. */
 button, button.small, button.lang, a.btn, .primary-link, .btn-emergency, .btn-ghost-light, .btn-sm,
 .chip, .tabs a, input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select {
   min-height: 48px;
@@ -1408,13 +1344,13 @@ button.link, button.link.small { min-height: 48px; padding: 0 var(--sp-2); }
 }
 :root[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9); }
 
-/* Doctor console header: let the title shrink (patient name ellipsises) instead of pushing the phase bar off-screen. */
+/* Doctor console header: let the title shrink (the patient name gets an ellipsis) instead of pushing the phase bar off screen. */
 .console-top { gap: var(--sp-3); }
 .console-top > div:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .console-top > div:first-child > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .console-top > :last-child { flex-shrink: 0; }
 
-/* Leaflet chrome follows the theme (the global `a` colour otherwise turns the zoom buttons light on white). */
+/* Leaflet controls follow the theme (the global `a` colour would turn the zoom buttons light on white). */
 .leaflet-bar a, .leaflet-bar a:hover { background-color: var(--surface); color: var(--text); border-bottom-color: var(--border); }
 .leaflet-bar a:hover { background-color: var(--surface-3); }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--text); }
@@ -1431,9 +1367,7 @@ button.link, button.link.small { min-height: 48px; padding: 0 var(--sp-2); }
 .invite-code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--font-3xl); font-weight: var(--fw-bold); letter-spacing: 0.12em; color: var(--brand-dark); background: var(--brand-soft); border: 1px dashed var(--brand-border); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-5); text-align: center; user-select: all; }
 
 
-/* ═══════════════════════════════════════════════════════════
-   CHARTS (components/charts.jsx), skeleton loaders, small motion
-═══════════════════════════════════════════════════════════ */
+/* CHARTS (components/charts.jsx), skeleton loaders, small motion */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 .chart-card { padding: var(--sp-5) var(--sp-4) var(--sp-3); position: relative; }
@@ -1488,7 +1422,7 @@ button.link, button.link.small { min-height: 48px; padding: 0 var(--sp-2); }
 @keyframes skeleton-sweep { to { transform: translateX(100%); } }
 .skeleton.w-40 { width: 40%; } .skeleton.w-70 { width: 70%; }
 
-/* Small, motivated motion: a taken dose confirms itself; buttons feel pressed; cards lift where they are interactive */
+/* Small motion with a reason: a taken dose confirms itself, buttons feel pressed, cards lift where they're interactive */
 button:active:not(:disabled), a.btn:active { transform: translateY(1px) scale(0.985); }
 .reminder-card.taken .pill.good { animation: pop-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
 @keyframes pop-in { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -1531,11 +1465,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 @media (max-width: 900px) { .gl-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 380px) { .gl-value { font-size: 1.9rem; } }
 
-/* ═══════════════════════════════════════════════════════════
-   v6 — clinical-premium refresh (reference-matched)
-   Soft neutral ground, floating white cards, pill nav, GSAP-ready.
-   Appended last so these win over v5 rules of equal specificity.
-═══════════════════════════════════════════════════════════ */
+/* v6 : clinical-premium refresh (reference-matched) Soft neutral ground, floating white cards, pill nav, GSAP-ready. Appended last so these win over v5 rules of equal specificity. */
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --surface-inset: #202A25; --hairline: rgba(255,255,255,0.07);
   --shadow-brand: 0 10px 28px rgba(0,0,0,0.5);
@@ -1646,14 +1576,13 @@ body::before {
 .tl-item.lab .tl-type { background: var(--info-bg); color: var(--info); border-color: var(--info-border); }
 .tl-item.consultation .tl-type, .tl-item.visit .tl-type { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
 
-/* Filter chips → soft pills, active = filled brand */
+/* Filter chips are soft pills, active = filled brand */
 .chip { border-radius: var(--r-full); border: 1px solid var(--hairline); box-shadow: var(--shadow-xs); transition: background var(--t-base), color var(--t-base), box-shadow var(--t-base), transform var(--t-fast); }
 .chip:hover { background: var(--surface-3); }
 .chip:active { transform: scale(0.96); }
 .chip.on { background: var(--brand-fill); color: var(--on-fill); border-color: transparent; box-shadow: var(--shadow-brand); }
 
-/* ── v6 buttons & inputs: pill interactive controls, soft focus glow ──
-   Radius system: buttons/chips/nav = pill, inputs = r-lg, cards = r-xl. */
+/* -- v6 buttons and inputs: pill controls, soft focus glow. Radii: buttons/chips/nav = pill, inputs = r-lg, cards = r-xl. -- */
 button { border-radius: var(--r-full); border-color: var(--hairline); }
 button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 button:active:not(:disabled) { transform: translateY(0) scale(0.98); box-shadow: none; }
@@ -1716,12 +1645,7 @@ input:focus, select:focus, textarea:focus {
 @keyframes stage-pulse { 0%,100% { box-shadow: 0 0 0 3px var(--brand-soft); } 50% { box-shadow: 0 0 0 7px transparent; } }
 @media (prefers-reduced-motion: reduce) { .stage.now .dot, .dropzone.dragging .dz-icon { animation: none; } }
 
-/* ═══════════════════════════════════════════════════════════
-   GLASS THEME — deep-navy glassmorphism (default)
-   Apple-Vision / Linear language: midnight ground, translucent
-   glass panels, cool-cyan accent, violet gradients. Text stays on
-   opaque-enough glass so contrast holds (AA). Appended last to win.
-═══════════════════════════════════════════════════════════ */
+/* GLASS THEME : deep-navy glassmorphism (default) Apple-Vision / Linear language: midnight ground, translucent glass panels, cool-cyan accent, violet gradients. Text stays on opaque-enough glass so contrast holds (AA). Appended last to win. */
 :root[data-theme="glass"] {
   --bg:             #080B14;
   --bg-subtle:      #0C1120;
@@ -1855,7 +1779,7 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 6px 20px rgba(88,214,236,0.5);
 }
 
-/* AI indicator: animated cyan→violet gradient border + soft glow */
+/* AI indicator: animated cyan to violet gradient border with a soft glow */
 :root[data-theme="glass"] .ai-badge:not(.rules) {
   color: #EAF0FF;
   background:

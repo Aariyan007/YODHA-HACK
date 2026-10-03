@@ -1,4 +1,4 @@
-"""Demo-mode endpoints (Phase 6). Every route is a 404 unless DEMO_MODE=true."""
+"""Demo mode endpoints. Every route is a 404 unless DEMO_MODE=true."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException

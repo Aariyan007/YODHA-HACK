@@ -44,7 +44,7 @@ def build_medicines(db: Session, patient_id: str) -> list[dict]:
 
 
 # Alert kinds that are a note to the PATIENT about their own upload (e.g. "I could not read this handwriting, check it with your
-# pharmacist"). A doctor, a share link or a PDF handed to a doctor must never carry them.
+# pharmacist"). A doctor, a share link or a PDF given to a doctor must never carry them.
 PATIENT_ONLY_KINDS = ("handwriting",)
 
 
@@ -249,11 +249,11 @@ def add_vitals(body: VitalsIn, patient: Patient = Depends(current_patient), db: 
 
 @router.get("/health-check")
 def health_check(ai: bool = True, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
-    """Danger checks (Python) + an AI review of the whole record. The AI never changes a risk level."""
+    """Danger checks (Python) plus an AI review of the whole record. The AI never changes a risk level."""
     if not ai:
         return build_health_check(db, patient, use_ai=False)
     from .. import budget
-    # The AI review is the slow, quota-limited part. Reuse it for 2 minutes, but only while the record is unchanged.
+    # The AI review is the slow part and uses the quota. Reuse it for 2 minutes, but only while the record is unchanged.
     key = f"hc:{patient.id}:{_record_fingerprint(db, patient.id)}"
     hit = store.get_value(key)
     if hit:
@@ -286,7 +286,7 @@ def build_health_check(db: Session, patient: Patient, use_ai: bool = True, for_d
     ins = build_insights(db, patient)
     meds = build_medicines(db, patient.id)
     alerts = build_alerts(db, patient.id, for_doctor=for_doctor)
-    # Single-reading tests still help the AI ("only one BP reading"), so pass every test.
+    # Tests with a single reading still help the AI ("only one BP reading"), so pass every test.
     obs_series = {s["code"]: s for s in ins["series"]}
     for l in ins["labs"]:
         obs_series.setdefault(l["code"], {"code": l["code"], "name": l["name"], "unit": l["unit"], "range": l["range"],

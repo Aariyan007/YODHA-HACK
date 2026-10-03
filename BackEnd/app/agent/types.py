@@ -1,10 +1,10 @@
 """Shared types for the agent core.
 
-Safety levels (the brief):
+Safety levels:
   L1  read, no confirmation
-  L2  reversible / low risk: navigate, filter, draft, summary, PDF, questions
-  L3  data write: confirmation required
-  L4  clinically consequential: the agent may only explain, draft, prepare or flag. Never silent, never executed here.
+  L2  reversible or low risk: navigate, filter, draft, summary, PDF, questions
+  L3  data write: needs confirmation
+  L4  clinically serious: the agent may only explain, draft, prepare or flag. Never silent, never run here.
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ class ToolSpec:
     confirmation_required: bool = False
     audit_category: str = "read"
     roles: tuple[str, ...] = ("patient",)  # which agents may see/call it
-    verify: Callable[..., bool] | None = None  # post-action check; failing it turns "ok" into "failed"
+    verify: Callable[..., bool] | None = None  # check after the action, failing it turns "ok" into "failed"
     preview: Callable[..., list] | None = None  # preview(ctx, args) -> [{label, value}] shown in the confirmation card
     slow: bool = False                    # may take many seconds (model call): the engine runs it as a background task
 

@@ -1,8 +1,7 @@
-"""The typed questions we put to Laya. ONE definition, shared by the backend (ai/decision.py), the training data
-builder and the evaluation (ml/). Changing a label or an instruction changes what the model was trained on, so
-retrain after editing this file.
+"""The questions we ask Laya. One definition, shared by the backend (ai/decision.py), the training data builder
+and the evaluation (ml/). Changing a label or instruction changes what the model learns, so retrain after editing.
 
-Laya question types: "choice" (pick one label), "noul" (yes/no probability), "score" (ordinal).
+Question types: "choice" (pick one label), "noul" (yes/no probability), "score" (ordinal).
 """
 from __future__ import annotations
 

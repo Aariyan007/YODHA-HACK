@@ -1,19 +1,15 @@
-/* ============================================================================
-   MEDITHREAD DESIGN SYSTEM v8
-   Loaded last. Tokens -> layout -> components -> states.
+/* MEDITHREAD DESIGN SYSTEM v8
+Loaded last. Order: tokens, layout, components, states.
 
-   Principles
-   - 8px spacing scale (--u1 = 8px).  Radii: 8 (controls) / 12 (rows) / 16 (surfaces) / 20 (hero).
-   - The page is part of the design: full-bleed chapter bands in four tones carry the separation,
-     so most content needs no box at all.
-   - Palette as a system, not paint:
-       #659287 deep   action, active, the thread
-       #88BDA4 sage   interaction, hover, secondary
-       #B1D3B9 soft   soft regions, highlights, thread rails
-       #E6F2DD pale   the ground of the whole app
-     balanced by warm white and charcoal. Warning / alert colours are restrained.
-   - Hover only ever animates transform, box-shadow, colour and opacity. Never size, padding or flow: no layout shift.
-   ========================================================================== */
+- 8px spacing scale (--u1 = 8px). Radii: 8 (controls), 12 (rows), 16 (surfaces), 20 (hero).
+- Full width chapter bands in four tones separate the page, so most content needs no box.
+- Palette as a system:
+    #659287 deep   action, active, the thread
+    #88BDA4 sage   interaction, hover, secondary
+    #B1D3B9 soft   soft regions, highlights, thread rails
+    #E6F2DD pale   the ground of the whole app
+  with warm white and charcoal. Warning and alert colours are kept quiet.
+- Hover only animates transform, box-shadow, colour and opacity. Never size, padding or flow, so no layout shift. */
 
 :root {
   --mt-deep: #659287;
@@ -52,7 +48,7 @@
   --slate: #5C7690;
 }
 
-/* The legacy token names, pointed at the new system so every page inherits it. */
+/* The old token names, pointed at the new system so every page picks it up. */
 :root:not([data-theme="glass"]) {
   --bg: var(--mt-pale);
   --bg-subtle: var(--band-soft);
@@ -92,7 +88,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 /* ── Layout ─────────────────────────────────────────────────────────────── */
 .mt-page { display: block; }
 
-/* A chapter spans the full viewport width; its content stays on the page grid. */
+/* A chapter spans the full viewport width, its content stays on the page grid. */
 .mt-chapter {
   position: relative;
   margin-inline: calc(50% - 50vw);
@@ -194,9 +190,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-chip.watch { background: #F2E8CC; color: var(--amber-ink); }
 .mt-chip.steady { background: var(--mt-paper-2); color: var(--mt-ink-3); }
 
-/* ============================================================================
-   INSIGHT HERO — the dominant statement. One floating surface, a thread rail and a serif quote.
-   ========================================================================== */
+/* INSIGHT HERO: the main statement. One floating surface, a thread rail and a serif quote. */
 .mt-hero { position: relative; display: block; background: var(--mt-paper); border-radius: var(--rad-xl); box-shadow: var(--e2); padding: var(--u5) var(--u5) var(--u4) calc(var(--u5) + var(--u3)); }
 .mt-hero-rail { position: absolute; left: var(--u3); top: var(--u5); bottom: var(--u4); width: 2px; background: linear-gradient(var(--mt-deep), var(--mt-soft)); border-radius: 2px; }
 .mt-hero-rail span { position: absolute; left: -6px; top: -4px; width: 14px; height: 14px; border-radius: 50%; background: var(--mt-paper); border: 2px solid var(--mt-deep); }
@@ -219,9 +213,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-open.has b { color: var(--amber-ink); }
 @media (max-width: 720px) { .mt-hero { padding: var(--u4) var(--u3) var(--u3) calc(var(--u3) + var(--u3)); } .mt-hero-rail { left: var(--u2); top: var(--u4); } }
 
-/* ============================================================================
-   HEALTH SNAPSHOT — one tinted column; four measurements, four different shapes, divided by lines.
-   ========================================================================== */
+/* HEALTH SNAPSHOT: one tinted column, four measurements, four different shapes, split by lines. */
 .mt-snap { height: 100%; background: color-mix(in srgb, var(--mt-soft) 38%, var(--mt-paper)); border-radius: var(--rad-xl); padding: var(--u3) var(--u3) var(--u2); display: flex; flex-direction: column; }
 .mt-snap-head { padding-bottom: var(--u2); }
 .mt-snap-row { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; padding: var(--u2) 0 var(--u3); border-top: 1px solid var(--mt-line-2); }
@@ -245,9 +237,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-snap-ticks i { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--mt-deep); }
 .mt-snap-ticks span { color: var(--mt-ink-3); }
 
-/* ============================================================================
-   CHANGE BLOCK — editorial data: one large change, then compact rows with sparklines.
-   ========================================================================== */
+/* CHANGE BLOCK: editorial data, one big change then compact rows with sparklines. */
 .mt-change { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--u5); align-items: start; }
 @media (max-width: 800px) { .mt-change { grid-template-columns: 1fr; gap: var(--u4); } }
 .mt-change-flow { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: var(--u2); }
@@ -277,9 +267,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-tally-line span { color: var(--mt-ink-2); font-size: 0.9375rem; }
 .mt-tally-line b { font-family: var(--f-display); font-size: 2.2rem; font-weight: 600; color: var(--mt-ink); margin-right: 8px; vertical-align: -4px; }
 
-/* ============================================================================
-   ATTENTION — compact rows with a severity rule. No box.
-   ========================================================================== */
+/* ATTENTION: compact rows with a severity rule. No box. */
 .mt-att-list { list-style: none; margin: 0 0 var(--u2); padding: 0; }
 .mt-att { position: relative; padding: var(--u2) 0 var(--u2) var(--u3); border-bottom: 1px solid var(--mt-line-2); }
 .mt-att:first-child { border-top: 1px solid var(--mt-line-2); }
@@ -293,9 +281,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-clear { display: flex; align-items: center; gap: 10px; margin: 0; padding: var(--u2) 0; color: var(--mt-ink-2); font-size: 0.9375rem; border-block: 1px solid var(--mt-line-2); }
 .mt-clear i { width: 10px; height: 10px; border-radius: 50%; background: var(--mt-sage); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mt-sage) 28%, transparent); }
 
-/* ============================================================================
-   CARE LOOP — today's care as nodes on a thread.
-   ========================================================================== */
+/* CARE LOOP: today's care as nodes on a thread. */
 .mt-loop { list-style: none; margin: 0; padding: 0; position: relative; }
 .mt-loop li { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: var(--u2); align-items: start; padding-bottom: var(--u3); }
 .mt-loop li:last-child { padding-bottom: 0; }
@@ -310,9 +296,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-loop .go:hover { background: color-mix(in srgb, var(--mt-soft) 55%, transparent); }
 .mt-open-col .mt-att-list { margin-bottom: var(--u1); }
 
-/* ============================================================================
-   DOCUMENT PREVIEW — paper. Hovering lifts it and lights its node in the Health Thread.
-   ========================================================================== */
+/* DOCUMENT PREVIEW: paper. Hovering lifts it and lights its node in the Health Thread. */
 .mt-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: var(--u4) var(--u3); }
 .mt-doc { display: block; color: inherit; text-decoration: none; border-radius: var(--rad-l); transition: transform var(--d3) var(--ease); }
 .mt-doc .paper { position: relative; display: flex; flex-direction: column; aspect-ratio: 4 / 5; background: var(--mt-paper); border-radius: var(--rad-l); border: 1px solid var(--mt-line); border-top: 4px solid var(--cat, var(--mt-deep)); box-shadow: var(--e1); padding: var(--u2) var(--u2) var(--u2); overflow: hidden; transition: box-shadow var(--d3) ease, border-color var(--d3) ease; }
@@ -347,10 +331,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-action:hover { transform: translateY(-4px); background: color-mix(in srgb, var(--mt-soft) 40%, var(--mt-paper)); border-color: var(--mt-deep); }
 .mt-action:hover .arrow { transform: translateX(4px); }
 
-/* ============================================================================
-   HEALTH THREAD — the signature component.
-   Compact thread on the left. The record behind the hovered node sits beside it, joined by a tether.
-   ========================================================================== */
+/* HEALTH THREAD: the main component. A compact thread on the left, the record behind the hovered node beside it, joined by a tether. */
 .mt-tx { position: relative; }
 .mt-tx.side { min-height: 480px; }
 .mt-th { list-style: none; margin: 0; padding: 0; position: relative; }
@@ -414,9 +395,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-thread-side .mt-th-today { display: none; }
 .mt-thread-side .mt-th-title { font-size: 1.1rem; }
 
-/* ============================================================================
-   MEDICATION — a time rail for today, borderless rows for the full list.
-   ========================================================================== */
+/* MEDICATION: a time rail for today, borderless rows for the full list. */
 .mt-meds-prog { display: flex; align-items: center; gap: var(--u2); flex-wrap: wrap; margin-bottom: var(--u3); }
 .mt-meds-count { font-size: 0.9375rem; color: var(--mt-ink-2); } .mt-meds-count b { font-family: var(--f-display); font-size: 1.6rem; font-weight: 600; color: var(--mt-ink); }
 .mt-meds-prog .bar { flex: 1 1 120px; min-width: 120px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--mt-soft) 55%, var(--mt-paper)); overflow: hidden; }
@@ -463,9 +442,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
   .mt-rx-row .wh { grid-column: 1 / -1; }
 }
 
-/* ============================================================================
-   SHARING — an access-control workspace.
-   ========================================================================== */
+/* SHARING: an access control workspace. */
 .mt-share { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--u5); align-items: center; background: var(--mt-paper); border-radius: var(--rad-xl); box-shadow: var(--e2); padding: var(--u4); }
 @media (max-width: 720px) { .mt-share { grid-template-columns: 1fr; padding: var(--u3); justify-items: center; text-align: left; } .mt-share-body { justify-self: stretch; } }
 .mt-scan { position: relative; width: 244px; height: 244px; display: grid; place-items: center; background: var(--band-soft); border-radius: var(--rad-l); }
@@ -504,9 +481,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-act .tx { display: grid; gap: 3px; } .mt-act .ac { color: var(--mt-ink); font-size: 0.9375rem; }
 .mt-act .when { font-size: 0.8125rem; color: var(--mt-ink-3); font-variant-numeric: tabular-nums; }
 
-/* ============================================================================
-   CARE MATCH — doctors, led by why they match.
-   ========================================================================== */
+/* CARE MATCH: doctors, led by why they match. */
 .mt-ask { display: flex; align-items: center; gap: var(--u1); margin-top: var(--u4); background: var(--mt-paper); border: 1px solid var(--mt-line-2); border-radius: var(--rad-l); padding: 6px 6px 6px var(--u2); box-shadow: var(--e1); transition: box-shadow var(--d2) ease, border-color var(--d2) ease; }
 .mt-ask:focus-within { border-color: var(--mt-sage); box-shadow: var(--e2); }
 .mt-ask .sp { color: var(--mt-deep); font-size: 1rem; }
@@ -567,9 +542,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-bring { padding: var(--u3); background: var(--mt-paper-2); border-radius: var(--rad-l); border: 1px solid var(--mt-line); }
 .mt-bring ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 0.9rem; color: var(--mt-ink-2); }
 
-/* ============================================================================
-   DOCTOR CONSOLE and HEALTH CHECK refinements
-   ========================================================================== */
+/* DOCTOR CONSOLE and HEALTH CHECK refinements */
 .mt-allergy { display: inline-flex; gap: 10px; align-items: baseline; margin: var(--u3) 0 0; padding: 8px 14px; background: #F4DEDA; color: var(--rust-ink); border-radius: var(--rad-s); font-size: 0.9rem; }
 .mt-allergy b { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; }
 .mt-enc { list-style: none; margin: 0; padding: 0; }
@@ -583,7 +556,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-consult { display: grid; gap: var(--u3); }
 .mt-consult-actions { display: flex; gap: var(--u1); flex-wrap: wrap; }
 
-/* The Health Check instrument and result sit on the paper surface of the opening chapter. */
+/* The Health Check form and result sit on the paper surface of the opening chapter. */
 .checkself { background: var(--mt-paper); border: 0; border-radius: var(--rad-xl); box-shadow: var(--e2); padding: var(--u4); }
 .cs-bp { background: var(--mt-paper-2); border-color: var(--mt-line); border-radius: var(--rad-m); }
 .cs-sfield input, .cs-sugar input, .cs-sugar select { background: var(--mt-paper-2); border-color: var(--mt-line); border-radius: var(--rad-m); }
@@ -600,7 +573,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .hc-headline { max-width: 30ch; }
 .mt-thread-side { padding-top: 4px; }
 
-/* ── legacy bits that still appear on un-rebuilt pages, unified to the system ── */
+/* -- old bits that still show on pages we haven't rebuilt, matched to the system -- */
 .card { border-radius: var(--rad-l); border: 1px solid var(--mt-line); background: var(--mt-paper); box-shadow: var(--e1); }
 .ed-cta { border-radius: var(--rad-m); } .ed-cta:hover { box-shadow: 0 10px 22px -10px rgba(63, 106, 95, 0.55); }
 .notice { border-radius: var(--rad-m); }
@@ -615,16 +588,16 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
   .mt-doc:hover, .mt-dm:hover, .mt-med:hover, .mt-rx-row:hover, .mt-acc:hover, .mt-crow:hover, .mt-enc li:hover, .mt-action:hover { transform: none; }
 }
 
-/* Legacy global `button` rules add a shadow and a 48px minimum; plain design-system buttons opt out. */
+/* The old global `button` rules add a shadow and a 48px minimum. Plain design system buttons opt out. */
 .mt-seg button, .mt-link, .ag-x, .ag-chip, .ag-act, .ag-input button { box-shadow: none; }
 .mt-seg button { min-height: 40px; }
 
-/* Header on small screens: the brand never shrinks or clips; the actions give way instead. */
+/* Header on small screens: the brand never shrinks or clips, the actions give way instead. */
 .top .brand { flex: none; white-space: nowrap; }
 .top-actions { min-width: 0; }
 @media (max-width: 560px) { .top-actions { gap: 4px; } .top .lang { padding-inline: 12px; } }
 
-/* Legacy global rules stretch every select / input to 100%; inline controls in the design system size themselves. */
+/* The old global rules stretch every select / input to 100%. Inline controls in the design system size themselves. */
 .mt-refine-sel select { width: auto; min-width: 170px; flex: 0 1 220px; }
 .mt-share-controls select { width: auto; min-width: 150px; }
 .mt-seg button { width: auto; }
@@ -651,7 +624,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 @keyframes mt-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mt-evd { animation: none; } }
 
-/* the document card's label row shares the class "top" with the page header bar: undo the header's sticky/z-index/background there */
+/* the document card's label row has the same class "top" as the page header bar, so undo the header's sticky, z-index and background there */
 .mt-doc .paper .top { position: static; z-index: auto; top: auto; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; border: 0; box-shadow: none; padding: 0; height: auto; min-height: 0; }
 
 /* lab report card: a compact list of the tests inside the report */

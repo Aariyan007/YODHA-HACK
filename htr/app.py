@@ -1,11 +1,12 @@
-"""Handwriting reader service (optional, off by default): TrOCR on one text line at a time.
+"""Handwriting reader service (optional, off by default): TrOCR on one line of text at a time.
 
 POST /read  (multipart `file`, an image)  ->  {"lines": [{"text", "box": [x0,y0,x1,y1]}], "model": "..."}
 GET  /health
 
-TrOCR reads a SINGLE line of text, so the page is cut into lines first (horizontal ink-projection profile). It is a second
-reader for MediThread's own two-pass check: it never decides anything alone and its text is never written to a record.
-Nothing is stored; the image is processed in memory and dropped."""
+TrOCR reads a SINGLE line of text, so the page is cut into lines first (horizontal ink projection). It's a second
+reader for MediThread's own two pass check: it never decides anything alone and its text is never written to a record.
+Nothing is stored, the image is handled in memory and dropped.
+"""
 from __future__ import annotations
 
 import io
@@ -24,7 +25,7 @@ _proc = _model = None
 
 
 def segment(gray: np.ndarray, min_h: int = 14, gap: int = 6) -> list[tuple[int, int]]:
-    """Row ranges (y0, y1) that hold ink, found from the row sums of a binarised page. Pure numpy, unit tested."""
+    """Row ranges (y0, y1) that hold ink, found from the row sums of a black and white page. Plain numpy, unit tested."""
     h, w = gray.shape
     thresh = gray.mean() - 0.6 * gray.std()
     ink = (gray < thresh).sum(axis=1)

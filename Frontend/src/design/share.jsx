@@ -1,11 +1,11 @@
-// Sharing as an access-control workspace: the QR you show, who can see your record now, and what happened.
+// Sharing as an access control workspace: the QR you show, who can see your record now, and what happened.
 import { QRCodeSVG } from "qrcode.react";
 import { Arrow } from "./primitives.jsx";
 import { longDate, shortDate } from "./data.js";
 
 const initial = (name = "?") => (name.replace(/^dr\.?\s+/i, "").trim().charAt(0) || "?").toUpperCase();
 
-/** The QR frame: a soft sage region with scan corners. The QR itself is always real (value = the live share link). */
+/* The QR frame: a soft sage region with scan corners. The QR itself is always real (value = the live share link). */
 export function ScanFrame({ value, size = 188 }) {
   return (
     <div className={`mt-scan${value ? " live" : ""}`}>

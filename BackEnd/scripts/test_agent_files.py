@@ -1,4 +1,4 @@
-"""Vault + file ingestion tests. In-memory SQLite, temp vault dir, no network.
+"""Vault and file ingestion tests. In-memory SQLite, temp vault folder, no network.
 
 Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_agent_files.py -v
 """
@@ -285,7 +285,7 @@ class ExtractionApiTests(ExtractBase):
         self.assertEqual([s["tool"] for s in r["steps"]], ["documents.extract", "documents.summarize"])  # nothing extra ran
 
     def test_document_text_never_enters_conversation_memory(self):
-        """A document must not be able to plant text the planner later reads as conversation history."""
+        """A document must not be able to plant text that the planner later reads as chat history."""
         self.chat("summarise this", self.fid())
         kept = " ".join(str(v) for v in store._memory.values())
         self.assertIn("file_summary", kept)           # the intent label is kept

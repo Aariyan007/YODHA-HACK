@@ -1,10 +1,10 @@
-"""Cap how many API requests are in flight at once.
+"""Caps how many API requests are in flight at once.
 
-Each request holds one database connection from its auth check to its end, and runs on a limited worker-thread pool. With
-more simultaneous requests than connections or threads, requests holding a connection wait for a thread while threads wait
-for a connection, and everything stalls until the pool times out (seen with 100 people at once: 30 s timeouts).
-Letting only a few more than the pool in at a time, and queueing the rest cheaply (an awaiting request holds nothing),
-keeps every request fast. Live streams (/api/jobs/) and health checks are not counted.
+Each request holds one DB connection from its auth check until it ends, and runs on a small worker thread pool.
+With more requests than connections or threads, requests holding a connection wait for a thread while threads wait
+for a connection, and everything stalls until the pool times out (we saw 30 s timeouts with 100 people at once).
+Letting only a few more than the pool in, and queueing the rest cheaply (a waiting request holds nothing), keeps
+every request fast. Live streams (/api/jobs/) and health checks aren't counted.
 """
 from __future__ import annotations
 

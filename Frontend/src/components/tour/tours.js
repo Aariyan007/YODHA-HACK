@@ -1,4 +1,4 @@
-// What each tour shows. A step: { route, target, title, text }. `target` is a list of CSS selectors, first one found wins; with none
+// What each tour shows. A step is { route, target, title, text }. `target` is a list of CSS selectors, the first one found wins. If none is
 // found (or none given) the card is centred, so a missing element never breaks the tour. Nav links are matched by the end of their href,
 // which works in both the normal build (/upload) and the offline hash build (#/upload).
 const nav = (path) => `.tabs a[href$="${path}"]`;

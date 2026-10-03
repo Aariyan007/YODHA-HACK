@@ -1,4 +1,4 @@
-// One shape for both agents, so the panel does not care which one it is talking to.
+// One shape for both agents, so the panel doesn't care which one it's talking to.
 import * as C from "../../api/client.js";
 
 export function apiFor(ctx, patientId) {

@@ -13,19 +13,19 @@ SQLITE_URL = f"sqlite:///{Path(__file__).resolve().parents[1] / 'medithread.db'}
 
 def _make_engine():
     url = os.getenv("DATABASE_URL", "").strip()
-    # Normalise any Postgres scheme (postgres://, postgresql+psycopg://, ...) to psycopg2.
+    # Turn any Postgres scheme (postgres://, postgresql+psycopg://, ...) into psycopg2.
     if url.startswith("postgres") and "://" in url:
         url = "postgresql+psycopg2://" + url.split("://", 1)[1]
     if url.startswith("postgresql") and (os.getenv("DB_POOL_MODE") or "").strip().lower() == "transaction":
-        # Supabase's session pooler (port 5432) allows few clients in total; the transaction pooler (6543) allows many.
-        # Safe here: we use plain SQL with no prepared statements, advisory locks or session state.
+        # Supabase's session pooler (port 5432) allows very few clients in total, the transaction pooler (6543) allows many.
+        # Safe here because we use plain SQL, no prepared statements, advisory locks or session state.
         url = url.replace(":5432/", ":6543/")
     if url.startswith("postgresql"):
         try:
-            # Supabase's session pooler allows only a handful of client connections per project, so keep this process small:
+            # Supabase's session pooler only allows a handful of client connections per project, so keep this process small:
             # 3 + 2 overflow, recycled every 5 minutes (the default 5 + 10 can starve other processes and the tests).
-            # The transaction pooler (6543) multiplexes many clients over few server connections, so a bigger local pool is safe
-            # there; without it, 100 people at once queued behind 5 connections and timed out. Override with DB_POOL_SIZE / DB_MAX_OVERFLOW.
+            # The transaction pooler (6543) shares few server connections between many clients, so a bigger local pool is safe
+            # there. Without it, 100 people at once waited behind 5 connections and timed out. Override with DB_POOL_SIZE / DB_MAX_OVERFLOW.
             big = (os.getenv("DB_POOL_MODE") or "").strip().lower() == "transaction"
             size = int(os.getenv("DB_POOL_SIZE") or (20 if big else 3))
             over = int(os.getenv("DB_MAX_OVERFLOW") or (20 if big else 2))
@@ -52,10 +52,10 @@ class Base(DeclarativeBase):
 
 
 def add_missing_columns() -> list[str]:
-    """Add model columns that exist in code but not in the DB (nullable ADD COLUMN only).
-
-    `create_all` creates missing tables but never alters existing ones, so new
-    columns on old tables would 500. This keeps upgrades non-destructive.
+    """Adds model columns that exist in code but not in the DB (nullable ADD COLUMN only).
+    
+    create_all makes missing tables but never alters existing ones, so new columns on old tables would give a 500.
+    This keeps upgrades safe.
     """
     from sqlalchemy import inspect
 
@@ -84,7 +84,7 @@ _INDEXES = [
 
 
 def add_missing_indexes() -> list[str]:
-    """Composite indexes for the queries every page makes (patient + date, open alerts). Idempotent and safe to re-run."""
+    """Composite indexes for queries every page makes (patient + date, open alerts). Safe to run again and again."""
     made: list[str] = []
     for name, table, cols in _INDEXES:
         try:

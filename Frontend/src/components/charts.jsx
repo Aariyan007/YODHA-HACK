@@ -1,13 +1,13 @@
-// One chart engine for every lab trend (HbA1c large view, per-test cards, doctor console, sparklines).
-// - monotone cubic curve (never overshoots the data), gradient area, healthy-zone band behind the target line
-// - hover, touch and keyboard focus show a tooltip and a crosshair; the latest point pulses
-// - entrance: line draws, area wipes in, dots pop (GSAP, inside gsap.context, skipped for reduced motion)
+// One chart engine for every lab trend (big HbA1c view, per-test cards, doctor console, sparklines).
+// - smooth curve that never overshoots the data, gradient area, healthy zone band behind the target line
+// - hover, touch and keyboard focus show a tooltip and a crosshair, the latest point pulses
+// - entrance: the line draws, the area wipes in, dots pop (GSAP, inside gsap.context, skipped for reduced motion)
 // Colours come only from CSS tokens, so dark mode works without changes.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { reducedMotion } from "../anim.js";
 
-// Which direction is healthy for each test. Everything not listed: lower is better.
+// Which direction is healthy for each test. Anything not listed: lower is better.
 const HIGHER_IS_BETTER = new Set(["spo2", "hdl", "hb"]);
 
 export function statusFor(code, value, target) {

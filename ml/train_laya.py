@@ -1,8 +1,8 @@
-"""Fine-tune Laya (typed-decisions checkpoint) on MediThread's own labelled data (ml/data/train.jsonl).
+"""Fine tunes Laya (typed-decisions checkpoint) on MediThread's own labelled data (ml/data/train.jsonl).
 
 Adapted from the Apple Silicon script in github.com/NandhaKishorM/laya (Apache-2.0): same RLCD loss, same
-calibration, but reading our local JSONL instead of a Hub dataset, runnable on CUDA (Colab) and with an option to
-freeze the lower encoder layers so it fits in 8 GB of Apple Silicon memory.
+calibration, but it reads our local JSONL instead of a Hub dataset, runs on CUDA (Colab), and can freeze the lower
+encoder layers so it fits in 8 GB of Apple Silicon memory.
 
     # Colab / any CUDA GPU (full fine-tune, about 20-40 minutes for ~4k rows)
     python ml/train_laya.py --device cuda --epochs 3 --micro-batch 8 --grad-accum 4
@@ -11,7 +11,7 @@ freeze the lower encoder layers so it fits in 8 GB of Apple Silicon memory.
     python ml/train_laya.py --device mps --freeze-below 20 --epochs 2 --micro-batch 2 --grad-accum 16
 
 Output: ml/out/laya-medithread/ (model.safetensors, encoder/, tokenizer/, rl_agent_config.json with fitted
-temperatures). Copy that folder to models/laya/ for the service. Then run ml/eval.py.
+temperatures). Copy that folder to models/laya/ for the service, then run ml/eval.py.
 """
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ def save(model, tokenizer, cfg, out: Path):
 
 
 def freeze_lower(model, below: int) -> None:
-    """Freeze embeddings and encoder layers 0..below-1 (saves optimizer memory on small machines)."""
+    """Freezes embeddings and encoder layers 0..below-1 (saves optimizer memory on small machines)."""
     n_frozen = 0
     for name, p in model.named_parameters():
         m = re.search(r"encoder\.layers\.(\d+)\.", name)

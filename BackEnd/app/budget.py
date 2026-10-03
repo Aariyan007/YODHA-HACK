@@ -1,7 +1,7 @@
-"""Per-person daily limits on the features that spend the shared free AI quota (Gemini, Groq).
+"""Daily limits per person on the features that use the shared free AI quota (Gemini, Groq).
 
-One heavy user must not use up everyone's share. Counters live in the store (Redis, or memory when Redis is absent) and
-reset each day. `spend` raises a plain 429; `try_spend` just says yes or no so a feature can fall back instead.
+One heavy user must not use up everyone's share. Counters live in the store (Redis, or memory without Redis) and
+reset each day. `spend` raises a plain 429, `try_spend` just says yes or no so a feature can fall back instead.
 """
 from __future__ import annotations
 

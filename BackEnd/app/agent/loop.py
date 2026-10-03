@@ -1,9 +1,11 @@
-"""The agent loop: the LLM understands the request and chooses tools (native function calling); CODE runs every tool through
-the executor (schema, permission, confirmation, verify, audit), and then the LLM writes the reply from the tool results only.
+"""The agent loop: the LLM understands the request and picks tools (native function calling). Code runs every tool
+through the executor (schema, permission, confirmation, verify, audit), then the LLM writes the reply from the
+tool results only.
 
-What the model can never do here: touch the DB, run a tool that is not registered for this role, skip a confirmation, or have a
-claim shown that is not backed by tool output (numbers are checked; diagnosis / medicine-change wording is blocked).
-Tool results are DATA wrapped in markers; the system prompt tells the model to ignore any instructions inside them."""
+The model can never touch the DB, run a tool that isn't registered for this role, skip a confirmation, or get a
+claim shown that the tool output doesn't back (numbers are checked, diagnosis and medicine change wording is blocked).
+Tool results are data wrapped in markers, and the system prompt tells the model to ignore instructions inside them.
+"""
 from __future__ import annotations
 
 import json
@@ -46,7 +48,7 @@ Examples of casual requests and what to do (people write loosely, in English, Ma
 - Follow-ups like "same but 1 hour", "no the other one", "do it again" refer to the earlier turns shown to you.
 {extra}"""
 
-# Tools whose result usually leads to another tool call (names first, then the change; read the file, then save it).
+# Tools whose result usually leads to another tool call (names first then the change, read the file then save it).
 CHAINS = {"medications.unclear", "medications.usage_lookup", "documents.extract", "documents.entities", "triage.check", "sharing.create"}
 _MULTI = re.compile(r"\b(and|also|then|plus|after that|too)\b|[;&]|\s,\s|\w,\s\w", re.I)
 
@@ -60,8 +62,9 @@ FILE_TOOLS = {"documents.extract", "documents.entities", "documents.evidence", "
 
 
 def pick_tools(registry, role: str, text: str, has_file: bool) -> list:
-    """Every tool this role has (file tools only with a file attached). Keyword gating was dropped: casual wording
-    ("gimme something for the doc") must not hide the tool the person needs. Compact definitions keep this cheap."""
+    """Every tool this role has (file tools only with a file attached). We dropped keyword gating because casual
+    wording ("gimme something for the doc") must not hide the tool the person needs. Compact definitions keep it cheap.
+    """
     out = []
     for spec in registry.for_role(role):
         if spec.name in FILE_TOOLS and not has_file:
@@ -84,7 +87,7 @@ def tool_defs(specs) -> list[dict]:
 
 
 def view(tool: str, blocks: list[dict], error: str | None) -> str:
-    """What the model is shown of a tool result: compact facts, capped. Wrapped so it reads as data."""
+    """What the model sees of a tool result: short facts, capped, wrapped so it reads as data."""
     rows: list[str] = []
     for b in blocks:
         t = b.get("type")
@@ -116,7 +119,7 @@ _NUM = re.compile(r"\d+(?:\.\d+)?")
 
 
 def numbers_ok(reply: str, evidence_text: str) -> bool:
-    """Every number in the reply must appear in the tool results or the person's words (small counts up to 10 are free)."""
+    """Every number in the reply must be in the tool results or the person's words (small counts up to 10 are free)."""
     allowed = set(_NUM.findall(evidence_text))
     allowed |= {n[:-2] for n in list(allowed) if n.endswith('.0')}  # 152.0 in the data may be written 152
     for n in _NUM.findall(reply):
@@ -129,7 +132,7 @@ def numbers_ok(reply: str, evidence_text: str) -> bool:
 
 
 def plain(text: str) -> str:
-    """The panel shows plain text: strip markdown the model may still add and put list items on their own lines."""
+    """The panel shows plain text, so strip any markdown the model adds and put list items on their own lines."""
     t = re.sub(r"\*\*|__|`", "", text or "")
     t = re.sub(r"^\s*#+\s*", "", t, flags=re.M)
     t = re.sub(r"^\s*[*•]\s+", "- ", t, flags=re.M)
@@ -152,7 +155,7 @@ def system_prompt(role: str, session: dict) -> str:
 
 
 def to_blocks(results) -> tuple[list[dict], list[dict], dict | None]:
-    """Cards (non-text blocks) for the UI, evidence, and a pending confirmation if one tool is waiting."""
+    """Cards (non-text blocks) for the UI, the evidence, and a pending confirmation if a tool is waiting."""
     cards, ev, conf, seen = [], [], None, set()
     for r in results:
         if r.status == "needs_confirmation":

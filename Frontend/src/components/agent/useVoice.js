@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// idle -> listening -> transcribing -> idle (text handed back) | error. One recording at a time, 45 s at most.
-// The text goes into the input for the person to read and edit; nothing is sent or run from voice.
+// idle, listening, transcribing, idle (text handed back) or error. One recording at a time, 45 s at most.
+// The text goes into the input for the person to read and edit. Nothing is sent or run from voice.
 export function useVoice(transcribe, onText) {
   const [state, setState] = useState("idle");
   const [error, setError] = useState(null);

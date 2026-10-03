@@ -17,7 +17,7 @@ function findTarget(selectors) {
   return null;
 }
 
-// The step card and the spotlight. It moves to the right screen, finds the element, and highlights it. If the element is missing the
+// The step card and the spotlight. It goes to the right screen, finds the element and highlights it. If the element is missing the
 // card is simply centred.
 export function Tour() {
   const { run } = useTourState();
@@ -37,7 +37,7 @@ export function Tour() {
     if (here !== step.route) navigate(step.route);
   }, [step, pathname, navigate]);
 
-  // find the element (it may appear a moment after the page changes), then keep the spotlight on it
+  // find the element (it can show up a moment after the page changes), then keep the spotlight on it
   useLayoutEffect(() => {
     if (!step) { setRect(null); return; }
     let alive = true, tries = 0, timer;
@@ -45,7 +45,7 @@ export function Tour() {
       if (!alive) return;
       const el = findTarget(step.target);
       if (el) {
-        // bring it on screen unless the person is scrolling themselves (the page may still be loading and move things)
+        // bring it on screen unless the person is scrolling (the page may still be loading and moving things)
         if (!fromScroll) {
           const b = el.getBoundingClientRect();
           if (b.top < 0 || b.bottom > window.innerHeight) el.scrollIntoView({ block: "center", behavior: "auto" });
@@ -87,7 +87,7 @@ export function Tour() {
 
   useEffect(() => { if (run) cardRef.current?.focus({ preventScroll: true }); }, [run?.index]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // the card is taller than my first guess on some steps: slide it up so its bottom edge is always on screen
+  // the card can be taller than I guessed on some steps, so slide it up to keep its bottom edge on screen
   useLayoutEffect(() => {
     setMeasured((t) => t + 1);
     setNudge(0);

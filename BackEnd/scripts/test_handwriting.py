@@ -1,4 +1,4 @@
-"""Handwriting two-pass logic: preprocess, compare, uncertain handling, agent surface. No network.
+"""Handwriting two pass logic: preprocess, compare, uncertain handling, agent surface. No network.
 
 Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_handwriting.py -v
 """

@@ -437,7 +437,7 @@ class TaskTests(Base_):
 
 
 class ScriptedLLM(LLMService):
-    """A model that plays a fixed script of turns: each is {"content":..., "tool_calls":[(name, args)]} or None (unavailable)."""
+    """A fake model that plays a fixed script of turns: each is {"content":..., "tool_calls":[(name, args)]} or None (unavailable)."""
     def __init__(self, turns):
         self.turns, self.seen = list(turns), []
 
@@ -478,7 +478,7 @@ class AgentLoopTests(Base_):
         self.assertEqual(out["blocks"][0], {"type": "text", "text": "You take Metformin 500 mg in the morning."})
         self.assertTrue(any(b["type"] == "medication" for b in out["blocks"]))
         self.assertEqual(out["steps"], [{"tool": "medications.list", "status": "ok"}])
-        # the model saw the data as untrusted tool output, and only a relevant subset of tools
+        # the model saw the data as untrusted tool output, and only some of the tools
         self.assertIn("<tool_result", str(self.llm.seen[1][0]))
         self.assertIn("sharing__create", self.llm.seen[0][1])  # all tools are offered: casual wording must not hide one
 

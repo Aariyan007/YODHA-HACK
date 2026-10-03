@@ -1,11 +1,9 @@
-/**
- * The visit, sorted into what a clinician cares about: what the patient reported, what the doctor diagnosed,
- * the prescription, tests, advice, referrals and follow-up. Small talk is left out entirely.
- *
- * The AI only proposes; the server has already checked every item against the transcript. On the review
- * screen the doctor can remove any item (it then is not saved). Removal is sent as indexes, so the doctor
- * can drop things but nothing can be added from the browser.
- */
+/* The visit sorted into what a clinician cares about: what the patient reported, what the doctor diagnosed, the
+prescription, tests, advice, referrals and follow-up. Small talk is left out completely.
+
+The AI only proposes and the server already checked every item against the transcript. On the review screen the
+doctor can remove any item (then it isn't saved). Removal is sent as indexes, so the doctor can drop things but
+nothing can be added from the browser. */
 const ACTION = {
   start: { label: "Start", tone: "good" },
   continue: { label: "Continue", tone: "info" },

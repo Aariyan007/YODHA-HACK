@@ -1,7 +1,7 @@
-"""Tests for the doctor finder: India-only origin, ranking, filters, query parsing, AI fallback.
+"""Tests for the doctor finder: India only origin, ranking, filters, query parsing, AI fallback.
 
-No network (Groq is never called: no key in the test env). Uses the FICTIONAL
-sample directory in BackEnd/data/doctors.json.
+No network (Groq is never called, there's no key in the test env). Uses the FICTIONAL sample directory in
+BackEnd/data/doctors.json.
 
 Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_doctors.py -v
 """

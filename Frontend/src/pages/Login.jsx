@@ -54,7 +54,7 @@ function ThreadBackground() {
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      {/* Long curved thread — muted sage */}
+      {/* Long curved thread, muted sage */}
       <path d="M -20 500 C 100 450 150 350 200 280 S 300 180 380 150 S 520 130 600 100 S 720 60 820 40"
         stroke="rgba(101,146,135,0.18)" strokeWidth="1.5" strokeLinecap="round" />
       {/* Branch */}

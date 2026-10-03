@@ -1,4 +1,4 @@
-"""Count AI tokens by feature and day, so optimisation is measured, not guessed. Numbers only: no text is ever stored."""
+"""Counts AI tokens by feature and day, so we measure instead of guessing. Numbers only, no text is ever stored."""
 from __future__ import annotations
 
 import json

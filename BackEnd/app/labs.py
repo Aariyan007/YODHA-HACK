@@ -1,7 +1,7 @@
 """Lab status rules. Plain thresholds, no AI.
 
-Each rule: (good_low, good_high, watch_low, watch_high). Values inside the
-good band are "good", inside the watch band are "watch", anything else "alert".
+Each rule is (good_low, good_high, watch_low, watch_high). Inside the good band is "good", inside the watch band
+is "watch", anything else is "alert".
 """
 import re
 
@@ -37,7 +37,7 @@ RULES: dict[str, dict] = {
     "temp": {"name": "Temperature", "unit": "°F", "good": (97, 99.5), "watch": (96, 100.4), "range": "97 - 99.5"},
 }
 
-# Lower-case name fragment -> lab code. Checked longest first, so "post meal blood sugar" beats "blood sugar".
+# Lower case name fragment to lab code. Checked longest first, so "post meal blood sugar" beats "blood sugar".
 NAME_TO_CODE: dict[str, str] = {
     "hba1c": "hba1c", "a1c": "hba1c", "glycated": "hba1c", "glycosylated": "hba1c",
     "fasting blood sugar": "fbs", "fasting glucose": "fbs", "fasting plasma glucose": "fbs", "fbs": "fbs", "fpg": "fbs",
@@ -62,17 +62,17 @@ _NAME_KEYS = sorted(NAME_TO_CODE, key=len, reverse=True)
 
 
 def code_for_name(name: str | None) -> str | None:
-    """Best lab code for a free-text test name, or None if we do not know the test.
-
-    The earliest match in the name wins ("HbA1c (Glycated Haemoglobin)" is HbA1c, not haemoglobin);
-    on a tie the longer fragment wins ("Fasting blood sugar" beats "blood sugar").
+    """Best lab code for a free text test name, or None if we don't know the test.
+    
+    The earliest match in the name wins ("HbA1c (Glycated Haemoglobin)" is HbA1c, not haemoglobin). On a tie the
+    longer fragment wins ("Fasting blood sugar" beats "blood sugar").
     """
     key = (name or "").lower().strip()
     if not key:
         return None
     best: tuple[int, int, str] | None = None
     for frag in _NAME_KEYS:
-        # Short fragments (hb, tg, alt...) must match a whole word, long ones can be substrings.
+        # Short fragments (hb, tg, alt...) must match a whole word, long ones can be part of a word.
         pat = rf"(?<![a-z0-9]){re.escape(frag)}(?![a-z0-9])" if len(frag) <= 4 else re.escape(frag)
         m = re.search(pat, key)
         if m and (best is None or (m.start(), -len(frag)) < (best[0], best[1])):
@@ -81,13 +81,13 @@ def code_for_name(name: str | None) -> str | None:
 
 
 def slug(name: str | None) -> str:
-    """Stable code for a test we have no rule for, so different tests never collide."""
+    """A stable code for a test we have no rule for, so different tests never collide."""
     s = re.sub(r"[^a-z0-9]+", "_", (name or "").lower()).strip("_")
     return ("x_" + s)[:40] if s else "unknown"
 
 
 def parse_range(text: str | None) -> tuple[float | None, float | None] | None:
-    """Read a printed reference range: "70 - 110", "<5.7", "> 40", "3.5-5.0 mmol/L"."""
+    """Reads a printed reference range like "70 - 110", "<5.7", "> 40" or "3.5-5.0 mmol/L"."""
     if not text:
         return None
     t = text.replace("–", "-").replace("—", "-").replace(",", "")
@@ -105,7 +105,7 @@ def parse_range(text: str | None) -> tuple[float | None, float | None] | None:
 
 
 def status_from_range(value: float, text: str | None) -> str | None:
-    """good / watch (within 10% of a limit) / alert from a printed range. None if the range cannot be read."""
+    """good, watch (within 10% of a limit) or alert from a printed range. None if the range can't be read."""
     rng = parse_range(text)
     if rng is None:
         return None
@@ -169,7 +169,7 @@ LOINC_BY_CODE: dict[str, str] = {
     "sbp": "8480-6", "dbp": "8462-4", "pulse": "8867-4", "spo2": "59408-5", "weight": "29463-7", "temp": "8310-5",
 }
 
-# Every LOINC we accept on import -> our lab code (a few tests have several LOINC ids).
+# Every LOINC we accept on import and our lab code for it (a few tests have several LOINC ids).
 CODE_BY_LOINC: dict[str, str] = {
     **{v: k for k, v in LOINC_BY_CODE.items()},
     "17856-6": "hba1c", "59261-8": "hba1c", "41995-2": "hba1c",

@@ -1,4 +1,4 @@
-"""The upload error text must say what is actually wrong. Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_extractor_errors.py -v"""
+"""The upload error text must say what is really wrong. Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_extractor_errors.py -v"""
 import sys
 import unittest
 from pathlib import Path

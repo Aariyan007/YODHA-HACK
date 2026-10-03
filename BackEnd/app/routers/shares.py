@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/shares", tags=["shares"])
 
 
 def make_share(db: Session, patient_id: str, scope: str, hours: int) -> ShareLink:
-    """The one place a share link is made (the route and the agent both use it). Does not commit."""
+    """The one place a share link is made (the route and the agent both use it). Doesn't commit."""
     link = ShareLink(token=secrets.token_urlsafe(16), patient_id=patient_id, scope=scope,
                      expires_at=datetime.now(timezone.utc) + timedelta(hours=hours))
     db.add(link)

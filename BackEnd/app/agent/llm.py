@@ -1,7 +1,8 @@
-"""LLMService: the only place the agent talks to a language model. Swap the class to change provider.
+"""The only place the agent talks to a language model. Swap the class to change provider.
 
-The model gets tool names + schemas and the person's words. It returns JSON. It never receives credentials, never touches
-the DB, and anything it returns is validated by the executor before it runs."""
+The model gets tool names, schemas and the person's words, and returns JSON. It never gets credentials, never
+touches the DB, and whatever it returns is checked by the executor before anything runs.
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -10,7 +11,7 @@ from abc import ABC, abstractmethod
 class LLMService(ABC):
     @abstractmethod
     def complete_json(self, system: str, user: str, max_tokens: int = 700) -> dict | None:
-        """Return a parsed JSON object, or None on any failure (rate limit, timeout, bad JSON)."""
+        """Returns a parsed JSON object, or None on any failure (rate limit, timeout, bad JSON)."""
 
 
 class GroqLLM(LLMService):
@@ -25,10 +26,10 @@ class NullLLM(LLMService):
         return None
 
 
-# ---------------------------------------------------------------- native tool calling (the agent loop)
+# ------------ native tool calling (the agent loop)
 
 def _groq_chat(messages: list[dict], tools: list[dict], max_tokens: int) -> dict | None:
-    """One chat turn with function calling. Fails fast (no SDK retries); on a rate limit, tries the smaller model once."""
+    """One chat turn with function calling. Fails fast (no SDK retries), and on a rate limit tries the smaller model once."""
     import os
     from groq import Groq
     from ai.consultation import FALLBACK_MODEL, MODEL
@@ -66,10 +67,10 @@ GroqLLM.available = lambda self: bool(__import__("os").getenv("GROQ_API_KEY"))
 GroqLLM.chat_tools = lambda self, messages, tools, max_tokens=600: _groq_chat(messages, tools, max_tokens)
 
 
-# ---------------------------------------------------------------- a second, small model that checks the reply
+# ------------ a second, small model that checks the reply
 
 def _groq_judge(system: str, user: str) -> dict | None:
-    """One cheap JSON call on the small model (its own quota). None on any failure: the caller decides what that means."""
+    """One cheap JSON call on the small model (own quota). None on any failure, the caller decides what that means."""
     import json
     import os
     from groq import Groq

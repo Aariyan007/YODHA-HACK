@@ -20,10 +20,10 @@ SECRET = os.getenv("JWT_SECRET") or "dev-only-secret-change-me"
 bearer = HTTPBearer(auto_error=False)
 
 
-# ---- passwords: stdlib scrypt, random salt, constant-time compare (no extra dependency)
+# ---- passwords: stdlib scrypt, random salt, constant time compare (no extra dependency)
 _N, _R, _P = 2 ** 14, 8, 1
 # One scrypt run needs about 16 MB. A burst of sign-ins on 40 worker threads would need 640 MB and push a small container
-# into swap, stalling every other request. Only a few run at once; the rest wait their turn (milliseconds each).
+# into swap and stall every other request. Only a few run at once, the rest wait their turn (milliseconds each).
 _SCRYPT_SLOTS = threading.BoundedSemaphore(int(os.getenv("SCRYPT_CONCURRENCY", "3")))
 
 
@@ -39,7 +39,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored: str | None) -> bool:
-    """Always does one scrypt run, even for an unknown user (stored=None), so timing does not reveal accounts."""
+    """Always runs one scrypt, even for an unknown user (stored=None), so timing doesn't reveal which accounts exist."""
     try:
         _, n, r, p, salt, dk = (stored or _DUMMY_HASH).split("$")
         calc = _scrypt(password, bytes.fromhex(salt), int(n), int(r), int(p))

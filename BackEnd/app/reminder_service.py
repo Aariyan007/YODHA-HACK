@@ -1,11 +1,9 @@
-"""Reminder engine: dose-due, missed-dose, refill and appointment messages.
+"""Reminder engine: dose due, missed dose, refill and appointment messages.
 
-`run_tick(now, send)` is a plain function with an injectable clock and sender,
-so tests can drive it with a fake clock. The APScheduler job in `start()` just
-calls it every 30 seconds with the real IST time.
+`run_tick(now, send)` is a plain function with a clock and sender you can pass in, so tests can drive it with a fake
+clock. The APScheduler job in `start()` just calls it every 30 seconds with the real IST time.
 
-Logging rules: never log tokens, chat ids, or message text beyond a medicine
-name.
+Logging: never log tokens, chat ids or message text, except a medicine name.
 """
 from __future__ import annotations
 
@@ -49,7 +47,7 @@ def dose_key(medicine_id: str, clock: str, day: str) -> str:
 
 
 def reminder_key(medicine_id: str, clock: str) -> str:
-    """Key used by the patient-facing reminders list (`build_reminders`)."""
+    """Key used by the patient reminders list (`build_reminders`)."""
     return f"{medicine_id}_{clock.replace(':', '')}"
 
 
@@ -69,7 +67,7 @@ def med_label(m: Medicine) -> str:
 
 
 def in_course(m: Medicine, today: date) -> bool:
-    """True if `today` falls inside the medicine's course (start..start+N-1)."""
+    """True if `today` is inside the medicine's course (start to start+N-1)."""
     if not m.active:
         return False
     if m.start_date:
@@ -139,7 +137,7 @@ def _record_sent(db: Session, patient_id: str, med_id: str, clock: str, day: str
 # ---------- the tick ----------
 
 def run_tick(now: datetime, send: Sender | None = None, session_factory=SessionLocal) -> dict:
-    """Run one scheduler pass at `now` (tz-aware, IST). Returns counts for tests/logs."""
+    """Runs one scheduler pass at `now` (tz aware, IST). Returns counts for tests and logs."""
     send = send or telegram.send_to
     out = {"dose": 0, "missed": 0, "refill": 0, "appointment": 0}
     if not telegram.ready() and send is telegram.send_to:
@@ -231,8 +229,9 @@ def run_tick(now: datetime, send: Sender | None = None, session_factory=SessionL
 
 
 def _nudge(db: Session, settings: ReminderSettings, patient: Patient, meds: list[Medicine], today: date, now: datetime, send: Sender) -> int:
-    """Hourly reminder for doses already announced today and not marked taken. Stops by itself: once taken, after MAX_NUDGES,
-    when the medicine is stopped or its course ends, and never at night."""
+    """Hourly reminder for doses already announced today and not marked taken. Stops on its own: once taken, after
+    MAX_NUDGES, when the medicine is stopped or its course ends, and never at night.
+    """
     by_id = {m.id: m for m in meds}
     due: list[tuple[SentDose, Medicine]] = []
     for row in db.scalars(select(SentDose).where(SentDose.patient_id == patient.id, SentDose.date == today.isoformat())):
@@ -270,7 +269,7 @@ def _nudge(db: Session, settings: ReminderSettings, patient: Patient, meds: list
 
 
 def _pending_later(db: Session, patient_id: str, meds: list[Medicine], today: date, now: datetime) -> list[str]:
-    """Doses later today that have not been announced yet, as 'Name at 9:00 PM'."""
+    """Doses later today that haven't been announced yet, as 'Name at 9:00 PM'."""
     sent = {(r.medicine_id, r.clock) for r in db.scalars(select(SentDose).where(SentDose.patient_id == patient_id, SentDose.date == today.isoformat()))}
     out = []
     for m in meds:
@@ -313,7 +312,7 @@ def _unmark_notice(db: Session, key: str) -> None:
 # ---------- demo helpers ----------
 
 def next_due_dose(db: Session, patient_id: str, now: datetime) -> tuple[Medicine, str] | None:
-    """Soonest upcoming (medicine, clock) for today (wraps to the earliest clock)."""
+    """Next upcoming (medicine, clock) for today (wraps around to the earliest clock)."""
     today = now.date()
     cands: list[tuple[str, Medicine]] = []
     for m in db.scalars(select(Medicine).where(Medicine.patient_id == patient_id, Medicine.active.is_(True))):

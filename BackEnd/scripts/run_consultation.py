@@ -1,11 +1,11 @@
-"""Phase 3 end-to-end demo: scripted 14-line consultation.
+"""End to end demo of a scripted 14 line consultation.
 
 Shows:
-- flags raised per line (duplicates, clashes, allergies, missing-info)
-- doctor-side question suggestions
-- the finalized SOAP note
-- that the patient timeline is unchanged until /approve
-- that one new record appears after /approve
+- the flags raised per line (duplicates, clashes, allergies, missing info)
+- the question suggestions for the doctor
+- the final SOAP note
+- that the patient timeline doesn't change until /approve
+- that one new record shows up after /approve
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def main() -> None:
         share = client.post("/api/shares", headers=H, json={"hours": 24, "scope": "full"}).json()
         print(f"Share token: {share['token'][:8]}…  expires {share['expiresAt']}")
 
-        # Doctor-side headers: share token identifies the authorized visit; no patient JWT.
+        # Doctor side headers: the share token identifies the visit, no patient JWT.
         DH = {"X-Share-Token": share["token"]}
 
         # Doctor starts the consultation (no auth required for /start itself).
@@ -129,7 +129,7 @@ def main() -> None:
             "Timeline MUST NOT change before approve (post-finalize check)."
         print(f"\nTimeline rows after finalize: {len(timeline_pre_approve2)} (unchanged ✔)")
 
-        # Approve — doctor accepts without edits
+        # Approve: the doctor accepts without edits
         _hr("Approve → write to patient timeline")
         r = client.post(f"/api/consultations/{cid}/approve", headers=DH, json={"edits": {}})
         r.raise_for_status()

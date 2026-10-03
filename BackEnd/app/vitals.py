@@ -1,7 +1,7 @@
-"""Turn vitals into Observations: from the extractor's "vitals" dict and from spoken/typed text.
+"""Turns vitals into Observations: from the extractor's "vitals" dict and from spoken or typed text.
 
-Plain regex, no AI. Used by the upload pipeline (Gemini returns {"bp": "150/95", ...}),
-the doctor console on approve (the doctor says "BP is 150 by 95"), and home readings.
+Plain regex, no AI. Used by the upload pipeline (Gemini returns {"bp": "150/95", ...}), by the doctor console on
+approve (the doctor says "BP is 150 by 95") and by home readings.
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import re
 
 from .labs import RULES
 
-# Sensible limits; anything outside is a misread and is dropped.
+# Sensible limits. Anything outside is a misread and is dropped.
 LIMITS = {"sbp": (50, 300), "dbp": (30, 200), "pulse": (20, 250), "spo2": (50, 100),
           "weight": (2, 300), "temp": (90, 110), "fbs": (20, 800), "ppbs": (20, 800), "rbs": (20, 800)}
 
@@ -43,7 +43,7 @@ def split_bp(text) -> tuple[float | None, float | None]:
 
 
 def from_extracted(vitals: dict | None) -> list[dict]:
-    """Gemini's {"bp": "132/84", "pulse": 78, "weight_kg": 61, "spo2": 97, "temp_f": 99} -> observations."""
+    """Gemini's {"bp": "132/84", "pulse": 78, "weight_kg": 61, "spo2": 97, "temp_f": 99} becomes observations."""
     if not isinstance(vitals, dict):
         return []
     out: list[dict] = []
@@ -76,7 +76,7 @@ _TEXT_RULES = [
 
 
 def from_text(text: str) -> list[dict]:
-    """Readings said in a visit, e.g. "BP is 150 by 95, pulse 88, sugar 260". Last mention of each wins."""
+    """Readings said in a visit, e.g. "BP is 150 by 95, pulse 88, sugar 260". The last mention of each wins."""
     found: dict[str, dict] = {}
     for code, rx in _TEXT_RULES:
         for m in rx.finditer(text or ""):
@@ -88,7 +88,7 @@ def from_text(text: str) -> list[dict]:
             v = float(m.group(1))
             if code == "temp" and v < 50:
                 v = round(v * 9 / 5 + 32, 1)
-            # "fasting sugar 140" also matches the generic sugar rule; keep the specific one.
+            # "fasting sugar 140" also matches the general sugar rule, keep the specific one.
             if code == "rbs" and ("fbs" in found or "ppbs" in found):
                 continue
             if _ok(code, v):

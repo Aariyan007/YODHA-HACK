@@ -1,5 +1,5 @@
-// Pure helpers that turn existing API data into what the design components show.
-// Nothing here invents data: every value comes from insights / timeline / alerts / medicines as returned by the API.
+// Plain helpers that turn existing API data into what the design components show.
+// Nothing here makes up data: every value comes from insights / timeline / alerts / medicines as the API returns them.
 
 export const HIGHER_IS_BETTER = new Set(["spo2", "hdl", "hb"]);
 export const CHANGE_ORDER = ["hba1c", "fbs", "ppbs", "rbs", "ldl", "sbp", "dbp", "creatinine", "tg"];
@@ -7,7 +7,7 @@ export const ARROW = { down: "↓", up: "↑", steady: "→" };
 
 export const fmt = (v) => (Math.abs(v) >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10));
 
-/** First -> latest change for one charted test, or null with fewer than two results. */
+/* First to latest change for one charted test, or null with fewer than two results. */
 export function computeDelta(series) {
   const pts = series?.points;
   if (!pts || pts.length < 2) return null;
@@ -20,7 +20,7 @@ export function computeDelta(series) {
   return { ...base, dir: down ? "down" : "up", tone: better ? "good" : "watch", diff: Math.abs(diff) };
 }
 
-/** Changes in the order a clinician would read them (HbA1c first), then any other charted test. */
+/* Changes in the order a clinician would read them (HbA1c first), then any other charted test. */
 export function deltaList(insights) {
   const series = insights?.series || [];
   const byCode = Object.fromEntries(series.map((s) => [s.code, s]));
@@ -44,7 +44,7 @@ export const longDate = (iso) => {
 };
 export const yearOf = (iso) => (iso ? String(iso).slice(0, 4) : "");
 
-/** A clock time for a record, only when a real timestamp exists on the record's own day. Never invented. */
+/* A clock time for a record, only when a real timestamp is on the record's own day. Never made up. */
 export function eventTime(doc) {
   if (!doc?.createdAt) return null;
   const c = new Date(doc.createdAt);
@@ -60,8 +60,8 @@ export function greeting(ml = false) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-/** The values shown for a record: lab results, or medicines. A prescription leads with its medicines (readings written on the same
- *  sheet, like BP or sugar, are left to the full evidence view), so a card never mixes the two. */
+/* The values shown for a record: lab results, or medicines. A prescription leads with its medicines (readings
+written on the same sheet, like BP or sugar, are left to the full evidence view), so a card never mixes the two. */
 export function docFigures(doc) {
   const items = doc?.items || [];
   const labs = items.filter((i) => "value" in i);
@@ -73,7 +73,7 @@ export function docFigures(doc) {
   return meds.map(asMed);
 }
 
-/** Everything on the record (medicines first, then readings), for the full evidence view. */
+/* Everything on the record (medicines first, then readings), for the full evidence view. */
 export function docAllFigures(doc) {
   const items = doc?.items || [];
   const meds = items.filter((i) => !("value" in i)).map((i) => ({ name: i.name, value: [i.dose, i.frequency].filter(Boolean).join(" · "), status: null }));
@@ -81,7 +81,7 @@ export function docAllFigures(doc) {
   return [...meds, ...labs];
 }
 
-/** Every test in a lab report as { name, value, unit, status } (presentation only; nothing is changed or invented). */
+/* Every test in a lab report as { name, value, unit, status } (display only, nothing is changed or made up). */
 export function labTests(doc) {
   return (doc?.items || []).filter((i) => "value" in i && i.name).map((i) => ({ name: i.name, value: i.value, unit: i.unit || "", status: i.status }));
 }
@@ -93,7 +93,7 @@ export function prettyUnit(u) {
   return String(u).replace(/10\^(-?\d+)/g, (_, n) => "×10" + [...n].map((c) => sup[c] || c).join("")).replace(/\s*\/\s*/g, "/").replace(/\buL\b/g, "µL").replace(/\bug\b/g, "µg");
 }
 
-/** Course progress for a medicine from its real start date + duration. null when either is missing. */
+/* Course progress for a medicine from its real start date and duration. null when either is missing. */
 export function courseOf(m) {
   const dur = m?.durationDays;
   const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(m?.startDate || "");
@@ -105,7 +105,7 @@ export function courseOf(m) {
   return { total: dur, day, pct: Math.max(0, Math.min(100, Math.round((day / dur) * 100))), start, end, over: day > dur, notStarted: day < 1 };
 }
 
-/** Previous result -> latest result for one charted test (what "compared with previous record" means). */
+/* Previous result to latest result for one charted test (what "compared with previous record" means). */
 export function lastChange(series) {
   const pts = series?.points;
   if (!pts || pts.length < 2) return null;

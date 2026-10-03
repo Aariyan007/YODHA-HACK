@@ -1,10 +1,11 @@
-"""Agent tasks: durable, resumable jobs with a visible state.
+"""Agent tasks: jobs that survive restarts and have a visible state.
 
 queued -> planning -> running -> waiting_for_confirmation -> running -> completed | failed | cancelled
 
-Quick plans run inline in the request. A plan with a slow step (a model reading a file) runs in a background thread with its
-own DB session; the browser polls GET /api/agent/tasks/{id} for step-by-step progress. Every step's result is stored on the
-task row, so a task that waits for the person's confirmation can be resumed by /confirm even after a restart.
+Quick plans run inline in the request. A plan with a slow step (a model reading a file) runs in a background
+thread with its own DB session, and the browser polls GET /api/agent/tasks/{id} for step progress. Every step's
+result is stored on the task row, so a task waiting for the person's confirmation can be resumed by /confirm
+even after a restart.
 """
 from __future__ import annotations
 
@@ -76,14 +77,14 @@ def owned(db: Session, actor_id: str, role: str, task_id: str) -> AgentTask | No
 
 
 def public(t: AgentTask) -> dict:
-    """What the browser sees: state + compact steps (no stored tool results, no arguments)."""
+    """What the browser sees: the state and short steps (no stored tool results, no arguments)."""
     return {"taskId": t.id, "status": t.status, "intent": t.intent, "error": t.error,
             "steps": [{"tool": s["tool"], "label": s["label"], "status": s["status"]} for s in t.steps],
             "result": t.result if t.status in TERMINAL or t.status == "waiting_for_confirmation" else None}
 
 
 def purge_old(days: int = 30) -> int:
-    """Stored task results hold record text for the person's own convenience; drop them after `days`. The audit log stays."""
+    """Stored task results hold record text for the person's convenience, so drop them after `days`. The audit log stays."""
     from datetime import timedelta
     from sqlalchemy import delete
     with SESSION() as db:

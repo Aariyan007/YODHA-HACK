@@ -73,7 +73,7 @@ class AskBody(BaseModel):
 
 @router.post("/ask")
 def ask(body: AskBody, patient: Patient = Depends(current_patient)):
-    """Free-text search: Python reads what it can, the AI fills the rest (only known values)."""
+    """Free text search: Python reads what it can, the AI fills the rest (only known values)."""
     budget.spend(patient.id, "doctor_ai")
     rules = finder.parse_query(body.q)
     ai_filters = doctor_ai.parse(body.q)

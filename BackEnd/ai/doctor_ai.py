@@ -1,12 +1,11 @@
-"""AI helpers for the doctor finder (Groq). The ranking itself is Python (app/doctors.py).
+"""Groq helpers for the doctor finder. The ranking itself is Python (app/doctors.py).
 
-1. parse(q)    free text ("a Malayalam-speaking heart doctor near Kakkanad open on Sunday")
-               -> filters, constrained to the known specialties / languages / towns.
-2. explain()   for the top picks: why this doctor (distance, rating, reviews, language, hours)
-               and a one-line pros/cons summary of the review snippets, in English and Malayalam.
+1. parse(q): reads free text like "a Malayalam speaking heart doctor near Kakkanad open Sunday" into
+   filters, limited to the specialties, languages and towns we know.
+2. explain(): for the top picks, says why that doctor fits and sums up the reviews in English and Malayalam.
 
-The model only sees doctors already chosen by Python and can only return their ids.
-Anything off-list or unsafe is dropped, and a Python template fills the gap.
+The model only sees doctors Python already picked and can only give back their ids.
+Anything off the list is dropped and a Python template fills the gap.
 """
 from __future__ import annotations
 
@@ -107,7 +106,7 @@ def _fallback_why(d: dict, language: str | None) -> dict:
 
 
 def explain(picks: list[dict], context: dict) -> list[dict]:
-    """Why each of the top picks fits, plus a review summary. Always returns one entry per pick."""
+    """Why each top pick fits, plus a review summary. Always one entry per pick."""
     picks = picks[:3]
     if not picks:
         return []

@@ -1,8 +1,9 @@
-"""Reply judge: a second, small model checks that every claim in the agent's reply is supported by the tool results.
+"""Reply judge: a second small model checks that every claim in the agent's reply is backed by the tool results.
 
-It runs AFTER the code checks (numbers present, no diagnosis / medicine-advice wording) and can only REMOVE a reply, never add or
-change words. If the judge is unavailable the reply stays: the deterministic checks already passed. The data cards from the tools
-are always shown, so a removed reply never hides real data."""
+It runs after the code checks (numbers present, no diagnosis or medicine advice wording) and can only remove a
+reply, never add or change words. If the judge is unavailable the reply stays, since the code checks already passed.
+The data cards from the tools always show, so removing a reply never hides real data.
+"""
 from __future__ import annotations
 
 import os
@@ -24,7 +25,7 @@ def enabled() -> bool:
 
 
 def check(llm, evidence: str, reply: str) -> tuple[bool, list[str]]:
-    """-> (supported, unsupported_quotes). Fails open: (True, []) when the judge cannot answer."""
+    """Gives (supported, unsupported_quotes). Fails open: (True, []) if the judge can't answer."""
     if not enabled() or len(reply) < MIN_REPLY:
         return True, []
     out = llm.judge(SYSTEM, f"TOOL_RESULTS:\n{evidence[:MAX_EVIDENCE]}\n\nREPLY:\n{reply}")

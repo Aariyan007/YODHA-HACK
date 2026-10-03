@@ -28,7 +28,7 @@ class Patient(Base):
     conditions: Mapped[list] = mapped_column(JSON, default=list)
     allergies: Mapped[list] = mapped_column(JSON, default=list)
     family: Mapped[list] = mapped_column(JSON, default=list)
-    # Where the patient lives, for the nearby-doctor finder. Nullable: the browser location wins when given.
+    # Where the patient lives, for the nearby doctor finder. Can be empty, and the browser location wins if given.
     city: Mapped[str | None] = mapped_column(String(80))
     lat: Mapped[float | None] = mapped_column(Float)
     lng: Mapped[float | None] = mapped_column(Float)
@@ -96,10 +96,10 @@ class Observation(Base):
     name: Mapped[str] = mapped_column(String(120))
     value: Mapped[float] = mapped_column(Float)
     unit: Mapped[str | None] = mapped_column(String(30))
-    # Phase 6: LOINC code and source tag (None = own upload, "fhir" = hospital import).
+    # LOINC code and source tag (None = own upload, "fhir" = hospital import).
     loinc: Mapped[str | None] = mapped_column(String(20))
     source: Mapped[str | None] = mapped_column(String(20))
-    # The reference range printed on the report, used to judge tests that have no built-in rule.
+    # The reference range printed on the report, used for tests with no built-in rule.
     ref_range: Mapped[str | None] = mapped_column(String(60))
 
 
@@ -113,7 +113,7 @@ class Alert(Base):
     message: Mapped[str] = mapped_column(Text)
     message_ml: Mapped[str | None] = mapped_column(Text)
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Structured detail for alerts that wait for an answer (e.g. an unclear handwritten medicine keeps its dose, schedule, duration).
+    # Extra detail for alerts that wait for an answer (e.g. an unclear handwritten medicine keeps its dose, schedule, duration).
     data: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -123,7 +123,7 @@ class Consultation(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
     doctor_name: Mapped[str] = mapped_column(String(120))
-    # transcript_lines is the structured list [{speaker,text}]; transcript keeps
+    # transcript_lines is the structured list [{speaker,text}], transcript keeps
     # the plain-text join for display/backwards compat.
     transcript: Mapped[str | None] = mapped_column(Text)
     transcript_lines: Mapped[list] = mapped_column(JSON, default=list)
@@ -143,7 +143,7 @@ class ShareLink(Base):
     token: Mapped[str] = mapped_column(String(64), primary_key=True)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
     scope: Mapped[str] = mapped_column(String(20), default="full")
-    # Phase 8: set when a doctor opened the console from their account, so revoking that doctor kills the link.
+    # set when a doctor opened the console from their account, so revoking that doctor kills the link
     doctor_user_id: Mapped[str | None] = mapped_column(String(32), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
@@ -165,7 +165,7 @@ class ReminderSettings(Base):
 
 
 class SentDose(Base):
-    """One row per (medicine, dose clock, date). Phase 5 — scheduler dedup."""
+    """One row per (medicine, dose time, date). Used by the scheduler so a dose is never sent twice."""
     __tablename__ = "sent_doses"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
@@ -176,13 +176,13 @@ class SentDose(Base):
     taken: Mapped[bool] = mapped_column(Boolean, default=False)
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     missed_notified: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Hourly "still to take" nudges (nullable so existing rows and databases need no migration step beyond ADD COLUMN).
+    # Hourly "still to take" nudges (nullable so old rows and databases only need ADD COLUMN).
     nudges: Mapped[int | None] = mapped_column(default=0)
     last_nudge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class SentNotice(Base):
-    """Once-only notices (refill, appointment). `key` is unique per notice."""
+    """Notices that go out once (refill, appointment). `key` is unique per notice."""
     __tablename__ = "sent_notices"
     key: Mapped[str] = mapped_column(String(160), primary_key=True)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
@@ -201,7 +201,7 @@ class AccessLog(Base):
 
 
 class User(Base):
-    """A login. Patients own a Patient row (patient_id); doctors have a profile instead. Phase 8."""
+    """A login. Patients own a Patient row (patient_id), doctors have a profile instead."""
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
@@ -215,7 +215,7 @@ class User(Base):
 
 
 class InviteCode(Base):
-    """One-time code a patient gives a doctor so the doctor can see the record."""
+    """One time code a patient gives a doctor so the doctor can see the record."""
     __tablename__ = "invite_codes"
     code: Mapped[str] = mapped_column(String(12), primary_key=True)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
@@ -225,7 +225,7 @@ class InviteCode(Base):
 
 
 class CareLink(Base):
-    """Doctor <-> patient access. `revoked` is kept (not deleted) so the history stays."""
+    """Doctor to patient access. `revoked` is kept (not deleted) so the history stays."""
     __tablename__ = "care_links"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
@@ -249,7 +249,7 @@ class AiDecision(Base):
 
 
 class AgentAudit(Base):
-    """One row per agent tool call: who, which agent, what, on whom, outcome. Never stores document text or secrets."""
+    """One row per agent tool call: who, which agent, what, on whom, and the outcome. Never stores document text or secrets."""
     __tablename__ = "agent_audit"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     actor_id: Mapped[str] = mapped_column(String(32), index=True)           # patient id or doctor user id
@@ -269,8 +269,9 @@ class AgentAudit(Base):
 
 
 class AgentFile(Base):
-    """Metadata for one file the person gave the agent. The bytes live encrypted in the vault, never in the DB or under a
-    guessable path. `sha256` is of the plaintext and is for integrity / duplicate checks only (not a secret)."""
+    """Info about one file the person gave the agent. The bytes live encrypted in the vault, never in the DB or at a
+    guessable path. `sha256` is of the plaintext and is only for integrity and duplicate checks (not a secret).
+    """
     __tablename__ = "agent_files"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
@@ -280,7 +281,7 @@ class AgentFile(Base):
     mime: Mapped[str] = mapped_column(String(60))
     size: Mapped[int] = mapped_column(default=0)
     sha256: Mapped[str] = mapped_column(String(64), index=True)
-    storage_key: Mapped[str] = mapped_column(String(64), unique=True)       # random; the vault path derives from it
+    storage_key: Mapped[str] = mapped_column(String(64), unique=True)       # random, the vault path comes from it
     status: Mapped[str] = mapped_column(String(20), default="uploaded")     # uploaded | classified | extracted | confirmed | discarded
     classification: Mapped[dict] = mapped_column(JSON, default=dict)        # {type, confidence, source}
     extraction: Mapped[dict] = mapped_column(JSON, default=dict)            # structured fields with provenance (phase 7)
@@ -289,7 +290,7 @@ class AgentFile(Base):
 
 
 class AgentTask(Base):
-    """One agent job: queued -> planning -> running -> (waiting_for_confirmation) -> completed | failed | cancelled."""
+    """One agent job: queued, planning, running, (waiting_for_confirmation), then completed, failed or cancelled."""
     __tablename__ = "agent_tasks"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(String(32), index=True)            # patient id or doctor user id

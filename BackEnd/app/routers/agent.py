@@ -1,5 +1,6 @@
-"""Agent API. The agent is an orchestration layer over existing services: it adds no data endpoints of its own
-(documents, shares and reminders keep their routes). Patient agent here; the doctor agent has its own router."""
+"""Agent API. The agent sits on top of the existing services and adds no data endpoints of its own (documents,
+shares and reminders keep their routes). The patient agent is here, the doctor agent has its own router.
+"""
 from __future__ import annotations
 
 import os
@@ -65,7 +66,7 @@ DAILY_LIMIT = int(os.getenv("AGENT_DAILY_LIMIT", "80"))
 
 
 def _daily_budget(actor: str) -> None:
-    """One person cannot use up the shared free AI quota: N questions a day, then a plain message."""
+    """One person can't use up the shared free AI quota: N questions a day, then a plain message."""
     from datetime import date
     key = f"agent:day:{actor}:{date.today().isoformat()}"
     n = int(store.get_value(key) or 0) + 1
@@ -120,8 +121,9 @@ def task_cancel(task_id: str, patient: Patient = Depends(current_patient), db: S
 
 @router.get("/shares/{ref}")
 def share_qr(ref: str, patient: Patient = Depends(current_patient)):
-    """The QR payload for a share the agent just made. The token never travels in a task result or the audit log: it is
-    held for 15 minutes under a key only this patient can read, and is fetched here with the patient's login."""
+    """The QR data for a share the agent just made. The token never travels in a task result or the audit log: it's
+    kept for 15 minutes under a key only this patient can read, and fetched here with the patient's login.
+    """
     import json
     raw = store.get_value(f"agent:qr:{patient.id}:{ref}") if ref.isalnum() else None
     if raw is None:
@@ -164,7 +166,7 @@ def file_out(f: AgentFile) -> dict:
 
 
 def purge_expired(db: Session, patient_id: str) -> None:
-    """Generated PDFs are short-lived: past their time the bytes are deleted."""
+    """Generated PDFs are short lived. After that the bytes are deleted."""
     from datetime import datetime, timezone
     for f in db.scalars(select(AgentFile).where(AgentFile.patient_id == patient_id, AgentFile.status == "generated")):
         exp = (f.classification or {}).get("expiresAt")
@@ -183,7 +185,7 @@ def owned_file(db: Session, patient: Patient, file_id: str) -> AgentFile:
 
 
 def ingest_upload(db: Session, ctx: AgentContext, data: bytes, filename: str | None) -> dict:
-    """Validate, classify and store one uploaded file for ctx.patient_id, uploaded by ctx.actor_id. Shared by both agents."""
+    """Checks, classifies and stores one uploaded file for ctx.patient_id, uploaded by ctx.actor_id. Used by both agents."""
     import hashlib
     if not vault.available():
         raise HTTPException(503, "File storage is not set up on this server.")
@@ -225,8 +227,9 @@ def ingest_upload(db: Session, ctx: AgentContext, data: bytes, filename: str | N
 
 @router.post("/files")
 async def upload_file(file: UploadFile = File(...), patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
-    """Store a file encrypted and classify it. Nothing reaches the health thread from here: extraction and writing are
-    separate steps, and writing needs the person's confirmation."""
+    """Stores a file encrypted and classifies it. Nothing reaches the health thread from here: extraction and writing
+    are separate steps, and writing needs the person's confirmation.
+    """
     _limit(patient.id)
     data = await file.read(MAX_UPLOAD_BYTES + 1)  # never buffer more than the limit plus one byte
     return ingest_upload(db, patient_ctx(patient, db), data, file.filename)
@@ -247,7 +250,7 @@ class TypeBody(BaseModel):
 
 @router.post("/files/{file_id}/type")
 def set_type(file_id: str, body: TypeBody, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
-    """The person's answer when the agent could not tell what the document is."""
+    """The person's answer when the agent couldn't tell what the document is."""
     f = owned_file(db, patient, file_id)
     f.classification = {**(f.classification or {}), "type": body.type, "confidence": 1.0, "source": "user", "reason": None}
     f.status = "classified" if f.status == "uploaded" else f.status
@@ -258,7 +261,7 @@ def set_type(file_id: str, body: TypeBody, patient: Patient = Depends(current_pa
 
 @router.get("/files/{file_id}/content")
 def download_file(file_id: str, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
-    """Authenticated download of the person's own file. Decrypted in memory, never cached, no path exposed."""
+    """Download of the person's own file (login needed). Decrypted in memory, never cached, no path exposed."""
     f = owned_file(db, patient, file_id)
     try:
         data = vault.get(f.storage_key, f.id, f.patient_id)
@@ -272,7 +275,7 @@ def download_file(file_id: str, patient: Patient = Depends(current_patient), db:
 
 @router.delete("/files/{file_id}")
 def delete_file(file_id: str, patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
-    """Remove the stored bytes. A record already confirmed into the timeline is a separate thing and stays."""
+    """Removes the stored bytes. A record already confirmed into the timeline is separate and stays."""
     f = owned_file(db, patient, file_id)
     vault.delete(f.storage_key)
     f.status = "discarded"
@@ -287,7 +290,7 @@ MAX_AUDIO = 6 * 1024 * 1024
 
 
 def voice_to_text(db: Session, ctx: AgentContext, data: bytes, language: str | None) -> dict:
-    """Shared by both agents. Returns only text for the person to read and edit: speech never creates a fact or runs a tool."""
+    """Used by both agents. Returns only text for the person to read and edit. Speech never creates a fact or runs a tool."""
     from .. import speech
     from .consultations import _sniff_audio
     if not data:

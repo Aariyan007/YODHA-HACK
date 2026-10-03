@@ -4,7 +4,7 @@ import * as mock from "../data/mockData.js";
 import { goLogin } from "../routing.js";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
-// Empty = same origin (nginx or the Vite proxy). A loopback URL in .env only makes sense on the machine that runs the backend:
+// Empty = same origin (nginx or the Vite proxy). A loopback URL in .env only works on the machine running the backend:
 // opened from another device (a friend on the LAN) it would point at THEIR localhost and every call fails with "Failed to fetch".
 const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i;
 const RAW = import.meta.env.VITE_API_URL || "";
@@ -50,18 +50,18 @@ export const requestOtp = (phone) =>
 export const verifyOtp = (phone, otp) =>
   USE_MOCK ? delay(mock.login) : request("/api/auth/otp/verify", { method: "POST", body: { phone, otp }, auth: false });
 
-// ---------- accounts (Phase 8): email + password, patient or doctor ----------
+// ---------- accounts: email + password, patient or doctor ----------
 
 // -> { demoLogin }  (true only when the server runs with DEMO_MODE=true)
 export const getAuthConfig = () => (USE_MOCK ? delay({ demoLogin: true }) : request("/api/auth/config", { auth: false }));
 
-// Offline build: an email containing "doctor" signs in as the mock doctor, anything else as the mock patient.
+// Offline build: an email with "doctor" in it signs in as the mock doctor, anything else as the mock patient.
 const mockSession = (email, name) =>
   /doctor/i.test(email)
     ? { token: "mock-doctor", profile: { id: "doc1", userId: "doc1", role: "doctor", name: name || "Dr. Suresh Menon", email, specialty: "General Medicine", hospital: "Caritas Hospital" } }
     : { ...structuredClone(mock.login), profile: { ...structuredClone(mock.login.profile), role: "patient", email } };
 
-// -> { token, profile:{ role, name, email, ... } }.  body: { role, name, email, password, specialty?, hospital? }
+// returns { token, profile:{ role, name, email, ... } }.  body: { role, name, email, password, specialty?, hospital? }
 export const registerAccount = (body) =>
   USE_MOCK ? delay(mockSession(body.email, body.name)) : request("/api/auth/register", { method: "POST", body, auth: false });
 
@@ -99,7 +99,7 @@ export const listDoctorPatients = () =>
   USE_MOCK
     ? delay([{ patientId: "ammini01", name: "Ammini Varghese", age: 62, gender: "Female", openAlerts: 3, lastRecord: "2026-09-24", since: new Date().toISOString() }])
     : request("/api/doctor/patients");
-// -> { token, doctorName, expiresAt }  (token opens /console/:token, the existing consultation console)
+// returns { token, doctorName, expiresAt } (the token opens /console/:token, the existing consultation console)
 export const startDoctorConsole = (patientId) =>
   USE_MOCK
     ? delay({ token: "demo-share", doctorName: "Dr. Suresh Menon", expiresAt: new Date(Date.now() + 8 * 3600e3).toISOString() })
@@ -173,7 +173,7 @@ export function uploadDocument(file, callbacks = {}) {
       return r.json();
     })
     .then(({ jobId }) => {
-      // EventSource cannot send Authorization headers; the unguessable jobId is the key.
+      // EventSource can't send Authorization headers, so the hard to guess jobId is the key.
       source = new EventSource(`${BASE}/api/jobs/${encodeURIComponent(jobId)}/events`);
       source.onmessage = (ev) => {
         let data;
@@ -207,8 +207,8 @@ export function uploadDocument(file, callbacks = {}) {
 
 // ---------- hospital record import (Phase 6) ----------
 
-// -> { imported:{timelineCards,observations,conditions,medicines}, total, duplicates, alreadyImported,
-//      ignored:[{type,count}], skippedInvalid, records:[timeline item], alerts:[alert], message }
+// returns { imported:{timelineCards,observations,conditions,medicines}, total, duplicates, alreadyImported,
+// ignored:[{type,count}], skippedInvalid, records:[timeline item], alerts:[alert], message }
 // Real: POST /api/import/fhir (Bundle JSON as the body, or multipart `file`, max 2 MB)
 let MOCK_FHIR_DONE = false;
 const mockFhir = () => {
@@ -255,7 +255,7 @@ export const triage = (text) =>
 // ---------- consultation (doctor console, Phase 4) ----------
 //
 // Doctor-side flow is NOT authenticated with the patient JWT. The share token
-// identifies the authorized visit; every call after /start sends it as the
+// identifies the visit, and every call after /start sends it as the
 // X-Share-Token header. (The backend validates expiry on every call.)
 
 const MOCK_CID = "cons-mock";
@@ -279,7 +279,7 @@ export function startConsultation(shareToken, doctorName) {
     MOCK_STATE = null;
     return delay({ consultationId: MOCK_CID });
   }
-  // Real: POST /api/consultations/start (no auth; patient share token is in body)
+  // Real: POST /api/consultations/start (no auth, the patient share token is in the body)
   return shareReq("/api/consultations/start", {
     method: "POST",
     body: { patientToken: shareToken, doctorName },
@@ -300,10 +300,10 @@ export function sendLine(consultationId, text, speaker, shareToken) {
   });
 }
 
-// One spoken clip -> { transcript, partial_note, flags, suggestions, heard, added }
-// Rejects with err.unavailable = true when server-side voice transcription cannot be used
-// (not set up, quota used up, mock mode): the caller then falls back to browser speech recognition.
-// Rejects with err.skip = true for a clip the server could not read (do not retry that clip).
+// One spoken clip returns { transcript, partial_note, flags, suggestions, heard, added }
+// Rejects with err.unavailable = true when server side voice transcription can't be used
+// (not set up, quota used up, mock mode). The caller then falls back to browser speech recognition.
+// Rejects with err.skip = true for a clip the server couldn't read (don't retry that clip).
 export async function sendAudio(consultationId, blob, speaker, language, shareToken) {
   if (USE_MOCK) {
     const e = new Error("Voice transcription is not available in the offline demo.");
@@ -358,8 +358,8 @@ export function approveConsultation(consultationId, edits, shareToken, removedIt
     const merged = structuredClone(mock.mockApprovedRecord);
     for (const k of ["subjective", "objective", "assessment", "plan"]) {
       if (edits && edits[k] && typeof edits[k].text === "string") {
-        // Mock does not need to re-synth summary; just acknowledge the edit.
-        merged.record.title = merged.record.title; // no-op; keep shape stable
+        // Mock doesn't need to redo the summary, just acknowledge the edit.
+        merged.record.title = merged.record.title; // no-op, keep the shape stable
       }
     }
     return delay(merged);
@@ -421,7 +421,7 @@ let MOCK_REMINDER_SETTINGS = {
   demoMode: true,
 };
 
-// -> { remindersEnabled, channels:{phone,telegram,family}, telegramChatId, familyChatId,
+// returns { remindersEnabled, channels:{phone,telegram,family}, telegramChatId, familyChatId,
 //      familyName, missedAfterMinutes, telegramReady, demoMode }
 // Real: GET /api/reminders/settings
 export const getReminderSettings = () =>
@@ -440,7 +440,7 @@ export const saveReminderSettings = (settings) => {
   });
 };
 
-// -> { ok: true }. On failure the server answers 400 with a plain-language detail,
+// returns { ok: true }. On failure the server answers 400 with a plain detail,
 // which `request` throws as Error(message).
 // Real: POST /api/reminders/telegram/test
 export const testTelegram = () =>
@@ -459,9 +459,9 @@ export const fireDemoMissed = () =>
     ? delay({ sent: true, kind: "missed", medicine: "Glycomet 500", clock: "08:00", message: "Joseph, Ammini has not marked Glycomet 500 as taken since 8:00 AM." })
     : request("/api/demo/fire-missed", { method: "POST" });
 
-// ---------- demo reset + deep health (Phase 6, DEMO_MODE=true only) ----------
+// ---------- demo reset + deep health (DEMO_MODE=true only) ----------
 
-// -> { ok, deleted:{...counts}, restored:{documents,medicines,alerts}, telegramReminders:{on,chatIdSet,botReady} }
+// returns { ok, deleted:{...counts}, restored:{documents,medicines,alerts}, telegramReminders:{on,chatIdSet,botReady} }
 // Real: POST /api/demo/reset (404 unless the server has DEMO_MODE=true)
 export const resetDemo = () =>
   USE_MOCK
@@ -473,7 +473,7 @@ export const resetDemo = () =>
       })
     : request("/api/demo/reset", { method: "POST" });
 
-// -> { allOk, database, redis, gemini, groq, telegram, scheduler } each { status: ok|fallback|down, detail }
+// returns { allOk, database, redis, gemini, groq, telegram, scheduler }, each { status: ok|fallback|down, detail }
 // Real: GET /api/health/deep
 export const getDeepHealth = () =>
   USE_MOCK
@@ -544,8 +544,8 @@ const MOCK_HEALTH_CHECK = {
   emergency: false, specialist: "General Physician", reason: "cholesterol", checkedAt: new Date().toISOString(),
 };
 
-// -> { risks:[{key,level,title,message,messageMl,specialist,evidence,reason,emergency}],
-//      review:{headline,headlineMl,points:[{text,textMl,kind,tests}],askDoctor:[{text,textMl}],source},
+// returns { risks:[{key,level,title,message,messageMl,specialist,evidence,reason,emergency}],
+// review:{headline,headlineMl,points:[{text,textMl,kind,tests}],askDoctor:[{text,textMl}],source},
 //      emergency, specialist, reason, checkedAt }
 // Real: GET /api/patients/me/health-check
 export const getHealthCheck = () => (USE_MOCK ? delay(MOCK_HEALTH_CHECK) : request("/api/patients/me/health-check"));
@@ -611,13 +611,13 @@ export const getDoctorCities = async () =>
   USE_MOCK ? mockCities((await import("../data/doctors.sample.json")).default.doctors) : request("/api/doctors/cities");
 
 // params: { lat, lng, city, specialty, language, day, openNow, emergency, teleconsult, maxKm, maxFee, minRating, limit }
-// -> { origin:{lat,lng,label,source,outsideIndia}, specialty, results:[doctor + distanceKm, openNow, closesAt, score, department],
-//      picks:[{id, why, whyMl, reviewSummary, reviewSummaryMl, source}], relaxed:[str], nearbyGp:[doctor], bounds, sample }
+// returns { origin:{lat,lng,label,source,outsideIndia}, specialty, results:[doctor + distanceKm, openNow, closesAt, score, department],
+// picks:[{id, why, whyMl, reviewSummary, reviewSummaryMl, source}], relaxed:[str], nearbyGp:[doctor], bounds, sample }
 // Real: GET /api/doctors/nearby
 export const getNearbyDoctors = (params) =>
   USE_MOCK ? mockSearch(params) : request(`/api/doctors/nearby${qs(params)}`);
 
-// -> same as nearby + { filters, filtersSource: "ai"|"rules"|"ai+rules", query }
+// same as nearby + { filters, filtersSource: "ai"|"rules"|"ai+rules", query }
 // Real: POST /api/doctors/ask
 export const askDoctors = async (q, lat, lng) =>
   USE_MOCK
@@ -634,7 +634,7 @@ export const getDoctorRecommendation = async (params) =>
 
 // ---------- agent ----------
 
-// Typed requests go to the backend Agent Engine. Offline/mock build has no engine, so callers fall back to local actions.
+// Typed requests go to the backend Agent Engine. The offline/mock build has no engine, so callers use local actions.
 export const agentAvailable = () => !USE_MOCK;
 export const agentChat = (text, conversationId, fileId) => request("/api/agent/chat", { method: "POST", body: { text, conversationId, fileId: fileId || undefined } });
 export const agentConfirm = (id, approve) => request("/api/agent/confirm", { method: "POST", body: { id, approve } });
@@ -653,7 +653,7 @@ export const agentUploadFile = async (file) => {
 export const agentSetFileType = (fileId, type) => request(`/api/agent/files/${fileId}/type`, { method: "POST", body: { type } });
 export const agentTask = (id) => request(`/api/agent/tasks/${id}`);
 export const agentCancel = (id) => request(`/api/agent/tasks/${id}/cancel`, { method: "POST" });
-// Authenticated download of one of the person's own files (the browser cannot send the bearer token on a plain link).
+// Download of one of the person's own files (the browser can't send the bearer token on a plain link).
 export const agentDownload = async (fileId, name) => {
   const res = await fetch(`${BASE}/api/agent/files/${fileId}/content`, { headers: { Authorization: `Bearer ${getToken()}` } });
   if (!res.ok) throw new Error(res.status === 404 ? "That file has expired. Ask me to make it again." : "Download failed");
@@ -664,7 +664,7 @@ export const agentDownload = async (fileId, name) => {
 };
 export const agentShareQr = (ref) => request(`/api/agent/shares/${ref}`);
 
-// ---------- doctor agent (one linked patient per call; the server re-checks the care link every time) ----------
+// ---------- doctor agent (one linked patient per call, the server re-checks the care link every time) ----------
 export const doctorAgentChat = (text, patientId, conversationId, fileId) =>
   request("/api/doctor-agent/chat", { method: "POST", body: { text, patientId, conversationId, fileId: fileId || undefined } });
 export const doctorAgentTask = (id) => request(`/api/doctor-agent/tasks/${id}`);
@@ -690,7 +690,7 @@ export const doctorAgentDownload = async (patientId, fileId, name) => {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 };
 
-// ---------- voice: audio in, TEXT out (the person edits it before sending; speech never runs a tool by itself) ----------
+// ---------- voice: audio in, TEXT out (the person edits it before sending, speech never runs a tool by itself) ----------
 const postAudio = async (path, blob) => {
   const fd = new FormData();
   fd.append("file", blob, "voice.webm");

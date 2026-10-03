@@ -1,6 +1,6 @@
 // Shared GSAP motion helpers. Every effect:
 //  - respects prefers-reduced-motion (content just appears),
-//  - runs inside gsap.context() so React StrictMode's double mount cleans up properly,
+// - runs inside gsap.context() so React StrictMode's double mount cleans up properly,
 //  - ends with clearProps so CSS hover/active styles keep working afterwards.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
@@ -10,7 +10,7 @@ export const reducedMotion = () =>
 
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
-// Stagger the direct children (or `selector` matches) of a container in when `deps` change.
+// Staggers the direct children (or `selector` matches) of a container in when `deps` change.
 export function useReveal(deps = [], { selector = ":scope > *", y = 16, stagger = 0.06, duration = 0.5, delay = 0 } = {}) {
   const ref = useRef(null);
   useIsoLayoutEffect(() => {
@@ -27,7 +27,7 @@ export function useReveal(deps = [], { selector = ":scope > *", y = 16, stagger 
   return ref;
 }
 
-// Count a number up from 0 when it first appears or changes. Returns the text to show.
+// Counts a number up from 0 when it first appears or changes. Returns the text to show.
 export function useCountUp(value, { duration = 0.9, decimals = 0 } = {}) {
   const [shown, setShown] = useState(reducedMotion() ? value : 0);
   useEffect(() => {
@@ -60,7 +60,7 @@ export function drawPath(path, { duration = 1.1, delay = 0 } = {}) {
     { strokeDashoffset: 0, duration, delay, ease: "power2.inOut", clearProps: "strokeDasharray,strokeDashoffset" });
 }
 
-// Magnetic hover for primary buttons: follow the pointer a few px. Returns cleanup.
+// Magnetic hover for primary buttons: follows the pointer a few px. Returns a cleanup.
 export function magnet(el, strength = 6) {
   if (!el || reducedMotion() || window.matchMedia?.("(pointer: coarse)").matches) return () => {};
   const move = (e) => {
@@ -78,8 +78,8 @@ export function magnet(el, strength = 6) {
   };
 }
 
-// Reveal items that start below the fold when they scroll into view (IntersectionObserver, no scroll listeners).
-// Items already on screen are left alone, so this never fights the page-load stagger.
+// Reveals items that start below the fold when they scroll into view (IntersectionObserver, no scroll listeners).
+// Items already on screen are left alone, so this never fights the page load stagger.
 export function useScrollIn(deps = [], { selector = ".section, .trend-card, .card", y = 22 } = {}) {
   const ref = useRef(null);
   useIsoLayoutEffect(() => {

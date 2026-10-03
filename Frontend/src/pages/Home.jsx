@@ -11,7 +11,7 @@ import { CareLoop, ChangeBlock, DocumentStrip, HealthSnapshot, InsightHero, Open
 import ThreadExplorer from "../design/ThreadExplorer.jsx";
 import { MedicationTimeline } from "../design/medication.jsx";
 
-// A health-check risk shown as an open care item (same row design as an alert).
+// A health check risk shown as an open care item (same row design as an alert).
 const riskItem = (r) => ({
   id: `risk-${r.key}`, severity: r.level === "watch" ? "medium" : "high", kind: "risk",
   title: r.title, message: r.message, messageMl: r.messageMl,
@@ -54,7 +54,7 @@ export default function Home() {
     <div className="mt-page">
       {emergency && <div className="mt-emergency-wrap"><EmergencyBanner risk={emergency} /></div>}
 
-      {/* OPENING — who, now, and the one thing to read first */}
+      {/* OPENING: who, now, and the one thing to read first */}
       <Chapter tone="ground">
         <div className="mt-grid mt-opening-grid">
           <RV className="c-8 mt-opening">
@@ -79,7 +79,7 @@ export default function Home() {
         </div>
       </Chapter>
 
-      {/* 01 — what changed, and what is still open */}
+      {/* 01: what changed, and what is still open */}
       <Chapter tone="soft" no="01" kicker={ml ? "മുൻ രേഖകളിൽ നിന്ന്" : "Since your previous records"} title={ml ? "എന്ത് മാറി" : "What changed"}>
         <div className="mt-grid">
           <div className="c-8">
@@ -93,7 +93,7 @@ export default function Home() {
         </div>
       </Chapter>
 
-      {/* 02 — the thread itself */}
+      {/* 02: the thread itself */}
       <Chapter tone="warm" no="02" kicker={ml ? "നിങ്ങളുടെ രേഖ" : "Your record"} title={ml ? "ആരോഗ്യ ത്രെഡ്" : "Health thread"}
         aside={<span className="mt-meta">{docs.length} {ml ? "രേഖകൾ" : "records"}</span>}>
         {timeline.loading && !timeline.data ? <Loading /> : (
@@ -101,7 +101,7 @@ export default function Home() {
         )}
       </Chapter>
 
-      {/* 03 — care today */}
+      {/* 03: care today */}
       <Chapter tone="ground" no="03" kicker={ml ? "ഇന്ന്" : "Care loop"} title={ml ? "ഇന്നത്തെ പരിചരണം" : "Your care today"}>
         <div className="mt-grid">
           <div className="c-7">
@@ -116,7 +116,7 @@ export default function Home() {
         </div>
       </Chapter>
 
-      {/* 04 — the documents behind the thread */}
+      {/* 04: the documents behind the thread */}
       <Chapter tone="neutral" no="04" kicker={ml ? "തെളിവ്" : "Evidence"} title={ml ? "സമീപകാല രേഖകൾ" : "Recent records"} last
         aside={<Link className="mt-link" to="/timeline">{ml ? "എല്ലാ രേഖകളും" : "All records"} <Arrow /></Link>}>
         {timeline.loading && !timeline.data ? <Loading /> : <DocumentStrip docs={docs} limit={3} />}

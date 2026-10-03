@@ -1,5 +1,5 @@
-// MediThread has one look: the sage palette on a pale ground. (An earlier dark "glass" theme was retired.)
-// The attribute is still set so any legacy CSS keyed on [data-theme] resolves to the light/default branch.
+// MediThread has one look: the sage palette on a pale ground. (An earlier dark "glass" theme was dropped.)
+// The attribute is still set so old CSS keyed on [data-theme] resolves to the light default.
 const KEY = "medithread_theme";
 
 export function getTheme() { return "light"; }

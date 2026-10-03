@@ -4,8 +4,8 @@ import AgentLauncher from "./AgentLauncher.jsx";
 import { contextFor } from "./agentContext.js";
 import "./agent.css";
 
-// Mounted once by each layout, so it persists while the page underneath changes.
-// Only the launcher is in the main bundle's render path; the panel loads the first time it is opened.
+// Mounted once by each layout, so it stays while the page underneath changes.
+// Only the launcher is in the main bundle's render path, the panel loads the first time it's opened.
 const AgentPanel = lazy(() => import("./AgentPanel.jsx"));
 const PANEL_ID = "mt-agent-panel";
 

@@ -1,6 +1,7 @@
-"""AgentMemory. Short-term conversation + session facts live in the store (Redis, memory fallback), keyed per actor and
-conversation, with a TTL. Long-term context is never copied here: it is read from structured records on demand by tools.
-Only the last few turns are kept, and only text the person typed plus the agent's own short replies, never documents."""
+"""Short term chat and session facts live in the store (Redis, memory fallback), keyed per actor and conversation,
+with a TTL. Long term context is never copied here, tools read it from the records when needed.
+Only the last few turns are kept: what the person typed and the agent's own short replies, never documents.
+"""
 from __future__ import annotations
 
 import json

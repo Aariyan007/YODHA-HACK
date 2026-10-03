@@ -1,10 +1,10 @@
-"""Drug-safety rules: duplicates, allergy, interactions, lab bands. Plain Python, no AI, no paid API.
+"""Drug safety rules: duplicates, allergies, interactions, lab ranges. Plain Python, no AI, no paid API.
 
-Formerly `jev_client.py` (there never was a Jev service). Interaction sources, in order:
-  1. PAIRS: hand-written, patient-friendly messages for the pairs that matter most in India (these always win).
-  2. DDInter (`ai/ddi.py`, built by scripts/build_ddi.py): about 160k pairs with a Major / Moderate level.
-  3. OpenFDA, only when OPENFDA_ENABLE=1.
-A pair that no source knows produces NO alert; nothing is ever guessed.
+Used to be jev_client.py (there never was a Jev service). Interaction sources, in order:
+1. PAIRS: hand-written, patient-friendly messages for the pairs that matter most in India (these always win).
+2. DDInter (ai/ddi.py, built by scripts/build_ddi.py): about 160k pairs, Major or Moderate.
+3. OpenFDA, only when OPENFDA_ENABLE=1.
+A pair that no source knows gives no alert. Nothing is guessed.
 """
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from app.labs import direction, lab_range, lab_status
 
 from . import ddi
 
-# ---------- Common Indian brand names → generic ----------
-# Keys are lowercase; look up by any token in the brand name.
+# ---------- common Indian brand names to generic ----------
+# Keys are lowercase. Look up by any word in the brand name.
 BRAND_TO_GENERIC: dict[str, str] = {
     # Diabetes
     "glycomet": "metformin",
@@ -28,7 +28,7 @@ BRAND_TO_GENERIC: dict[str, str] = {
     "crocin": "paracetamol",
     "calpol": "paracetamol",
     "paracetamol": "paracetamol",
-    "combiflam": "ibuprofen",   # ibuprofen + paracetamol combo; flag ibuprofen
+    "combiflam": "ibuprofen",   # ibuprofen + paracetamol combo, flag the ibuprofen
     "brufen": "ibuprofen",
     "ibugesic": "ibuprofen",
     "voveran": "diclofenac",
@@ -245,14 +245,14 @@ ALLERGY_FAMILIES: dict[str, set[str]] = {
 # ---------- helpers ----------
 
 def to_generic(name: str) -> str | None:
-    """Return the generic drug name for a brand or generic string, or None."""
+    """Gives the generic drug name for a brand or generic string, or None."""
     if not name:
         return None
     key = name.strip().lower()
     # Try full lowercase first (handles "glycomet 500" prefix stripping below).
     if key in BRAND_TO_GENERIC:
         return BRAND_TO_GENERIC[key]
-    # Split on spaces, dashes, and digits-boundary; try each token.
+    # Split on spaces, dashes and digit boundaries, try each piece.
     import re
     for tok in re.split(r"[\s\-/]+", key):
         tok = re.sub(r"\d.*$", "", tok)  # strip "500" etc.
@@ -262,11 +262,10 @@ def to_generic(name: str) -> str | None:
 
 
 def _openfda_check(a: str, b: str) -> str | None:
-    """Optional OpenFDA fallback. Opt-in via OPENFDA_ENABLE=1.
-
-    OpenFDA's event database has co-reports for almost any two common
-    drugs, so a raw hit tells us nothing. We only surface pairs with a
-    very large number of co-reports relative to each drug alone.
+    """Optional OpenFDA fallback, on only with OPENFDA_ENABLE=1.
+    
+    OpenFDA's event data has co-reports for almost any two common drugs, so a raw hit means nothing.
+    We only show pairs with a very large number of co-reports compared with each drug alone.
     """
     import os
     if os.getenv("OPENFDA_ENABLE") != "1":
@@ -297,7 +296,7 @@ def _openfda_check(a: str, b: str) -> str | None:
 
 
 def check_pair_level(a: str, b: str) -> tuple[str, str] | None:
-    """(severity, plain-language warning) for a dangerous pair, else None. severity is 'high' or 'medium'."""
+    """(severity, plain warning) for a dangerous pair, else None. severity is 'high' or 'medium'."""
     key = tuple(sorted((a, b)))
     hit = PAIRS.get(key)
     if hit:
@@ -314,13 +313,13 @@ def check_pair_level(a: str, b: str) -> tuple[str, str] | None:
 
 
 def check_pair(a: str, b: str) -> str | None:
-    """Return a plain-language warning if the pair is dangerous, else None."""
+    """Plain warning if the pair is dangerous, else None."""
     hit = check_pair_level(a, b)
     return hit[1] if hit else None
 
 
 def allergy_hit(med_generic: str, allergies: list[str]) -> str | None:
-    """Return the matched family name if the medicine conflicts with an allergy."""
+    """Gives the matched family name if the medicine clashes with an allergy."""
     for allergy in allergies or []:
         key = allergy.strip().lower()
         for family, members in ALLERGY_FAMILIES.items():
@@ -339,12 +338,12 @@ def analyse(
     new_medicines: list[dict],       # [{name, generic?, dose, schedule}] from the extractor
     observations: list[dict],        # [{name, code?, value, unit, range?}]
 ) -> dict:
-    """Return {alerts, medications, observations, worst_status}.
-
-    - alerts: list of plain dicts shaped like the Alert serializer (plus kind).
-    - medications: new_medicines enriched with resolved `generic` and `purpose`.
-    - observations: enriched with `status` (good/watch/alert) and `range`.
-    - worst_status: overall status of the record.
+    """Returns {alerts, medications, observations, worst_status}.
+    
+    - alerts: plain dicts shaped like the Alert serializer (plus kind)
+    - medications: new_medicines with the generic name and purpose filled in
+    - observations: with status (good/watch/alert) and range
+    - worst_status: overall status of the record
     """
     alerts: list[dict] = []
 
@@ -358,7 +357,7 @@ def analyse(
     def _mk_alert(severity, kind, title, message):
         alerts.append({"severity": severity, "kind": kind, "title": title, "message": message})
 
-    # Duplicate check: new drug's generic matches an existing active med's generic.
+    # Duplicate check: the new drug's generic matches an active medicine's generic.
     for nm in new_medicines:
         g = nm["generic"]
         if not g:
@@ -383,7 +382,7 @@ def analyse(
                 "Tell the doctor before taking the first dose.",
             )
 
-    # Clash check: each new med against every existing med and every other new med.
+    # Clash check: each new medicine against every existing one and every other new one.
     checked: set[tuple[str, str]] = set()
     universe = [{"name": e["name"], "generic": e["generic"]} for e in existing] + \
                [{"name": nm["name"], "generic": nm["generic"]} for nm in new_medicines]

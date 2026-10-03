@@ -1,4 +1,4 @@
-// One small global store for the guided tour / demo, so the header button, the welcome card and the Agent can all start it.
+// One small global store for the guided tour and demo, so the header button, the welcome card and the Agent can all start it.
 import { useSyncExternalStore } from "react";
 import { TOURS } from "./tours.js";
 

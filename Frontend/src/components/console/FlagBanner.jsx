@@ -1,5 +1,5 @@
-// A single flag banner. Icon + text ensure color is never the only signal.
-// Red for clash / duplicate / allergy / urgent; yellow for missing-info; grey otherwise.
+// One flag banner. Icon plus text so colour is never the only signal.
+// Red for clash / duplicate / allergy / urgent, yellow for missing info, grey otherwise.
 
 const ICONS = {
   clash: "⚠",
@@ -42,7 +42,7 @@ export function FlagBanner({ flag, onDismiss }) {
 
 export function FlagList({ flags, onDismiss }) {
   if (!flags?.length) return null;
-  // Severity order: high → medium → low
+  // Severity order: high, medium, low
   const rank = { high: 0, medium: 1, low: 2 };
   const sorted = [...flags].sort((a, b) => (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9));
   return (

@@ -1,9 +1,9 @@
-"""Delete throwaway accounts and everything they own.
+"""Deletes throwaway accounts and everything they own.
 
     cd BackEnd && ./venv/bin/python scripts/cleanup_test_accounts.py                 # smoke-* and sweep-* accounts
     cd BackEnd && ./venv/bin/python scripts/cleanup_test_accounts.py a@x.com b@y.com # those exact emails too
 
-smoke.py and security_sweep.py call this at the end, so they leave nothing behind.
+smoke.py and security_sweep.py call this at the end so they leave nothing behind.
 Never touches the seeded demo patient (no User row).
 """
 from __future__ import annotations

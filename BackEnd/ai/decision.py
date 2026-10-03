@@ -1,15 +1,15 @@
-"""Client for the Laya decision service (laya/app.py), with the guard rails around it.
+"""Client for the Laya service (laya/app.py) plus the safety rails around it.
 
-Contract (see docs in README, "AI decision layer"):
-  * Laya is advisory. Callers run the Python rules FIRST and merge with `triage_rules.merge_urgency`, which can only
-    raise a level, never lower it.
-  * Every failure (service down, slow, bad answer, quality gate not passed) returns None, and the caller answers from
-    rules alone. Nothing here ever raises into a request.
-  * Answers are cached in Redis (key = model + hash of the input) and audited in `ai_decisions` (hash only, no text).
+How it's used:
+* Laya only advises. Callers run the Python rules first and merge with triage_rules.merge_urgency,
+  which can raise urgency but never lower it.
+* Any failure (down, slow, bad answer, model not passing its quality gate) returns None and the
+  rules answer alone. Nothing here raises into a request.
+* Answers are cached in Redis and logged in ai_decisions (hash only, no text).
 
-Env: LAYA_URL (e.g. http://laya:8080; empty = disabled), LAYA_API_KEY, LAYA_TIMEOUT_MS (triage, default 4000: CPU
-inference takes 0.1-0.5 s natively but 1.5-3 s inside Docker on a Mac), LAYA_LINE_TIMEOUT_MS (consultation lines, default 1200),
-LAYA_ALLOW_UNGATED=1 to use a model whose evaluation gate has not passed (development).
+Env: LAYA_URL (empty = off), LAYA_API_KEY, LAYA_TIMEOUT_MS (triage, default 4000, CPU takes 0.1-0.5 s natively
+but 1.5-3 s in Docker on a Mac), LAYA_LINE_TIMEOUT_MS (consultation lines, default 1200),
+LAYA_ALLOW_UNGATED=1 to use a model that hasn't passed the gate (dev only).
 """
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def enabled() -> bool:
 
 
 def service_info() -> dict | None:
-    """/info of the service, cached for a minute. None when unreachable."""
+    """The service's /info, cached for a minute. None if we can't reach it."""
     now = time.time()
     if _info["data"] is not None and now - _info["at"] < INFO_TTL_S:
         return _info["data"]
@@ -74,7 +74,7 @@ def service_info() -> dict | None:
 
 
 def usable() -> bool:
-    """Enabled, reachable, breaker closed, and (unless explicitly allowed) the model passed its quality gate."""
+    """On, reachable, breaker closed, and (unless allowed) the model passed its quality gate."""
     if not enabled() or time.time() < _open_until:
         return False
     info = service_info()
@@ -104,7 +104,7 @@ def _budget(kind: str) -> httpx.Timeout:
 
 
 def _call(kind: str, state: dict, questions: dict) -> tuple[dict | None, bool, float | None, str | None]:
-    """(answers, cached, latency_ms, model). answers is None on any failure."""
+    """(answers, cached, latency_ms, model). answers is None if anything failed."""
     model_tag = (service_info() or {}).get("model") or "?"
     digest = hashlib.sha256(json.dumps([kind, state], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     ckey = f"laya:{model_tag}:{digest}"
@@ -149,7 +149,7 @@ def _top(answer: dict) -> tuple[str, float]:
 
 
 def triage(text: str) -> dict | None:
-    """{urgency, urgency_conf, specialist, specialist_conf, model, cached, ms} or None (use rules only)."""
+    """{urgency, urgency_conf, specialist, specialist_conf, model, cached, ms} or None (rules only)."""
     if not text.strip() or not usable():
         return None
     answers, cached, ms, model = _call("triage", S.triage_state(text), S.triage_questions())
@@ -167,7 +167,7 @@ def triage(text: str) -> dict | None:
 
 
 def line_flags(speaker: str, text: str) -> dict | None:
-    """{flag: probability} for the consultation-line questions, or None."""
+    """{flag: probability} for the consultation line questions, or None."""
     if len(text.strip()) < 6 or not usable():
         return None
     answers, _, _, _ = _call("line", S.line_state(speaker, text), S.line_questions())
@@ -183,6 +183,6 @@ def line_flags(speaker: str, text: str) -> dict | None:
 
 
 def record_final(kind: str, text: str, final: dict) -> None:
-    """Store what the app finally decided (after the rules merge) next to the model's answer. Best effort."""
+    """Save what the app finally decided (after the rules merge) next to the model's answer. Best effort."""
     digest = hashlib.sha256(json.dumps([kind, S.triage_state(text) if kind == "triage" else text], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     _audit(kind + "-final", digest, None, {}, None, False, final)

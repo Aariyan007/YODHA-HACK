@@ -1,4 +1,4 @@
-"""Fake-clock tests for the reminder engine.
+"""Fake clock tests for the reminder engine.
 
 Run: cd BackEnd && ./venv/bin/python scripts/test_reminders.py -v
 Uses an in-memory SQLite DB, so real data is never touched and nothing is sent.
@@ -34,7 +34,7 @@ def at(day: str, hhmm: str, sec: int = 0) -> datetime:
 
 
 class Outbox:
-    """Fake Telegram sender. Records (chat_id, text); can be told to fail."""
+    """Fake Telegram sender. Records (chat_id, text) and can be told to fail."""
     def __init__(self):
         self.sent: list[tuple[str, str]] = []
         self.fail = False
@@ -96,7 +96,7 @@ class ReminderTests(unittest.TestCase):
 
     # 2. course dates
     def test_course_start_and_end_respected(self):
-        self.assertEqual(self.tick(at("2026-09-23", "20:00"))["dose"], 1)  # only Metformin; Clarithromycin not started
+        self.assertEqual(self.tick(at("2026-09-23", "20:00"))["dose"], 1)  # only Metformin, Clarithromycin not started
         self.out.sent.clear()
         self.assertEqual(self.tick(at("2026-09-30", "20:00"))["dose"], 2)  # day 7 of the course: both
         self.out.sent.clear()

@@ -1,4 +1,4 @@
-"""AgentAuditLogger: one AgentAudit row per tool call. Stores ids and outcomes, never record text or secrets."""
+"""One AgentAudit row per tool call. Stores ids and outcomes, never record text or secrets."""
 from __future__ import annotations
 
 import logging
@@ -22,5 +22,5 @@ class AgentAuditLogger:
                 detail=(detail or None) and detail[:300],
             ))
             ctx.db.flush()
-        except Exception as e:  # an audit failure must not break the read, but it must be visible in the logs
+        except Exception as e:  # a failed audit write must not break the read, but it has to show up in the logs
             log.warning("audit write failed: %s", type(e).__name__)

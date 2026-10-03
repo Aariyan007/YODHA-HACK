@@ -1,22 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/**
- * Records the microphone and hands back sentence-sized audio clips for server-side Whisper.
- *
- * Why not the browser's own speech recognition: it is weak on Indian accents, drug names and
- * Malayalam. Whisper is much better, but needs audio clips. So:
- *
- * - One MediaRecorder always runs on a single mic stream.
- * - A small voice-activity detector (RMS level vs. an adaptive noise floor) watches the stream.
- * - When the speaker pauses (~0.9 s) after speaking, the current clip is cut and a new recorder starts
- *   immediately on the same stream, so the next sentence never loses its first word.
- * - Clips with no real speech are thrown away and never uploaded (silence is what makes Whisper invent text).
- * - Clips are uploaded strictly in order, so transcript lines keep the order they were spoken.
- *
- * onClip(blob, speakerAtStart) must return a promise; it is retried on network errors.
- * If it rejects with err.unavailable === true, the hook stops and calls onUnavailable(message) so the
- * caller can fall back to browser speech recognition.
- */
+/* Records the microphone and hands back sentence sized audio clips for Whisper on the server.
+
+Why not the browser's own speech recognition: it's weak on Indian accents, drug names and Malayalam. Whisper is
+much better but needs audio clips. So:
+
+- One MediaRecorder always runs on a single mic stream.
+- A small voice detector (RMS level against an adaptive noise floor) watches the stream.
+- When the speaker pauses (~0.9 s) after speaking, the current clip is cut and a new recorder starts straight away
+  on the same stream, so the next sentence never loses its first word.
+- Clips with no real speech are thrown away and never uploaded (silence is what makes Whisper invent text).
+- Clips are uploaded strictly in order, so transcript lines keep the order they were spoken.
+
+onClip(blob, speakerAtStart) must return a promise, and it's retried on network errors.
+If it rejects with err.unavailable === true, the hook stops and calls onUnavailable(message) so the caller can
+fall back to browser speech recognition. */
 
 const PAUSE_MS = 900;        // silence after speech that ends a clip
 const MAX_CLIP_MS = 14000;   // hard cap so one clip is never huge
@@ -73,7 +71,7 @@ export function useWhisperRecorder({ onClip, onUnavailable, getSpeaker } = {}) {
             onUnavailRef.current?.(e.message);
             return;
           }
-          if (e?.skip) return; // a clip the server could not read; do not retry it
+          if (e?.skip) return; // a clip the server couldn't read, don't retry it
           await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
         }
       }
@@ -138,7 +136,7 @@ export function useWhisperRecorder({ onClip, onUnavailable, getSpeaker } = {}) {
     else if (!hadSpeech && age >= IDLE_CUT_MS) cut(false);
   }, [cut]);
 
-  // Returns a promise that resolves once the sentence in progress has been queued for upload.
+  // Returns a promise that resolves once the sentence in progress is queued for upload.
   const stopAll = useCallback(() => {
     const st = s.current;
     st.running = false;
@@ -178,7 +176,7 @@ export function useWhisperRecorder({ onClip, onUnavailable, getSpeaker } = {}) {
   const start = useCallback(async () => {
     const st = s.current;
     if (!supported) { setError("unsupported"); return; }
-    if (st.running || st.starting) return; // StrictMode runs effects twice; never open two mic streams
+    if (st.running || st.starting) return; // StrictMode runs effects twice, never open two mic streams
     setError(null);
     st.starting = true;
     let stream;

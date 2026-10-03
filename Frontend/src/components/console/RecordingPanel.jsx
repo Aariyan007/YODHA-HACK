@@ -4,17 +4,14 @@ import { FlagList } from "./FlagBanner.jsx";
 import { useSpeechRecognition } from "./useSpeechRecognition.js";
 import { useWhisperRecorder } from "./useWhisperRecorder.js";
 
-/**
- * State 2 — Recording.
- *
- * Owns:
- * - The live transcript, including the current interim result (grey italics).
- * - The current speaker ("doctor" | "patient"), toggleable via buttons or D/P keys.
- * - A queue that serialises sendLine calls so the backend receives lines in
- *   the order they were spoken, even if some requests take longer than others.
- * - Retry on failure: a failing line is marked "Not saved, retrying" and the
- *   queue keeps re-posting it until it succeeds. We never lose a line.
- */
+/* State 2, Recording.
+
+Owns:
+- the live transcript, including the current interim result (grey italics)
+- the current speaker ("doctor" or "patient"), switched with the buttons or the D/P keys
+- a queue so sendLine calls reach the backend in the order they were spoken, even if some requests are slower
+- retry on failure: a failing line shows "Not saved, retrying" and the queue keeps posting it until it works.
+  We never lose a line. */
 export function RecordingPanel({
   consultationId,
   shareToken,
@@ -36,10 +33,10 @@ export function RecordingPanel({
   const [micError, setMicError] = useState(null);
   const [engine, setEngine] = useState("whisper"); // "whisper" (server) | "browser" (fallback)
   const [engineNote, setEngineNote] = useState(null);
-  const [language, setLanguage] = useState("en"); // "en" by default: auto-detect guesses wrong on short clips. "" = auto, "ml" = Malayalam
+  const [language, setLanguage] = useState("en"); // "en" by default because auto detect guesses wrong on short clips. "" = auto, "ml" = Malayalam
   const [stopping, setStopping] = useState(false);
 
-  // Always-current copies for async callbacks (a clip finishes seconds after it was spoken).
+  // Always current copies for async callbacks (a clip finishes seconds after it was spoken).
   const stateRef = useRef(state);
   const commit = useCallback((next) => { stateRef.current = next; setState(next); }, []);
   const speakerRef = useRef(speaker);
@@ -51,7 +48,7 @@ export function RecordingPanel({
   // A tiny FIFO that posts one line at a time. If a POST fails, the queue
   // retries that line (with exponential-ish backoff capped at 4s) forever
   // until the user clicks Stop. The caller sees the line immediately in
-  // the local transcript — the server round-trip is only used to update
+  // the local transcript, the server round trip is only used to update
   // flags / suggestions / partial note.
   const queueRef = useRef([]);
   const sendingRef = useRef(false);
@@ -94,8 +91,8 @@ export function RecordingPanel({
   }, [pump, commit]);
 
   // ---- speech ----
-  // Primary: Whisper on the server (accurate on accents, drug names, Malayalam). The browser engine keeps
-  // running only as a live caption while Whisper works, and becomes the engine if Whisper is unavailable.
+  // Main: Whisper on the server (good on accents, drug names, Malayalam). The browser engine keeps
+  // running only as a live caption while Whisper works, and becomes the engine if Whisper isn't available.
   const wr = useWhisperRecorder({
     getSpeaker: () => speakerRef.current,
     onClip: async (blob, who) => {

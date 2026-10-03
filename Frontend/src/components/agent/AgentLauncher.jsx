@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { AgentMark } from "./AgentMark.jsx";
 
-// Closed state: compact, quiet, always in the same place. Hover lifts it a few pixels; nothing pulses or bounces.
+// Closed state: small, quiet, always in the same place. Hover lifts it a few pixels, nothing pulses or bounces.
 const AgentLauncher = forwardRef(function AgentLauncher({ open, onClick, controls }, ref) {
   return (
     <button

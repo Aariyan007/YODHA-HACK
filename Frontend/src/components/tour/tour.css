@@ -1,4 +1,4 @@
-/* guided tour and demo. Transform/opacity only; the spotlight is a hole cut by a huge shadow, so it never blocks the page. */
+/* guided tour and demo. Only transform and opacity animate. The spotlight is a hole cut by a huge shadow, so it never blocks the page. */
 .mt-tour { position: fixed; inset: 0; z-index: 1200; pointer-events: none; }
 .mt-tour-spot { position: fixed; border-radius: 16px; box-shadow: 0 0 0 9999px color-mix(in srgb, #16241E 62%, transparent), 0 0 0 3px var(--mt-sage, #88BDA4); transition: left .28s ease, top .28s ease, width .28s ease, height .28s ease; }
 .mt-tour-dim { position: fixed; inset: 0; background: color-mix(in srgb, #16241E 62%, transparent); }

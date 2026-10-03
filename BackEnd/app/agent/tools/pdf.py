@@ -1,5 +1,6 @@
-"""Phase 10: PDF generation (L2: creates a private file for the person, changes nothing in the record). Stored encrypted in
-the vault like any other file; download needs the person's login and is never cached."""
+"""PDF generation (L2: makes a private file for the person, changes nothing in the record). Stored encrypted in the
+vault like any other file. Download needs the person's login and is never cached.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -86,7 +87,7 @@ def pdf_generate(ctx: AgentContext, args: dict) -> dict:
 
 
 def _verify(ctx: AgentContext, args: dict, out: dict) -> bool:
-    """The file exists, decrypts, and is a PDF: only then does the agent say it made one."""
+    """The file exists, decrypts and is a PDF. Only then does the agent say it made one."""
     row = ctx.db.get(AgentFile, (out.get("data") or {}).get("fileId"))
     try:
         return bool(row) and vault.get(row.storage_key, row.id, row.patient_id).startswith(b"%PDF-")

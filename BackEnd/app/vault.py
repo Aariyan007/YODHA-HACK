@@ -1,11 +1,11 @@
 """Encrypted file vault for agent files: AES-256-GCM, key from the environment.
 
-- Key: FILE_ENC_KEY (urlsafe-base64, 32 bytes). Never in code, never stored beside the data. FILE_ENC_KEY_PREV is optional
-  and only decrypts, so a key can be rotated (re-save files to move them to the new key).
-- Each file has a random 96-bit nonce. The authenticated data is "<file id>:<patient id>", so a blob copied to another
-  file id or patient fails to decrypt.
-- The on-disk name is a random storage key, fanned into folders; it says nothing about the person or the file.
-- Fail closed: with no key the vault is unavailable and nothing is written in clear text.
+- Key: FILE_ENC_KEY (urlsafe base64, 32 bytes). Never in code, never stored next to the data. FILE_ENC_KEY_PREV is
+  optional and only decrypts, so a key can be rotated (re-save files to move them to the new key).
+- Each file has a random 96 bit nonce. The authenticated data is "<file id>:<patient id>", so a blob copied to
+  another file id or patient fails to decrypt.
+- The name on disk is a random storage key spread over folders, it says nothing about the person or the file.
+- Fails closed: with no key the vault is unavailable and nothing is written in clear text.
 """
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 """Request bodies (pydantic) and response serializers (camelCase dicts).
 
-Response shapes must match Frontend/src/data/mockData.js.
+Response shapes have to match Frontend/src/data/mockData.js.
 """
 from datetime import datetime, timezone
 
@@ -44,7 +44,7 @@ class ProfileUpdate(BaseModel):
 
 
 class VitalsIn(BaseModel):
-    """A reading typed in at home. At least one value is required (checked in the route)."""
+    """A reading typed in at home. At least one value is needed (checked in the route)."""
     date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     sbp: float | None = Field(default=None, ge=50, le=300)
     dbp: float | None = Field(default=None, ge=30, le=200)
@@ -84,7 +84,7 @@ def profile_out(p: Patient) -> dict:
 
 
 def user_out(u, patient=None) -> dict:
-    """Session profile for any login. Patients carry their patient profile; doctors a small one."""
+    """Session profile for any login. Patients carry their patient profile, doctors a small one."""
     base = profile_out(patient) if patient is not None else {"id": u.id, "name": u.name}
     return {**base, "userId": u.id, "email": u.email, "role": u.role, "specialty": u.specialty, "hospital": u.hospital}
 

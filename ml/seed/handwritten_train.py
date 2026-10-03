@@ -1,12 +1,12 @@
 """Hand-written TRAINING rows in Malayalam script and Manglish (Malayalam in English letters).
 
-Why this file exists: the first fine-tune scored English 0.97 but Malayalam 0.21 and Manglish 0.25, because the Malayalam
-training text was written by a language model and some of it was nonsense. These rows are written by a person, kept
-SEPARATE from the held-out test set in handwritten.py (prepare_data.py refuses to build if any text appears in both), and
-are repeated in training (UPSAMPLE) so they are not drowned by the English rows.
+Why this file exists: the first fine-tune scored English 0.97 but Malayalam 0.21 and Manglish 0.25, because the
+Malayalam training text was written by a language model and some of it was nonsense. These rows are written by a
+person, kept SEPARATE from the held-out test set in handwritten.py (prepare_data.py refuses to build if any text is
+in both), and repeated in training (UPSAMPLE) so the English rows don't drown them.
 
-TRAIN: (text, urgency, specialist, lang). An English gloss follows each Malayalam / Manglish line as a comment so a reviewer
-can check the label. Add more rows here and rerun ml/prepare_data.py; more real wording is the best way to improve.
+TRAIN: (text, urgency, specialist, lang). An English gloss follows each Malayalam / Manglish line as a comment so a
+reviewer can check the label. Add more rows here and rerun ml/prepare_data.py. More real wording is the best way to improve.
 """
 
 UPSAMPLE = 4

@@ -1,10 +1,9 @@
-"""Orchestrator for the upload pipeline.
+"""Runs the upload pipeline.
 
-The pipeline is a plain function; each stage event is pushed onto an
-`asyncio.Queue` so the SSE endpoint can forward them to the browser.
+The pipeline is a plain function. Each stage event goes onto an asyncio.Queue so the SSE endpoint can send it to the browser.
 
-Stages: read → understand → code → explain → check
-Final: {"done": true, "result": {...}} or {"error": "..."}
+Stages: read, understand, code, explain, check
+Last message: {"done": true, "result": {...}} or {"error": "..."}
 """
 from __future__ import annotations
 
@@ -87,10 +86,10 @@ def _mime_from_name(name: str) -> str:
     return "application/octet-stream"
 
 
-# ---------- stage event bus (sync-safe → async) ----------
+# ---------- stage events (sync thread to async) ----------
 
 class Bus:
-    """Push stage events from a background thread to the SSE async loop."""
+    """Pushes stage events from a background thread to the SSE async loop."""
     def __init__(self, loop: asyncio.AbstractEventLoop, queue: asyncio.Queue):
         self._loop = loop
         self._queue = queue
@@ -112,7 +111,7 @@ def _lab_code_from_name(name: str) -> str | None:
 
 
 def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
-    """Save a cached result into the DB and return it (with any new ids)."""
+    """Saves a cached result into the DB and returns it (with any new ids)."""
     rec = result["record"]
     reminders_list = result.get("reminders", [])
     alerts = result.get("alerts", [])
@@ -178,7 +177,7 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
                 duration_days=reminders_mod.parse_duration_days(m.get("schedule"), m.get("duration")),
             ))
 
-        # Save alerts (new ids each time; drop the cached ids).
+        # Save alerts (new ids each time, drop the cached ones).
         saved_alerts = []
         for a in alerts:
             if a.get("kind") == "trend":
@@ -207,7 +206,7 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
 
 
 def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, doc: dict | None = None) -> dict:
-    """Run every stage. Returns the final result dict (ready for the SSE 'done' event)."""
+    """Runs every stage and returns the final result dict (for the SSE 'done' event)."""
     mime = _mime_from_name(filename)
 
     # read
@@ -244,7 +243,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
 
     # explain
     bus.send({"stage": "explain"})
-    for u in doc.get("uncertain_medicines") or []:  # handwriting that could not be read for sure: never a medicine, always a visible note
+    for u in doc.get("uncertain_medicines") or []:  # handwriting we couldn't read for sure: never a medicine, always shown as a note
         analysis["alerts"].append({"severity": "medium", "kind": "handwriting", "title": f"Handwriting unclear: {str(u.get('name'))[:60]}",
                                    "message": f"I could not read this medicine name with confidence ({u.get('reason')}). It was not added to your medicines. "
                                               "Please check it with your doctor or pharmacist.",
@@ -304,7 +303,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
                 ref_range=(ob.get("range") or None) and str(ob.get("range"))[:60],
             ))
 
-        # Save new medicines (duplicates still save; alert warns the user).
+        # Save new medicines (duplicates still save, the alert warns the user).
         for m in analysis["medications"]:
             db.add(Medicine(
                 patient_id=patient_id, document_id=doc_id,
@@ -322,7 +321,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
             row = Alert(
                 patient_id=patient_id, severity=a["severity"], kind=a["kind"],
                 title=a["title"], message=a["message"], data=a.get("data"),
-                # Message_ml left English for simplicity; translator could be reused here.
+                # message_ml is left in English for now, the translator could be used here later.
                 message_ml=None,
             )
             db.add(row)
@@ -378,7 +377,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
 # ---------- entry point used by the HTTP layer ----------
 
 def start_job(patient_id: str, data: bytes, filename: str) -> tuple[str, bool]:
-    """Return (job_id, from_cache). Starts a background thread or finishes instantly."""
+    """Returns (job_id, from_cache). Starts a background thread, or finishes right away."""
     sha = _hash(data)
     _save_upload(data, filename, sha)
     job_id = uuid.uuid4().hex
@@ -404,17 +403,17 @@ def start_job(patient_id: str, data: bytes, filename: str) -> tuple[str, bool]:
 def _emit_cached(bus: Bus, result: dict) -> dict:
     for s in STAGES_ORDER:
         bus.send({"stage": s})
-        time.sleep(0.08)  # just enough to animate — this is for a slow-Wi-Fi demo
+        time.sleep(0.08)  # just enough to animate, it's for a slow wifi demo
     return result
 
 
 async def run_async(job_id: str) -> asyncio.Queue:
-    """Attach an SSE listener to a job; start the worker if it has not started."""
+    """Attaches an SSE listener to a job and starts the worker if it hasn't started."""
     job = JOBS.get(job_id)
     if job is None:
         raise KeyError(job_id)
 
-    # One queue per listener. For simplicity we support a single listener per job.
+    # One queue per listener. Only one listener per job for now.
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
     bus = Bus(loop, queue)

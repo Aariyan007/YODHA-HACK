@@ -18,7 +18,7 @@ const INDIA = [[6.0, 68.0], [37.6, 97.5]];
 
 const directions = (d) => `https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lng}`;
 
-// ── Map (supporting context, not the hero) ──────────────────────────────────
+// -- Map (supporting context, not the main thing) --
 function DoctorMap({ origin, results, pickIds, active, onSelect }) {
   const boxRef = useRef(null);
   const mapRef = useRef(null);
@@ -35,7 +35,7 @@ function DoctorMap({ origin, results, pickIds, active, onSelect }) {
     }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
-    // The map may mount after its container animates open; settle its size.
+    // The map can mount before its container finishes animating open, so settle its size.
     setTimeout(() => map.invalidateSize(), 60);
     return () => { map.remove(); mapRef.current = null; };
   }, []);
@@ -85,7 +85,7 @@ function DoctorMap({ origin, results, pickIds, active, onSelect }) {
   return <div ref={boxRef} className="doctor-map" role="region" aria-label="Map of doctors in India" />;
 }
 
-// ── "Why this match" — built only from real doctor fields ───────────────────
+// -- "Why this match", built only from real doctor fields --
 function whyItems(d, ctx) {
   const { data, ml, mode, specialty, wantsMl } = ctx;
   const out = [];
@@ -100,7 +100,7 @@ function whyItems(d, ctx) {
   return out.slice(0, 5);
 }
 
-// ── One care match (clinical/editorial, not a restaurant card) ──────────────
+// -- One care match (clinical, not a restaurant card) --
 function CareDoctor({ d, rank, active, onSelect, ctx }) {
   const { ml } = ctx;
   const ref = useRef(null);
@@ -141,7 +141,7 @@ function CareDoctor({ d, rank, active, onSelect, ctx }) {
   );
 }
 
-// ── Page: Care Match ────────────────────────────────────────────────────────
+// -- Page: Care Match --
 export default function Doctors() {
   const { lang, pick } = useT();
   const ml = lang === "ml";
@@ -265,7 +265,7 @@ export default function Doctors() {
 
   return (
     <div className="mt-page">
-      {/* OPENING — the care context, and what MediThread suggests from it */}
+      {/* OPENING: the care context, and what MediThread suggests from it */}
       <Chapter tone="ground">
         <RV className="mt-opening">
           <div className="mt-label">{ml ? "കെയർ മാച്ച്" : "Care match"}</div>
@@ -332,7 +332,7 @@ export default function Doctors() {
         {data?.relaxed?.map((r, i) => <p key={i} className="notice">{r}</p>)}
       </Chapter>
 
-      {/* 01 — the doctors, led by why they match */}
+      {/* 01: the doctors, led by why they match */}
       <Chapter tone="soft" no="01" kicker={recSpecialty} title={ml ? "നിങ്ങൾക്കായുള്ള ഡോക്ടർമാർ" : "Doctors matched to you"} last={!(data?.results?.length > 0)}
         aside={data?.results?.length > 0 ? (
           <button type="button" className="mt-link" onClick={() => setShowMap((x) => !x)} aria-expanded={showMap}>
@@ -362,7 +362,7 @@ export default function Doctors() {
         )}
       </Chapter>
 
-      {/* 02 — the care path, back into the MediThread story */}
+      {/* 02: the care path, back into the MediThread story */}
       {data?.results?.length > 0 && (
         <Chapter tone="warm" no="02" kicker={ml ? "അടുത്ത ഘട്ടം" : "The care path"} title={ml ? "ഡോക്ടർ നിങ്ങളുടെ കഥ കാണട്ടെ" : "Let the doctor see your story"} last>
           <RV as="ol" className="mt-path" stagger={0.1} selector=":scope > li">

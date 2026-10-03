@@ -1,7 +1,7 @@
-"""Tests for the danger checks, vitals parsing, lab rules and the AI-review guard.
+"""Tests for the danger checks, vitals parsing, lab rules and the AI review guard.
 
-In-memory SQLite. No network: Groq is never called (no key in the test env, and
-the review tests call the guard functions directly).
+In-memory SQLite. No network: Groq is never called (no key in the test env, and the review tests call the guard
+functions directly).
 
 Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_risk.py -v
 """

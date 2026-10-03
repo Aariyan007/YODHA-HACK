@@ -1,11 +1,12 @@
-"""When is this medicine usually taken, with or without food? From a public source, quoted word for word.
+"""When is this medicine usually taken, with or without food? Quoted from a public source.
 
-Source: the US FDA drug label database (openFDA, free, no key). We take the label's OWN sentence about food or time of day and
-show it, with where it came from. Nothing is generated: the hint is read out of that sentence by fixed rules, so it can never say
-something the label does not. This is general label information. It is never a replacement for the prescriber's instruction:
-callers must only use it where the prescription says nothing, and must label it as general information.
-
-Not found (Indian-only brands, unusual names) -> None, and the caller says so honestly."""
+Source is the US FDA label database (openFDA, free, no key). We take the label's own sentence about food or time
+of day and show it with where it came from. Nothing is generated: the hint is read from that sentence by fixed
+rules, so it can't say anything the label doesn't.
+This is general info only. It never replaces the doctor's instruction. Use it only when the prescription says
+nothing, and label it as general information.
+If it's not found (Indian-only brands, odd names) we return None and say so.
+"""
 from __future__ import annotations
 
 import re
@@ -20,7 +21,7 @@ SOURCE = "US FDA drug label (openFDA)"
 TTL = 7 * 86400
 _cache: dict[str, tuple[float, dict | None]] = {}
 
-# (pattern, hint). Order matters: the more specific / stronger statements first.
+# (pattern, hint). Order matters, more specific and stronger statements go first.
 RULES = [
     (r"\bwith or without (food|meals?)\b|\bregardless of (food|meals?)\b|\bwithout regard to (food|meals?)\b|\bindependent of (food|meals?)\b", "with or without food"),
     (r"\bon an empty stomach\b|\bat least (an |one |1 )?hour before\b[^.]{0,30}\b(meal|food|breakfast|eating)|\b(30|thirty) minutes before\b[^.]{0,30}\b(meal|food|breakfast|eating)|\bbefore (a |your |the )?(meals?|breakfast|eating|food)\b", "before food"),
@@ -50,14 +51,14 @@ def candidates(name: str) -> list[str]:
 def _fetch(generic: str) -> list[dict]:
     r = httpx.get(URL, params={"search": f'openfda.generic_name:"{generic}"', "limit": 8}, timeout=8)
     labels = r.json().get("results", []) if r.status_code == 200 else []
-    # Single-ingredient labels only: a combination product (e.g. metformin + sitagliptin) can say something different.
+    # Single ingredient labels only, because a combo product (metformin + sitagliptin) can say something different.
     only = [l for l in labels if all(g.lower().startswith(generic.lower()) and "," not in g and " and " not in g.lower()
                                      for g in (l.get("openfda") or {}).get("generic_name", [generic]))]
     return only
 
 
 def pick(labels: list[dict]) -> dict | None:
-    """The first sentence in the labels that says something about food or time of day, and the hint it gives."""
+    """First label sentence that talks about food or time of day, and the hint it gives."""
     for field in FIELDS:  # the dosage section first, then patient text
         best = None
         for lab in labels:
@@ -68,7 +69,7 @@ def pick(labels: list[dict]) -> dict | None:
                     continue
                 for rx, hint in RULES:
                     if re.search(rx, s, re.I):
-                        # Plain "take it with ..." sentences beat ones about particular doses; then the shortest reads cleanest.
+                        # Plain 'take it with ...' sentences beat ones about specific doses, then the shortest one reads best.
                         rank = (bool(re.search(r"\d+\s*(mg|mcg|g)\b|\bdoses? (above|of|up to)\b", s, re.I)), len(s))
                         if best is None or rank < best["_rank"]:
                             best = {"hint": hint, "quote": s, "field": field, "_rank": rank}
@@ -80,7 +81,7 @@ def pick(labels: list[dict]) -> dict | None:
 
 
 def usage(name: str) -> dict | None:
-    """{generic, hint, quote, source} or None. Cached for a week, 8 second budget per lookup, never raises."""
+    """{generic, hint, quote, source} or None. Cached for a week, 8 s budget per lookup, never raises."""
     key = clean_name(name).lower()
     if not key:
         return None
@@ -100,7 +101,7 @@ def usage(name: str) -> dict | None:
     return found
 
 
-# ---------------------------------------------------------------- side effects (from the same public label)
+# ---- side effects (from the same public label)
 
 PATIENT_FIELDS = ("information_for_patients", "patient_medication_information", "spl_patient_package_insert")
 _side_cache: dict[str, tuple[float, dict | None]] = {}
@@ -115,7 +116,7 @@ def _norm(t: str) -> str:
 
 
 def _source_text(labels: list[dict]) -> str:
-    """The label's patient side-effects section if it has one, else the start of the adverse reactions section."""
+    """The label's patient side effects section if there is one, else the start of adverse reactions."""
     for field in PATIENT_FIELDS:
         for lab in labels:
             text = re.sub(r"\s+", " ", " ".join(lab.get(field) or []))
@@ -130,7 +131,7 @@ def _source_text(labels: list[dict]) -> str:
 
 
 def verify_items(items, source: str) -> list[dict]:
-    """Keep an item only if its quote really is in the source and the effect is named in that quote. The model proposes, this decides."""
+    """Keep an item only if its quote is really in the source and names the effect. The model suggests, this decides."""
     src = _norm(source)
     out = []
     for it in items or []:
@@ -145,7 +146,8 @@ def verify_items(items, source: str) -> list[dict]:
 
 def side_effects(name: str, extractor=None) -> dict | None:
     """{generic, common[{effect,quote}], serious[...], boxed, source, summarised} or None. Cached, never raises.
-    `extractor(system, user) -> dict|None` is the small model; without it only the label's boxed warning is returned."""
+    `extractor(system, user)` is the small model. Without it only the boxed warning is returned.
+    """
     key = clean_name(name).lower()
     if not key:
         return None

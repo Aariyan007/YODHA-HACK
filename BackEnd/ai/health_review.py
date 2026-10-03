@@ -1,17 +1,14 @@
-"""AI health review: Groq reads the patient's WHOLE record and explains it in plain words.
+"""AI health review: Groq reads the whole record and explains it in plain words.
 
-Input is facts only: profile, every stored reading with dates, active medicines,
-open warnings, and the Python danger checks (app/risk.py). The model is asked to
-connect things across reports ("BP was 128 in March, 146 now"), point out what is
-missing (no kidney test in a year for a diabetic), and list questions for the doctor.
+The input is facts only: profile, every stored reading with dates, active medicines, open warnings and the Python
+danger checks (app/risk.py). The model connects things across reports ("BP was 128 in March, 146 now"), points out
+what's missing (no kidney test in a year for a diabetic) and lists questions for the doctor.
 
-Safety, enforced in code after the call, not just in the prompt:
-  - every point must cite numbers that exist in the record; points with numbers
-    we cannot find are dropped
-  - points that diagnose, name a treatment, or tell the patient to start/stop/change
-    a medicine are dropped
-  - the Python risk levels are never changed by the AI; emergencies come from Python
-If Groq is missing or fails, a Python-only review is returned so the screen always works.
+Safety is enforced in code after the call, not just in the prompt:
+- every point must cite numbers that exist in the record, otherwise it's dropped
+- points that diagnose, name a treatment, or tell the patient to start/stop/change a medicine are dropped
+- the AI never changes the Python risk levels, emergencies come from Python
+If Groq is missing or fails we return a Python-only review so the screen always works.
 """
 from __future__ import annotations
 
@@ -90,7 +87,7 @@ def _numbers_in(text: str) -> list[str]:
 def _allowed_numbers(facts: dict) -> set[str]:
     blob = json.dumps(facts)
     nums = set(_numbers_in(blob))
-    # Allow the same number written without a trailing .0, and small counts ("3 reports", "2 tests").
+    # Accept the same number written without a trailing .0, and small counts like '3 reports'.
     nums |= {n[:-2] for n in nums if n.endswith(".0")}
     nums |= {str(i) for i in range(0, 13)}
     nums |= {"100", "130", "80", "90", "140", "7", "70", "180"}  # common targets the model may quote
@@ -125,7 +122,7 @@ def _call(facts: dict) -> dict | None:
 
 
 def python_review(series: list[dict], risks: list[dict], medicines: list[dict], today: date) -> dict:
-    """No-AI fallback: the same shape, built from the risk list and the series."""
+    """Fallback with no AI: same shape, built from the risk list and the series."""
     points = []
     for s in [s for s in series if len(s["points"]) >= 2][:4]:
         pts = s["points"]
@@ -161,7 +158,7 @@ def python_review(series: list[dict], risks: list[dict], medicines: list[dict], 
 
 def review(profile: dict, series: list[dict], medicines: list[dict], alerts: list[dict], risks: list[dict],
            today: date | None = None, use_ai: bool = True) -> dict:
-    """Return {headline, headlineMl, points[{text,textMl,kind,tests}], askDoctor[{text,textMl}], source}."""
+    """Returns {headline, headlineMl, points[{text,textMl,kind,tests}], askDoctor[{text,textMl}], source}."""
     today = today or date.today()
     fallback = python_review(series, risks, medicines, today)
     if not use_ai or not (series or medicines):

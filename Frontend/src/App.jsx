@@ -19,7 +19,7 @@ import Triage from "./pages/Triage.jsx";
 import Upload from "./pages/Upload.jsx";
 import Reminders from "./pages/Reminders.jsx";
 import DoctorConsole from "./pages/DoctorConsole.jsx";
-// The map page pulls in Leaflet; load it only when opened.
+// The map page pulls in Leaflet, so load it only when it's opened.
 const Doctors = lazy(() => import("./pages/Doctors.jsx"));
 import Profile from "./pages/Profile.jsx";
 import Admin from "./pages/Admin.jsx";
@@ -68,7 +68,7 @@ const NAV_ICONS = {
 };
 
 // ── Page transition wrapper ──────────────────────────────────
-// GSAP fade/rise on every route change, plus a thin sage "thread" that sweeps across the top.
+// GSAP fade and rise on every route change, plus a thin sage "thread" that sweeps across the top.
 function PageTransition({ children }) {
   const ref = useRef(null);
   useLayoutEffect(() => {
@@ -106,7 +106,7 @@ function useTabIndicator(navRef, pathname) {
   }, [navRef, pathname]);
 }
 
-// Primary buttons lean a few px toward the pointer (desktop only), via one delegated listener.
+// Primary buttons lean a few px toward the pointer (desktop only), through one shared listener.
 function useMagneticButtons() {
   useEffect(() => {
     if (reducedMotion() || window.matchMedia?.("(pointer: coarse)").matches) return;
@@ -259,7 +259,7 @@ export default function App() {
   };
 
   // Ensure the saved theme is applied as an attribute (the pre-paint inline
-  // script can be missing in some embeds); default is the editorial paper look.
+  // script can be missing in some embeds), default is the editorial paper look.
   useEffect(() => { setTheme(getTheme()); }, []);
 
   // Lenis smooth scroll, driven by the GSAP ticker so ScrollTrigger stays in sync.

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useVoice } from "./useVoice.js";
 
-// An action command, not a chat composer. The paperclip hands a file to the agent (PDF or photo).
+// An action command, not a chat box. The paperclip hands a file (PDF or photo) to the agent.
 export default function AgentInput({ onSubmit, onFile, onVoice, disabled }) {
   const [text, setText] = useState("");
   const pick = useRef(null);

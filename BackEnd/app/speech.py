@@ -1,8 +1,9 @@
-"""SpeechService: audio in, text out. `transcribe(audio, language)`.
+"""Audio in, text out: `transcribe(audio, language)`.
 
-Engine order: ElevenLabs Scribe (best for Malayalam and English mixing) when ELEVENLABS_API_KEY is set, else Groq Whisper.
-The transcript is only text for the person to read and edit; it never creates a medical fact by itself. Audio is sent to the
-engine and discarded here; nothing is stored and text is not logged."""
+Engine order: ElevenLabs Scribe (best for Malayalam and English mixing) if ELEVENLABS_API_KEY is set, otherwise Groq Whisper.
+The transcript is only text for the person to read and edit, it never creates a medical fact by itself. Audio goes to
+the engine and is discarded here, nothing is stored and text isn't logged.
+"""
 from __future__ import annotations
 
 import os
@@ -14,7 +15,7 @@ from ai import transcribe as whisper
 
 MODEL = os.getenv("ELEVENLABS_STT_MODEL", "scribe_v1")
 URL = "https://api.elevenlabs.io/v1/speech-to-text"
-LANG3 = {"en": "eng", "ml": "mal", "hi": "hin", "ta": "tam"}  # Scribe takes ISO 639-3; unknown or "auto" lets it detect
+LANG3 = {"en": "eng", "ml": "mal", "hi": "hin", "ta": "tam"}  # Scribe takes ISO 639-3, unknown or "auto" lets it detect
 
 
 class SpeechError(Exception):
@@ -32,8 +33,9 @@ def _phantom(text: str) -> bool:
 
 
 def transcribe(audio: bytes, filename: str, mime: str, language: str | None = None) -> dict:
-    """-> {"text", "language", "engine"}; text is "" for silence or noise. Raises SpeechError with a message safe to show.
-    ElevenLabs first; if it is refused, busy or unreachable and a Groq key exists, Whisper answers instead."""
+    """Returns {"text", "language", "engine"}. text is "" for silence or noise. Raises SpeechError with a message safe to show.
+    ElevenLabs goes first. If it's refused, busy or unreachable and a Groq key exists, Whisper answers instead.
+    """
     eng = engine()
     if eng == "none":
         raise SpeechError("Voice is not set up on this server yet.", 503)

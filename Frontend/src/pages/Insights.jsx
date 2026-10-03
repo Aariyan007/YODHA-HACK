@@ -133,7 +133,7 @@ export default function Insights() {
   const timeline = useApi(getTimeline);
   const [newId, setNewId] = useState(null);
 
-  // After a reading is saved: refresh what depends on it, and find the record that was just added to the thread.
+  // After a reading is saved: refresh what depends on it and find the record that was just added to the thread.
   const onSaved = async () => {
     const before = new Set((timeline.data || []).map((d) => d.id));
     reload();
@@ -145,7 +145,7 @@ export default function Insights() {
     } catch { /* the thread refreshes on the next visit */ }
   };
 
-  // Only block on the first load; background reloads after saving must not unmount the form and lose its result.
+  // Only block on the first load. Background reloads after saving must not unmount the form and lose its result.
   if (!data) return <Loading error={error} onRetry={reload} />;
   return (
     <div className="mt-page">

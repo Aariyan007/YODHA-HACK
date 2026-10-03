@@ -1,7 +1,6 @@
 """Telegram helpers. Failures are logged as one short line and never raise.
 
-Never log the bot token, chat ids, or message text. Error strings returned to
-callers are plain-language and token-free.
+Never log the bot token, chat ids or message text. Errors we return are plain and have no token in them.
 """
 from __future__ import annotations
 

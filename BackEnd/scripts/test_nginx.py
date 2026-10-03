@@ -4,7 +4,7 @@ rate limiting and log redaction.
     docker compose up -d --build --wait
     cd BackEnd && ./venv/bin/python scripts/test_nginx.py            # BASE_URL=http://localhost:8080 by default
 
-The rate-limit check goes LAST because it locks the sign-in zone for about a minute (all requests from the host
+The rate limit check goes LAST because it locks the sign-in zone for about a minute (all requests from the host
 share one IP inside Docker). Run the smoke test and security sweep inside the backend container instead:
     docker compose exec backend python scripts/smoke.py   (set BASE_URL=http://127.0.0.1:8000)
 """

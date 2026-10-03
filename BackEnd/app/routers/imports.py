@@ -24,7 +24,7 @@ def fhir_sample(patient: Patient = Depends(current_patient)):
 
 @router.post("/fhir")
 async def import_fhir(request: Request, patient: Patient = Depends(current_patient)):
-    """Body is the Bundle JSON itself, or a multipart form with a `file` field. Max 2 MB."""
+    """The body is the Bundle JSON itself, or a multipart form with a `file` field. Max 2 MB."""
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > MAX_BYTES + 4096:
         raise HTTPException(413, "This file is bigger than 2 MB. Please send a smaller hospital export.")

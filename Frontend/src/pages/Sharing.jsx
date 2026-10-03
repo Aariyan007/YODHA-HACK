@@ -7,7 +7,7 @@ import { useApi } from "../useApi.js";
 import { Chapter, RV } from "../design/primitives.jsx";
 import { AccessRow, ActivityItem, SharePanel } from "../design/share.jsx";
 
-// ── Invite your doctor: a one-time code for a doctor's MediThread account ───
+// -- Invite your doctor: a one time code for a doctor's MediThread account --
 function InviteCode({ ml }) {
   const [invite, setInvite] = useState(null);
   const [busy, setBusy] = useState(false);

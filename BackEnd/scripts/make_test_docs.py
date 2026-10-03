@@ -1,4 +1,4 @@
-"""Generate 3 test document images so the pipeline has stable input."""
+"""Makes 3 test document images so the pipeline always has the same input."""
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont

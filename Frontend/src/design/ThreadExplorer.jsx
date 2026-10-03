@@ -1,7 +1,7 @@
 // The Health Thread: MediThread's signature component.
 //
-// Wide screens: a compact vertical thread on the left; the record behind whichever node you hover or focus
-// appears in an evidence panel beside it, joined to the node by a tether line. The panel moves with the node
+// Wide screens: a compact vertical thread on the left, and the record behind whichever node you hover or focus
+// shows in an evidence panel beside it, joined to the node by a tether line. The panel moves with the node
 // (transform only), so hovering never changes the height of anything.
 // Narrow screens: tapping an event expands its record in place.
 //
@@ -54,7 +54,7 @@ export function EvidenceBody({ doc, compact = false }) {
   );
 }
 
-// The record behind a card, opened right where the person is (no scrolling to somewhere else on the page).
+// The record behind a card, opened right where the person is (no scrolling somewhere else on the page).
 export function EvidenceDialog({ doc, onClose }) {
   const ref = useRef(null);
   const { t } = useT();
@@ -115,7 +115,7 @@ export default function ThreadExplorer({
   const [geo, setGeo] = useState({ y: 0, x: 0, nodeY: 0, w: 0, ready: false });
   const [revealed, setRevealed] = useState(false); // the panel and tether appear once the thread has finished drawing
 
-  // Place the panel beside the active node and stretch the tether between them. Transforms only.
+  // Puts the panel beside the active node and stretches the tether between them. Transforms only.
   const measure = () => {
     const wrap = wrapRef.current, pnl = panelRef.current, node = nodes.current[shownId];
     if (!sideBySide || !wrap || !pnl || !node) return;
@@ -155,7 +155,7 @@ export default function ThreadExplorer({
     const io = new IntersectionObserver(([e]) => {
       if (!e.isIntersecting) return;
       io.disconnect();
-      // The entrance moves events by 14px; measure again once they have settled so the tether lines up exactly.
+      // The entrance moves events by 14px, so measure again once they settle to line the tether up exactly.
       tl = gsap.timeline({ defaults: { ease: "power3.out" }, onComplete: () => { measureRef.current?.(); setRevealed(true); } });
       evs.forEach((ev, i) => {
         const seg = ev.querySelector(".mt-th-seg");

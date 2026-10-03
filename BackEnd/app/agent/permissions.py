@@ -1,10 +1,10 @@
-"""AgentPermissionManager: role + ownership + share-scope checks. Runs before every tool handler.
+"""Role, ownership and share scope checks. Runs before every tool handler.
 
 The model never decides permissions. A tool is allowed only if:
-  1. the caller's role is in the tool's `roles`,
-  2. the role is granted the tool's permission string,
-  3. for doctors, an ACTIVE CareLink to the patient exists (re-checked on every call, so a revoke bites at once),
-  4. the share scope (full / labs / medicines) covers the data the tool reads.
+1. the caller's role is in the tool's `roles`
+2. the role has the tool's permission string
+3. for doctors, an ACTIVE CareLink to the patient exists (checked on every call, so a revoke works at once)
+4. the share scope (full / labs / medicines) covers the data the tool reads
 """
 from __future__ import annotations
 

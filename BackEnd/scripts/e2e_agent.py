@@ -1,6 +1,6 @@
-"""End-to-end check of both agents against a RUNNING server (default http://localhost:8080 = the Docker stack).
-Uses real Gemini for reading the two test images, real Postgres/Redis, real vault. Creates throwaway `smoke-` accounts;
-they are removed at the end.
+"""End to end check of both agents against a RUNNING server (default http://localhost:8080, the Docker stack).
+Uses real Gemini to read the two test images, real Postgres/Redis and the real vault. Makes throwaway `smoke-` accounts
+and removes them at the end.
 
 Run: cd BackEnd && ./venv/bin/python scripts/e2e_agent.py [base_url]
 """

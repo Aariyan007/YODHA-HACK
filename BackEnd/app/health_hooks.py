@@ -1,12 +1,12 @@
 """What runs after any new health data is saved (upload, import, visit, home reading, seed).
 
-One place so every path gets the same checks:
-  1. trend alerts (app/trends.py)
-  2. danger checks over the whole record (app/risk.py)
-  3. a Telegram message for a NEW emergency, to the patient's own chat and the family chat
+One place, so every path gets the same checks:
+1. trend alerts (app/trends.py)
+2. danger checks over the whole record (app/risk.py)
+3. a Telegram message for a NEW emergency, to the patient's own chat and the family chat
 
-Telegram goes only to chats saved in this patient's reminder settings, never to the
-server default, so one patient's news never reaches another patient's phone.
+Telegram only goes to chats saved in this patient's reminder settings, never the server default, so one patient's
+news never reaches another patient's phone.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from .trends import check_trends
 
 
 def patient_chats(db: Session, patient_id: str, family: bool = False) -> list[str]:
-    """Telegram chats this patient has turned on. family=True adds the family chat."""
+    """Telegram chats this patient turned on. family=True adds the family chat."""
     s = db.get(ReminderSettings, patient_id)
     if s is None or not s.channel_telegram:
         return []
@@ -32,7 +32,7 @@ def patient_chats(db: Session, patient_id: str, family: bool = False) -> list[st
 
 
 def send_later(chats: list[str], message: str) -> None:
-    """Fire-and-forget so a slow Telegram never holds up an HTTP response."""
+    """Fire and forget, so a slow Telegram never holds up an HTTP response."""
     if not chats or not telegram.ready():
         return
 
@@ -48,7 +48,7 @@ def notify_patient(db: Session, patient_id: str, message: str, family: bool = Fa
 
 
 def after_new_data(db: Session, patient_id: str) -> list[dict]:
-    """Run trend + risk checks. Returns the trend alerts touched (for upload results). Does not commit."""
+    """Runs trend and risk checks. Returns the trend alerts touched (for upload results). Doesn't commit."""
     try:
         from . import store
         store.delete_prefix(f"hc:{patient_id}:")  # the cached health review is for the old record

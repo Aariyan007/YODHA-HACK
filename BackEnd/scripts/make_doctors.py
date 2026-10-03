@@ -1,8 +1,7 @@
-"""Write BackEnd/data/doctors.json: a FICTIONAL, Kerala-heavy doctor directory for the demo.
+"""Writes BackEnd/data/doctors.json: a FICTIONAL, Kerala heavy doctor directory for the demo.
 
-Every name, clinic, phone number and review is made up. Coordinates are real town
-centres with a small random offset so pins do not stack. Seeded, so re-running gives
-the same file.
+Every name, clinic, phone number and review is made up. Coordinates are real town centres with a small random
+offset so pins don't stack. It's seeded, so running it again gives the same file.
 
     cd BackEnd && ./venv/bin/python scripts/make_doctors.py
 """
@@ -17,7 +16,7 @@ OUT = Path(__file__).resolve().parents[1] / "data" / "doctors.json"
 FRONT = Path(__file__).resolve().parents[2] / "Frontend" / "src" / "data" / "doctors.sample.json"
 rng = random.Random(2026)
 
-# (town, district, state, lat, lng, weight) — weight = how many practices to place there.
+# (town, district, state, lat, lng, weight), weight = how many practices to put there.
 KERALA = [
     ("Kochi", "Ernakulam", "Kerala", 9.9312, 76.2673, 7), ("Kakkanad", "Ernakulam", "Kerala", 10.0159, 76.3419, 3),
     ("Edappally", "Ernakulam", "Kerala", 10.0261, 76.3083, 3), ("Aluva", "Ernakulam", "Kerala", 10.1076, 76.3516, 2),
@@ -128,7 +127,7 @@ _DECK: list[str] = []
 
 
 def pick_specialty(i: int, town_slots: int) -> str:
-    """First practice in every town is a GP; the rest come from a shuffled, weighted deck of other specialties."""
+    """The first practice in every town is a GP, the rest come from a shuffled, weighted deck of other specialties."""
     if i == 0:
         return "General Physician"
     if not _DECK:

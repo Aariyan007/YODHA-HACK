@@ -1,18 +1,18 @@
 // MediThread design-system primitives.
 //
-// Chapter   a full-bleed band of the page with its own tone, a numbered label and a serif title.
-//           The PAGE is part of the design: tone changes tell the reader a new section started.
-// RV        reveal-on-scroll wrapper (opacity + translateY), once, observer based.
+// Chapter   a full width band of the page with its own tone, a numbered label and a serif title.
+// The PAGE is part of the design: a change of tone tells the reader a new section started.
+// RV        reveal on scroll wrapper (opacity + translateY), once, observer based.
 // useMedia  responsive hook for layout decisions that CSS alone cannot make.
 // threadLink  tiny store that links a document preview to its node in the Health Thread.
 //
 // Reveal uses IntersectionObserver + GSAP instead of ScrollTrigger positions: pages here load data late, and
-// ScrollTrigger start positions go stale whenever content above them changes height. Observers do not.
+// ScrollTrigger start positions go stale whenever the content above changes height. Observers don't.
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { gsap } from "gsap";
 import { reducedMotion } from "../anim.js";
 
-// ── scroll reveal ───────────────────────────────────────────────────────────
+// -- scroll reveal --
 export function useRevealOnView(ref, { y = 20, stagger = 0.08, duration = 0.6, delay = 0, selector = null } = {}) {
   useLayoutEffect(() => {
     const el = ref.current;
@@ -40,19 +40,17 @@ export function useRevealOnView(ref, { y = 20, stagger = 0.08, duration = 0.6, d
   return ref;
 }
 
-/** Reveal one element, or (with `stagger`) its direct children one after another. */
+/* Reveals one element, or (with `stagger`) its direct children one after another. */
 export function RV({ as: Tag = "div", children, className = "", stagger = 0, selector, y, delay, ...rest }) {
   const ref = useRef(null);
   useRevealOnView(ref, { selector: stagger ? selector || ":scope > *" : null, stagger: stagger || 0, y, delay });
   return <Tag ref={ref} className={className} {...rest}>{children}</Tag>;
 }
 
-// ── Chapter ─────────────────────────────────────────────────────────────────
-/**
- * tone: "ground" (page colour) | "soft" (soft sage region) | "warm" (warm white) | "neutral" (quiet grey-green)
- * last: the final chapter of a page (the band runs to the bottom edge).
- * no:   "01" style chapter number; kicker: small label; title: serif heading; aside: right-aligned slot (links).
- */
+// -- Chapter --
+/* tone: "ground" (page colour) | "soft" (soft sage region) | "warm" (warm white) | "neutral" (quiet grey green)
+last: the final chapter of a page (the band runs to the bottom edge)
+no: "01" style chapter number, kicker: small label, title: serif heading, aside: right aligned slot (links) */
 export function Chapter({ no, kicker, title, aside, tone = "ground", id, className = "", children, last = false }) {
   return (
     <section id={id} className={`mt-chapter t-${tone}${last ? " last" : ""} ${className}`}>
@@ -75,7 +73,7 @@ export function Chapter({ no, kicker, title, aside, tone = "ground", id, classNa
   );
 }
 
-// ── responsive hook ─────────────────────────────────────────────────────────
+// -- responsive hook --
 export function useMedia(query) {
   const get = () => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia(query).matches : false);
   const [match, setMatch] = useState(get);
@@ -89,7 +87,7 @@ export function useMedia(query) {
   return match;
 }
 
-// ── document <-> thread link ────────────────────────────────────────────────
+// -- document <-> thread link --
 let activeDoc = null;
 const subs = new Set();
 export const threadLink = {
@@ -107,5 +105,5 @@ export const threadLink = {
 };
 export const useLinkedDoc = () => useSyncExternalStore(threadLink.subscribe, threadLink.get, () => null);
 
-/** An arrow that slides forward when its parent link / button is hovered or focused (CSS does the movement). */
+/* An arrow that slides forward when its parent link or button is hovered or focused (CSS does the movement). */
 export const Arrow = () => <span className="mt-arrow" aria-hidden="true">→</span>;

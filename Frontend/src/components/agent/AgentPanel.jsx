@@ -16,7 +16,7 @@ import AgentInput from "./AgentInput.jsx";
 import AgentProcessing from "./AgentProcessing.jsx";
 import AgentResult from "./AgentResult.jsx";
 
-// The expanded Agent: a small workspace that grows out of the launcher's corner.
+// The open Agent: a small workspace that grows out of the launcher's corner.
 export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
   const navigate = useNavigate();
   const ref = useRef(null);
@@ -31,10 +31,10 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
-  // Moving to another page while open: the agent stays, its context updates, and any old result is cleared.
+  // When you move to another page while it's open, the agent stays, its context updates and any old result is cleared.
   useEffect(() => { setView({ kind: "home" }); }, [ctx.id]);
 
-  // Open and close. Transform and opacity only, from the bottom-right corner where the launcher sits.
+  // Open and close. Transform and opacity only, from the bottom right corner where the launcher sits.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -79,7 +79,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     });
   };
 
-  // Typed requests go to the Agent Engine on the server (planner -> permitted tools -> verified result).
+  // Typed requests go to the Agent Engine on the server (planner, allowed tools, checked result).
   // The offline build and doctor pages have no patient engine, so they keep the local actions.
   const submit = async (text) => {
     if (!api.ready) return ctx.doctor ? noPatient() : localAnswer(text);
@@ -89,7 +89,7 @@ export default function AgentPanel({ open, ctx, onClose, onExited, id }) {
     try {
       let r = await api.chat(text, conv.current, fileId.current);
       conv.current = r.conversationId || conv.current;
-      // A slow job (reading a file) runs on the server as a task; follow its steps until it settles.
+      // A slow job (reading a file) runs on the server as a task. Follow its steps until it finishes.
       for (let n = 0; r.status === "running" && n < 90 && alive.current; n++) {
         await new Promise((ok) => setTimeout(ok, 1000));
         const t = await api.task(r.taskId);

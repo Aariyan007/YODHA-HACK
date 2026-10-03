@@ -1,11 +1,7 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 
-/**
- * MediThread Startup Screen — Warm White + Muted Sage
- * No dark backgrounds. No cyan. No neon.
- * A thin sage thread draws, wordmark resolves, then fades to the app.
- */
+/* MediThread startup screen: warm white and muted sage. A thin sage thread draws, the wordmark appears, then it fades into the app. */
 export default function StartupScreen({ onDone }) {
   const rootRef = useRef(null);
   const svgRef  = useRef(null);

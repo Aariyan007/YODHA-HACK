@@ -1,4 +1,4 @@
-"""AgentToolRegistry: the only way the agent can act. Unregistered tool names never run."""
+"""The only way the agent can act. Tool names that aren't registered never run."""
 from __future__ import annotations
 
 from .types import ToolSpec

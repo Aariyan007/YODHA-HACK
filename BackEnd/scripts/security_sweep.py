@@ -1,13 +1,12 @@
-"""Security checks against a RUNNING server (Phase 6). Prints PASS/FAIL per check.
+"""Security checks against a RUNNING server. Prints PASS/FAIL for each check.
 
     cd BackEnd && ./venv/bin/python scripts/security_sweep.py          # server on :8000
     BASE_URL=... ./venv/bin/python scripts/security_sweep.py
 
-Checks: every /api/patients/* route answers 401 with no token (and with a junk
-token); fake and expired share tokens give 404/410; uploads over 10 MB (413) and
-types other than jpg/png/webp/pdf (415) are refused; CORS never answers "*" and
-does not echo a foreign origin; the demo-only routes are 404 unless DEMO_MODE=true.
-An expired share link is created straight in the database and deleted again.
+Checks: every /api/patients/* route gives 401 with no token (and with a junk token), fake and expired share tokens
+give 404/410, uploads over 10 MB (413) and types other than jpg/png/webp/pdf (415) are refused, CORS never answers "*"
+and doesn't echo a foreign origin, and the demo only routes are 404 unless DEMO_MODE=true.
+An expired share link is made straight in the database and deleted again.
 """
 from __future__ import annotations
 

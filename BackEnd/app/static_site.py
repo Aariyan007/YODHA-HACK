@@ -1,8 +1,9 @@
-"""Optional: serve the built React app from this same process (single-service hosting such as Render).
+"""Optional: serves the built React app from this same process (single service hosting like Render).
 
-Turned on only when a folder with index.html exists (STATIC_DIR, default /app/static). With the Docker stack nginx serves the
-frontend instead, so nothing here is active there. Same origin means no CORS and the job event stream (SSE) reaches the API
-directly. API paths are never answered with the page: an unknown /api/... is a plain 404."""
+Only on when a folder with index.html exists (STATIC_DIR, default /app/static). In the Docker stack nginx serves the
+frontend, so nothing here is active. Same origin means no CORS, and the job event stream (SSE) reaches the API directly.
+API paths never get the page back: an unknown /api/... is a plain 404.
+"""
 from __future__ import annotations
 
 import os

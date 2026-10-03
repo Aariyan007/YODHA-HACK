@@ -1,11 +1,11 @@
-// Distinct component types for the patient's home (and reused by other pages).
+// Separate component types for the patient's home (and reused by other pages).
 // None of these is "a card": each has its own structure and visual weight.
 //   InsightHero      the dominant statement on the page
-//   HealthSnapshot   one tinted column of four differently shaped measurements, divided by lines
-//   ChangeBlock      an editorial data block: one large change, then compact rows with sparklines
+// HealthSnapshot   one tinted column of four differently shaped measurements, split by lines
+// ChangeBlock      an editorial data block: one big change, then compact rows with sparklines
 //   AttentionItem    a compact row with a severity rule
 //   CareLoop         today's care as nodes on a thread
-//   DocumentPreview  a paper-like preview linked to its node in the Health Thread
+// DocumentPreview  a paper like preview linked to its node in the Health Thread
 //   ActionPanel      a quiet dashed call to action
 import { useState } from "react";
 import { EvidenceDialog } from "./ThreadExplorer.jsx";
@@ -21,7 +21,7 @@ const SparkMark = () => (
   </svg>
 );
 
-// ── InsightHero ─────────────────────────────────────────────────────────────
+// -- InsightHero --
 export function InsightHero({ review, deltas = [], openCount = 0, loading = false }) {
   const { lang, pick } = useT();
   const ml = lang === "ml";
@@ -63,12 +63,12 @@ export function InsightHero({ review, deltas = [], openCount = 0, loading = fals
   );
 }
 
-// ── HealthSnapshot ──────────────────────────────────────────────────────────
+// -- HealthSnapshot --
 export function HealthSnapshot({ insights, timeline = [], openCount = 0, doses }) {
   const { t, lang } = useT();
   const ml = lang === "ml";
   const series = insights?.series || [];
-  // The headline measurement: HbA1c if there is one, else any other test with a history. Never BP, which has its own row.
+  // The headline measurement: HbA1c if there is one, else any other test with a history. Never BP, it has its own row.
   const primarySeries = series.find((s) => s.code === "hba1c")
     || series.find((s) => !["sbp", "dbp"].includes(s.code) && s.points?.length > 1);
   const primary = lastChange(primarySeries);
@@ -121,7 +121,7 @@ export function HealthSnapshot({ insights, timeline = [], openCount = 0, doses }
   );
 }
 
-// ── ChangeBlock ─────────────────────────────────────────────────────────────
+// -- ChangeBlock --
 export function ChangeBlock({ deltas = [], review }) {
   const { lang } = useT();
   const ml = lang === "ml";
@@ -170,7 +170,7 @@ export function ChangeBlock({ deltas = [], review }) {
   );
 }
 
-// ── AttentionItem / OpenItems ───────────────────────────────────────────────
+// -- AttentionItem / OpenItems --
 export function AttentionItem({ a }) {
   const { pick } = useT();
   return (
@@ -210,7 +210,7 @@ export function OpenItems({ alerts = [], limit = 4 }) {
   );
 }
 
-// ── CareLoop ────────────────────────────────────────────────────────────────
+// -- CareLoop --
 export function CareLoop({ doses, openCount = 0, followUp }) {
   const { lang } = useT();
   const ml = lang === "ml";
@@ -242,7 +242,7 @@ export function CareLoop({ doses, openCount = 0, followUp }) {
   );
 }
 
-// ── DocumentPreview ─────────────────────────────────────────────────────────
+// -- DocumentPreview --
 export function DocumentPreview({ doc, onOpen }) {
   const { t } = useT();
   const figs = docFigures(doc);
@@ -307,7 +307,7 @@ export function DocumentStrip({ docs = [], limit = 3, addTo = "/upload" }) {
   );
 }
 
-// ── ActionPanel ─────────────────────────────────────────────────────────────
+// -- ActionPanel --
 export function ActionPanel({ to, title, text }) {
   return (
     <Link to={to} className="mt-action">

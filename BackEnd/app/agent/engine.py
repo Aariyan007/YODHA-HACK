@@ -1,10 +1,10 @@
-"""AgentEngine: Intent -> Context -> Plan -> Tools -> Evidence -> Action -> Verification -> Result.
+"""The agent engine: intent, context, plan, tools, evidence, action, verify, result.
 
-One engine, two agents (patient, doctor). The difference is only the context built by the router and the tools the
-registry exposes for that role. The model never touches the DB: it can only propose registered tool calls.
+One engine, two agents (patient and doctor). The only differences are the context the router builds and the tools
+the registry exposes for that role. The model never touches the DB, it can only propose registered tool calls.
 
-Every multi-step request is an AgentTask. Steps run in order and stop at the first failure or at the first step that
-needs the person's confirmation; /confirm resumes the rest.
+Every multi-step request is an AgentTask. Steps run in order and stop at the first failure, or at the first step
+that needs the person's confirmation. /confirm picks up the rest.
 """
 from __future__ import annotations
 
@@ -79,12 +79,12 @@ class AgentEngine:
                     "evidence": [], "confirmation": None, "disclaimer": None}
         return self._run(ctx, task, plan.intent, conv, plan.source)
 
-    # ------------------------------------------------------------------ the agent loop (LLM chooses tools, code runs them)
+    # ------------ the agent loop (the LLM picks tools, code runs them)
     def _agent_start(self, ctx: AgentContext, text: str, history: list[dict], conv: str) -> dict | None:
         task = tasks.create(ctx, "agent", [])
         task.result = {"userText": text[:300], "planSource": "llm"}
         ctx.db.commit()
-        if ctx.file_id:  # reading a file is slow: the whole loop runs in the background and the UI follows the steps
+        if ctx.file_id:  # reading a file is slow, so the whole loop runs in the background and the UI follows the steps
             snap = dict(role=ctx.role, actor_id=ctx.actor_id, actor_name=ctx.actor_name, patient_id=ctx.patient_id, scope=ctx.scope,
                         lang=ctx.lang, conversation_id=conv, file_id=ctx.file_id, request_id=ctx.request_id, session=dict(ctx.session))
             tid = task.id
@@ -92,7 +92,7 @@ class AgentEngine:
             return {"taskId": tid, "status": "running", "intent": "agent", "conversationId": conv, "planSource": "llm",
                     "blocks": [block("progress", taskId=tid)], "steps": [], "evidence": [], "confirmation": None, "disclaimer": None}
         out = self._agent_loop(ctx, task, text, history, conv)
-        if out is None:  # the model was unavailable or rate-limited before doing anything: let the rules answer instead
+        if out is None:  # the model was down or rate limited before doing anything, let the rules answer
             ctx.db.delete(task)
             ctx.db.commit()
         return out
@@ -124,7 +124,7 @@ class AgentEngine:
         by_fn = {loop.fn_name(s.name): s for s in specs}
         defs = loop.tool_defs(specs)
         msgs: list[dict] = [{"role": "system", "content": loop.system_prompt(ctx.role, ctx.session)}]
-        for h in history[-3:]:  # earlier turns, so "same but 1 hour" or "no, the other one" make sense (capped: every turn is re-sent each round)
+        for h in history[-3:]:  # earlier turns so 'same but 1 hour' or 'no, the other one' make sense (capped, every turn is re-sent each round)
             msgs += [{"role": "user", "content": h["u"][:300]}, {"role": "assistant", "content": h["a"][:400]}]
         user = text + (f"\n(The person attached a file; its id is {ctx.file_id}. Read it with documents_extract first.)" if ctx.file_id else "")
         msgs.append({"role": "user", "content": user})
@@ -133,8 +133,8 @@ class AgentEngine:
         ran_tools: list[str] = []
         wants_more = loop.may_chain(text)
         for rnd in range(loop.MAX_ROUNDS):
-            # The tool list is about 2,500 tokens and is re-sent every round. After the first round a simple question only needs the
-            # reply, so leave the tools out unless the request has several parts or the tools run so far lead on to another one.
+            # The tool list is about 2,500 tokens and gets re-sent every round. After the first round a simple question
+            # only needs the reply, so leave the tools out unless the request has several parts or the tools so far lead to another one.
             offer = defs if (rnd == 0 or wants_more or any(n in loop.CHAINS for n in ran_tools)) else []
             turn = self.llm.chat_tools(msgs, offer)
             if turn is None:
@@ -146,7 +146,7 @@ class AgentEngine:
                 if not reply and not ran:
                     return None  # the model produced nothing usable: let the rules answer
                 if reply and not retried and not loop.reply_ok(reply, evidence_text):
-                    # one polite retry: the usual cause is an outside number (a guideline target) that is not in the record
+                    # one polite retry, usually it's an outside number (a guideline target) that isn't in the record
                     retried = True
                     msgs += [{"role": "assistant", "content": reply},
                              {"role": "user", "content": "Rewrite your answer using only facts and numbers that appear in the tool results. No guidelines, targets, diagnoses or medicine advice."}]
@@ -163,11 +163,11 @@ class AgentEngine:
                     args = args if isinstance(args, dict) else {}
                 except ValueError:
                     args = {}
-                if spec is not None:  # the model sometimes adds arguments a tool does not have (a date for 'doses today'): keep only real ones
+                if spec is not None:  # the model sometimes adds arguments a tool doesn't have (a date for 'doses today'), keep only the real ones
                     allowed = (spec.input_schema or {}).get("properties", {})
                     args = {k: v for k, v in args.items() if k in allowed and v is not None}
                 key = (c["name"], json.dumps(args, sort_keys=True))
-                if key in done:  # the model asked for exactly what it already has: do not run (or audit) it again
+                if key in done:  # the model asked for exactly what it already has, don't run (or audit) it again
                     msgs.append({"role": "tool", "tool_call_id": c["id"], "content": done[key]})
                     continue
                 called.append(f"{c['name']}({(c['arguments'] or '')[:120]})")
@@ -192,18 +192,18 @@ class AgentEngine:
                 break
         cards, ev, conf = loop.to_blocks(results)
         if not results and not loop.reply_ok(reply, evidence_text):
-            return None  # the model answered about the record without using a tool, so its words cannot be trusted: let the rules answer
+            return None  # the model talked about the record without using a tool, so don't trust it, let the rules answer
         if conf:
             reply = loop.fixed_reply(conf)
         elif not loop.reply_ok(reply, evidence_text):
-            reply = ""  # unsafe or unsupported wording is dropped; the real data cards below still show
+            reply = ""  # unsafe or unsupported wording is dropped, the real data cards below still show
         elif results:  # the small judge model has the last word, and can only remove a reply
             supported, _bad = judge.check(self.llm, evidence_text, reply)
             if not supported:
                 log.info("judge removed a reply (%d unsupported claim(s))", len(_bad))
                 reply = ""
         if not reply and not cards and not conf:
-            # The reply was removed and the tools returned only text (no cards): show what the tools said rather than nothing.
+            # The reply was removed and the tools only returned text (no cards), so show what the tools said instead of nothing.
             cards = [b for r in results if r.ok for b in r.blocks if b["type"] == "text"]
         blocks = ([block("text", text=loop.plain(reply))] if reply else []) + cards
         if not blocks:
@@ -216,7 +216,7 @@ class AgentEngine:
         task.result = {**(task.result or {}), **{k: out[k] for k in ("blocks", "evidence", "confirmation", "disclaimer", "steps")}}
         tasks.set_status(ctx.db, task, status if status != "failed" else "failed", None)
         if True:
-            # What the model did (tools + arguments it chose) and the reply that passed the checks: enough for follow-ups.
+            # What the model did (tools and arguments) and the reply that passed the checks. Enough for follow-ups.
             mem = ("[did: " + "; ".join(called) + "] " if called else "") + reply
             self.memory.add_turn(ctx.role, ctx.actor_id, conv, text, mem.strip() or "ok")
         return out
@@ -238,9 +238,9 @@ class AgentEngine:
         finally:
             db.close()
 
-    # ------------------------------------------------------------------ run / resume
+    # ------------ run / resume
     def _run(self, ctx: AgentContext, task, intent: str, conv: str, source: str) -> dict:
-        """Run the task's queued steps from the first unfinished one; return the formatted outcome."""
+        """Runs the task's queued steps from the first unfinished one and returns the formatted result."""
         tasks.set_status(ctx.db, task, "running")
         for i, s in enumerate(task.steps):
             if s["status"] != "queued":
@@ -277,12 +277,12 @@ class AgentEngine:
         task.result = {**(task.result or {}), **{k: out[k] for k in ("blocks", "evidence", "confirmation", "disclaimer", "steps")}}
         ctx.db.commit()
         if task.status in tasks.TERMINAL:
-            # Memory holds the person's own words and the intent label, never text that came out of a record or a document,
-            # so a document cannot plant instructions that the planner later reads as conversation history.
+            # Memory only holds what the person typed and the intent label, never text from a record or document,
+            # so a document can't plant instructions that the planner later reads as chat history.
             self.memory.add_turn(ctx.role, ctx.actor_id, conv, (task.result or {}).get("userText", ""), intent)
         return out
 
-    # ------------------------------------------------------------------ confirmation
+    # ------------ confirmation
     def confirm(self, ctx: AgentContext, cid: str, approve: bool) -> dict:
         task = self._task_waiting_on(ctx, cid)
         r = self.executor.confirm(ctx, cid, approve)

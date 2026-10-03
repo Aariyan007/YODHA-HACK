@@ -1,11 +1,11 @@
-"""AgentExecutor: the single door a tool call goes through.
+"""The single door every tool call goes through.
 
-  unknown tool? -> arguments valid? -> permission? -> confirmation needed? -> handler -> verify -> audit
+  unknown tool? -> arguments valid? -> permission? -> needs confirmation? -> handler -> verify -> audit
 
-The LLM never touches the DB. It names a registered tool with arguments; this module decides whether it runs.
-L3 tools park a pending action in the store and return `needs_confirmation`; only `confirm()` can run them, and only
+The LLM never touches the DB. It names a registered tool with arguments and this decides if it runs.
+L3 tools park a pending action in the store and return `needs_confirmation`. Only confirm() can run them, and only
 for the same actor, patient, tool and arguments that were shown to the person.
-L4 is never executed: such tools may only explain, draft, prepare or flag, so none is registered with a write handler.
+L4 never runs: those tools may only explain, draft, prepare or flag, so none has a write handler.
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ class AgentExecutor:
         except _ToolError as e:
             self.audit.record(ctx, spec, name, "failed", confirmed=confirmed, detail=str(e))
             return ToolResult(False, "failed", name, error=str(e), blocks=[block("error", text=str(e))])
-        except Exception as e:  # handler bug: log the type only (messages can hold record text), tell the person plainly
+        except Exception as e:  # handler bug: log only the type (messages can hold record text) and tell the person plainly
             log.warning("tool %s failed: %s", name, type(e).__name__)
             self.audit.record(ctx, spec, name, "failed", confirmed=confirmed, detail=type(e).__name__)
             return ToolResult(False, "failed", name, error="Something went wrong with that step.",
@@ -76,7 +76,7 @@ class AgentExecutor:
         cid = uuid.uuid4().hex[:16]
         try:
             preview = spec.preview(ctx, args) if spec.preview else None  # what exactly will change, in words
-        except _ToolError as e:  # nothing sensible to confirm (not found, ambiguous): say so instead of asking
+        except _ToolError as e:  # nothing sensible to confirm (not found, ambiguous), say so instead of asking
             self.audit.record(ctx, spec, name, "failed", detail=str(e))
             return ToolResult(False, "failed", name, error=str(e), blocks=[block("error", text=str(e))])
         except Exception:
@@ -108,7 +108,7 @@ class AgentExecutor:
 
 
 class _ToolError(Exception):
-    """Raise from a handler for an expected, plain-language failure (not found, bad input)."""
+    """Raised by a handler for an expected, plain failure (not found, bad input)."""
 
 
 ToolError = _ToolError

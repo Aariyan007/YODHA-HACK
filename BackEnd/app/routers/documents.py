@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api", tags=["documents"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
-# Allowed types, checked by the file's first bytes (the filename and Content-Type are only claims).
+# Allowed types, checked from the file's first bytes (the filename and Content-Type are only claims).
 def detect_type(data: bytes) -> str | None:
     if data.startswith(b"\xff\xd8\xff"):
         return "jpg"
@@ -48,7 +48,7 @@ async def upload_document(
     kind = detect_type(data)
     if kind is None:
         raise HTTPException(415, "This file type is not supported. Please upload a JPG, PNG, WEBP or PDF.")
-    # Name the file by what it really is, so a renamed file cannot pick its own extension.
+    # Name the file by what it really is, so a renamed file can't pick its own extension.
     job_id, from_cache = pipeline.start_job(patient.id, data, f"upload.{kind}")
     return {"jobId": job_id, "cached": from_cache}
 
@@ -71,7 +71,7 @@ def job_status(job_id: str):
 
 @router.get("/jobs/{job_id}/events")
 async def job_events(job_id: str):
-    """SSE stream — no auth, protected by the unguessable job_id."""
+    """SSE stream with no auth, protected by the hard to guess job_id."""
     if job_id not in pipeline.JOBS:
         raise HTTPException(404, "Job not found")
 
@@ -101,7 +101,7 @@ class TriageBody(BaseModel):
     text: str = Field(min_length=1, max_length=600)
 
 
-# Keyword → specialist rules (ported from frontend symptomRules).
+# Keyword to specialist rules (ported from the frontend symptomRules).
 SYMPTOM_RULES = [
     ("chest|breath|palpit|heart", "Cardiologist", "Heart-related symptoms"),
     ("sugar|diabetes|thirst|urination|weight loss|hba1c", "Diabetologist / Endocrinologist", "Possible diabetes-related issue"),
@@ -125,8 +125,9 @@ SPEC_CONF_MIN = 0.50  # below this the model's specialist guess is ignored and t
 
 @router.post("/triage")
 def triage(body: TriageBody):
-    """Which doctor, and how soon. Order: emergency keywords (rules) -> Laya (advisory, can only raise the level)
-    -> specialist keyword rules -> General Physician. Never a diagnosis."""
+    """Which doctor, and how soon. Order: emergency keywords (rules), then Laya (advisory, can only raise the level),
+    then specialist keyword rules, then General Physician. Never a diagnosis.
+    """
     text = body.text.strip()
     low = text.lower()
     rule = emergency_hit(text)

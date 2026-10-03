@@ -1,10 +1,10 @@
-"""Small load test: N people sign up and then browse for a while. Prints requests/s, p50/p95/p99 and errors per route.
+"""Small load test: N people sign up, then browse for a while. Prints requests/s, p50/p95/p99 and errors per route.
 
     docker compose exec -e BASE_URL=http://127.0.0.1:8000 backend python scripts/load_test.py --users 100 --seconds 30
 
-Run it against the backend directly, not through nginx (nginx rate-limits sign-in to 10/min on purpose). It makes accounts
-named smoke-load-*, and removes them with: python scripts/cleanup_test_accounts.py (it deletes every smoke-* test account).
-It never calls the AI-backed routes (upload, agent chat, doctor ask), so it spends no Gemini or Groq quota.
+Run it against the backend directly, not through nginx (nginx limits sign-in to 10/min on purpose). It makes accounts
+named smoke-load-*. Remove them with python scripts/cleanup_test_accounts.py (it deletes every smoke-* test account).
+It never calls the AI routes (upload, agent chat, doctor ask), so it uses no Gemini or Groq quota.
 """
 import argparse, os, random, statistics, threading, time, uuid
 from collections import defaultdict

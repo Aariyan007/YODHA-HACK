@@ -1,7 +1,7 @@
-"""Drug-drug interaction lookup over the DDInter dataset (see scripts/build_ddi.py).
+"""Drug interaction lookup using the DDInter data (built by scripts/build_ddi.py).
 
-If `data/ddi/ddi.sqlite` has not been built, every function says "no data" and the caller falls back to the
-curated rules. This module never invents an interaction: an unknown drug returns None.
+If data/ddi/ddi.sqlite doesn't exist, every function says "no data" and the caller uses the hand-written rules.
+We never make up an interaction. An unknown drug just returns None.
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def available() -> bool:
 
 @lru_cache(maxsize=20000)
 def level(a: str, b: str) -> str | None:
-    """'Major' | 'Moderate' | 'Minor' | 'Unknown', or None when the pair is not in the dataset."""
+    """'Major', 'Moderate', 'Minor' or 'Unknown'. None if the pair isn't in the data."""
     con = _con()
     if con is None:
         return None

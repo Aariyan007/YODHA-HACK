@@ -1,7 +1,7 @@
-"""Demo-mode helpers (Phase 6): reset Ammini to the clean seed, and a deep health check.
+"""Demo mode helpers: reset Ammini to the clean seed, and a deep health check.
 
-Both are exposed only when DEMO_MODE=true (see routers/demo.py). Nothing here
-ever returns or logs a key, token or connection string.
+Both are only exposed when DEMO_MODE=true (see routers/demo.py). Nothing here returns or logs a key, token or
+connection string.
 """
 from __future__ import annotations
 
@@ -24,11 +24,10 @@ SEED_DOC_IDS = {d[0] for d in DOCUMENTS}
 # ---------- reset ----------
 
 def reset_demo() -> dict:
-    """Restore Ammini to the seeded state: 8 records, 3 medicines, 3 alerts, Telegram reminders ON.
-
-    Deletes uploaded, imported and consultation records, sent-dose rows and the
-    in-memory job caches. BackEnd/demo_cache is left alone so re-uploads of the
-    test images still replay instantly.
+    """Puts Ammini back to the seeded state: 8 records, 3 medicines, 3 alerts, Telegram reminders on.
+    
+    Deletes uploaded, imported and consultation records, sent-dose rows and the in-memory job caches.
+    BackEnd/demo_cache is left alone so re-uploading the test images still replays instantly.
     """
     with SessionLocal() as db:
         extra_docs = list(db.scalars(select(Document).where(Document.patient_id == DEMO_ID, Document.id.not_in(SEED_DOC_IDS))))
@@ -42,7 +41,7 @@ def reset_demo() -> dict:
         def wipe(model, key="patient_id"):
             return db.execute(delete(model).where(getattr(model, key) == DEMO_ID)).rowcount or 0
 
-        # Agent files may point at timeline documents (document_id), so they go first; their encrypted bytes go too.
+        # Agent files can point at timeline documents (document_id), so they go first, and their encrypted bytes go too.
         from . import vault
         from .models import AgentAudit, AgentFile, AgentTask
         for sk in db.scalars(select(AgentFile.storage_key).where(AgentFile.patient_id == DEMO_ID)):
@@ -60,7 +59,7 @@ def reset_demo() -> dict:
         deleted["documents"] = wipe(Document)
 
         load_demo(db)
-        # Her settings row is kept (it holds the chat id she saved); just turn the reminders on.
+        # Keep her settings row (it holds the chat id she saved), just turn the reminders on.
         s = db.get(ReminderSettings, DEMO_ID)
         if s is None:
             s = ReminderSettings(patient_id=DEMO_ID, family_name="Joseph")
@@ -113,7 +112,7 @@ def _down(detail: str) -> dict:
 
 
 def _why(e: Exception) -> str:
-    """Class name plus HTTP status if there is one. Never the message (it can echo a URL)."""
+    """Class name plus the HTTP status if there is one. Never the message (it can echo a URL)."""
     code = getattr(e, "code", None) or getattr(e, "status_code", None)
     return f"{type(e).__name__}" + (f" (HTTP {code})" if code else "")
 
@@ -147,7 +146,7 @@ def _gemini() -> dict:
         from ai.extractor import MODELS
         client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=12000))  # Gemini rejects deadlines under 10 s
         last = "no model answered"
-        for model in MODELS[:2]:  # the app falls through the cascade; two tries is enough to know
+        for model in MODELS[:2]:  # the app falls through the model list, two tries is enough to know
             try:
                 client.models.generate_content(model=model, contents="Reply with OK.",
                                                config=types.GenerateContentConfig(max_output_tokens=8))

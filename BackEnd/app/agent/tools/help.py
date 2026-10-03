@@ -1,5 +1,7 @@
-"""'How do I...?' for new users. The agent explains in plain steps, can walk the person through the real screens (a guided tour the
-frontend plays), and says the exact words to type when it can do the job for them. Fixed content: no model, no guessing."""
+"""'How do I...?' for new users. The agent explains in plain steps, can walk the person through the real screens (a
+guided tour the frontend plays), and says the exact words to type when it can do the job for them.
+Fixed content, no model, no guessing.
+"""
 from __future__ import annotations
 
 from ..context import AgentContext

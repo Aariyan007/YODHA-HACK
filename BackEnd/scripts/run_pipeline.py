@@ -1,4 +1,4 @@
-"""Run the full upload pipeline on each test image and print a report."""
+"""Runs the full upload pipeline on each test image and prints a report."""
 from __future__ import annotations
 
 import asyncio

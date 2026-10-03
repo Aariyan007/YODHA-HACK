@@ -1,7 +1,7 @@
 """Tests for the interaction lookup (DDInter) and how ai/safety.py uses it.
 
 Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_ddi.py -v
-Needs data/ddi/ddi.sqlite (python scripts/build_ddi.py); without it the DDInter cases are skipped.
+Needs data/ddi/ddi.sqlite (python scripts/build_ddi.py). Without it the DDInter cases are skipped.
 """
 from __future__ import annotations
 

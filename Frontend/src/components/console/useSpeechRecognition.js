@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/**
- * Thin wrapper around the Web SpeechRecognition API.
- *
- * - supported: true when the browser exposes SpeechRecognition / webkitSpeechRecognition.
- * - listening: whether we are currently listening.
- * - interim: the current interim transcript (not yet "final").
- * - start(): asks for mic permission on first click; begins listening (continuous).
- * - stop(): user-initiated stop; stays stopped until start() is called again.
- * - error: the latest error reason, if any (e.g. "not-allowed", "no-speech").
- *
- * The caller passes onFinal(text, event) — fired once per completed sentence
- * (isFinal=true). The hook auto-restarts the recognizer if it ends while the
- * user still wants to listen (browsers sometimes drop it after silence).
- */
+/* Thin wrapper around the Web SpeechRecognition API.
+
+- supported: true when the browser has SpeechRecognition / webkitSpeechRecognition
+- listening: whether we're listening right now
+- interim: the current interim transcript (not final yet)
+- start(): asks for mic permission on the first click, then listens (continuous)
+- stop(): the user stopped it, stays stopped until start() is called again
+- error: the latest error reason, if any (e.g. "not-allowed", "no-speech")
+
+The caller passes onFinal(text, event), fired once per finished sentence (isFinal=true). The hook restarts the
+recognizer if it ends while the user still wants to listen (browsers sometimes drop it after silence). */
 export function useSpeechRecognition({ onFinal, lang = "en-IN" } = {}) {
   const Ctor = typeof window !== "undefined" &&
     (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -50,7 +47,7 @@ export function useSpeechRecognition({ onFinal, lang = "en-IN" } = {}) {
       }
     };
     rec.onerror = (ev) => {
-      // "no-speech" is normal silence; don't surface to the user as a failure.
+      // "no-speech" is normal silence, don't show it to the user as a failure.
       if (ev.error && ev.error !== "no-speech") setError(ev.error);
     };
     rec.onend = () => {
@@ -58,7 +55,7 @@ export function useSpeechRecognition({ onFinal, lang = "en-IN" } = {}) {
       setListening(false);
       if (wantRef.current) {
         try { rec.start(); setListening(true); }
-        catch { /* already starting; let the browser settle */ }
+        catch { /* already starting, let the browser settle */ }
       }
     };
     return rec;
@@ -73,7 +70,7 @@ export function useSpeechRecognition({ onFinal, lang = "en-IN" } = {}) {
       recRef.current.start();
       setListening(true);
     } catch (e) {
-      // Chrome throws "InvalidStateError" if start() is called twice; ignore.
+      // Chrome throws "InvalidStateError" if start() is called twice, ignore it.
     }
   }, [supported, build]);
 

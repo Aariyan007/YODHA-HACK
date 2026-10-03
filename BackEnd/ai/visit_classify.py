@@ -1,25 +1,25 @@
-"""Classify a finished visit transcript into the parts a clinician cares about.
+"""Sorts a finished visit transcript into the parts a clinician cares about.
 
-Output (always this shape, or None when the AI call fails):
+Output is always this shape, or None if the AI call fails:
     {
-      "complaints": [{"text", "source_lines"}],     what the patient reported
-      "diagnoses":  [{"text", "source_lines"}],     ONLY conditions the doctor said out loud
+      "complaints": [{"text", "source_lines"}],      what the patient reported
+      "diagnoses":  [{"text", "source_lines"}],      only conditions the doctor said out loud
       "medicines":  [{"name", "generic", "action", "dose", "frequency", "timing", "duration",
-                      "instructions", "source_lines"}],   the prescription: start / continue / change / stop
-      "tests":      [{"text", "source_lines"}],     tests or scans the doctor ordered
-      "advice":     [{"text", "source_lines"}],     diet, rest, lifestyle
+                      "instructions", "source_lines"}],    start / continue / change / stop
+      "tests":      [{"text", "source_lines"}],      tests or scans the doctor ordered
+      "advice":     [{"text", "source_lines"}],      diet, rest, lifestyle
       "referrals":  [{"text", "source_lines"}],
       "follow_up":  {"text", "source_lines"} | None,
-      "ignored_lines": [int],                       small talk / non-clinical lines (never used anywhere)
+      "ignored_lines": [int],                        small talk, never used anywhere
       "source": "ai"
     }
 
-The model proposes. Code decides what is kept ("grounding"):
-- every item needs valid transcript line numbers;
-- diagnoses, medicines, tests, advice, referrals and follow-up must cite at least one DOCTOR line;
-- the item must share real words with the lines it cites, so it cannot be invented;
-- dose / frequency / timing / duration are set to None unless the cited words really contain such a cue.
-Missing detail stays missing. This module never diagnoses and never adds a medicine nobody prescribed.
+The model proposes and code decides what stays ("grounding"):
+- every item needs valid transcript line numbers
+- diagnoses, medicines, tests, advice, referrals and follow-up must cite at least one DOCTOR line
+- an item must share real words with the lines it cites, so it can't be invented
+- dose, frequency, timing and duration become None unless the cited words really have that cue
+Missing detail stays missing. This never diagnoses and never adds a medicine nobody prescribed.
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ _SYSTEM = (
     "names exactly as spoken. The transcript may mix English and Malayalam. Return no extra keys."
 )
 
-# A cue must really be present in the cited words before we keep a medicine detail.
+# A cue has to really be in the cited words before we keep a medicine detail.
 _FREQ = re.compile(r"\b(od|bd|bid|tds|tid|qid|qds|hs|sos|prn|once|twice|thrice|daily|nightly|times?|every|weekly|"
                    r"morning|evening|night|bedtime|\d\s*-\s*\d\s*-\s*\d)\b", re.I)
 _TIMING = re.compile(r"\b(food|meal|meals|breakfast|lunch|dinner|bedtime|night|morning|evening|empty\s+stomach|"
@@ -111,10 +111,10 @@ _SENTENCE_END = re.compile(r"[.!?;\n]+")
 
 
 def _own_words(name: str, src: list[int], lines: list[dict], all_names: list[str]) -> str:
-    """The words that belong to ONE medicine: from its name to the next other medicine's name (or sentence end).
-
-    One line often carries several medicines ("Continue Telma 40 mg in the morning. Stop ibuprofen."). Checking
-    cues against the whole line would let one medicine's "morning" justify another medicine's invented timing.
+    """The words that belong to ONE medicine: from its name to the next medicine's name (or the end of the sentence).
+    
+    One line often has several medicines ("Continue Telma 40 mg in the morning. Stop ibuprofen."). Checking cues on the
+    whole line would let one medicine's "morning" justify another medicine's made-up timing.
     """
     others = [n.lower() for n in all_names if n.lower() != name.lower()]
     parts = []
@@ -172,7 +172,7 @@ def _medicine(obj: Any, lines: list[dict], all_names: list[str]) -> dict | None:
 
 
 def validate(raw: Any, lines: list[dict]) -> dict | None:
-    """Turn the model's JSON into the grounded, safe shape. None if it is not even an object."""
+    """Turns the model's JSON into the safe, grounded shape. None if it isn't even an object."""
     if not isinstance(raw, dict) or not lines:
         return None
     out: dict[str, Any] = {"source": "ai"}
@@ -194,14 +194,14 @@ def validate(raw: Any, lines: list[dict]) -> dict | None:
 
 
 def classify(lines: list[dict], active_medicines: list[str] | None = None) -> dict | None:
-    """Classify a visit. Returns None when the AI is unavailable, so callers fall back to the old extraction."""
+    """Classifies a visit. Returns None if the AI is unavailable, so callers use the old extraction."""
     if not lines:
         return None
     context = ""
     if active_medicines:
         context = f"\n(For context only, the patient's current medicines: {', '.join(active_medicines[:20])}.)"
     user = _lines_block(lines) + context
-    # wait_on_limit: this runs once at the end of a visit, so waiting a few seconds for the free-tier limit is fine.
+    # wait_on_limit: this runs once at the end of a visit, so waiting a few seconds for the free tier limit is fine.
     raw = _chat_json(_SYSTEM, user, max_tokens=2000, wait_on_limit=8.0, fallback_model=FALLBACK_MODEL)
     out = validate(raw, lines)
     if out is None:

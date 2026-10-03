@@ -5,7 +5,7 @@ import ThreadExplorer from "../../design/ThreadExplorer.jsx";
 import { MedicationList } from "../../design/medication.jsx";
 import { useT } from "../../i18n.js";
 
-// A health-check risk shown as an open care item (same row design as an alert).
+// A health check risk shown as an open care item (same row design as an alert).
 const riskItem = (r) => ({
   id: `risk-${r.key}`, severity: r.level === "watch" ? "medium" : "high", kind: "risk",
   title: r.title, message: r.message, messageMl: r.messageMl, cta: null,

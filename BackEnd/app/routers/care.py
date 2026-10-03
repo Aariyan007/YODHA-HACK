@@ -1,4 +1,4 @@
-"""Patient side of doctor access: invite codes and who can see the record (Phase 8)."""
+"""Patient side of doctor access: invite codes and who can see the record."""
 from __future__ import annotations
 
 import secrets
@@ -34,7 +34,7 @@ def doctor_row(link: CareLink, user: User) -> dict:
 
 @router.post("/invite")
 def create_invite(patient: Patient = Depends(current_patient), db: Session = Depends(get_db)):
-    """A fresh one-time code. Older unused codes for this patient are removed so only one is live."""
+    """A fresh one time code. Older unused codes for this patient are removed so only one is live."""
     for old in db.scalars(select(InviteCode).where(InviteCode.patient_id == patient.id, InviteCode.used_by.is_(None))):
         db.delete(old)
     code = new_code()
@@ -51,12 +51,12 @@ def my_doctors(patient: Patient = Depends(current_patient), db: Session = Depend
 
 
 def revoke_link(db: Session, patient: Patient, link_id: str) -> User:
-    """Stop a doctor's access (the route and the agent both use it). Raises 404 if it is not this patient's active link."""
+    """Stops a doctor's access (the route and the agent both use it). Raises 404 if it isn't this patient's active link."""
     link = db.get(CareLink, link_id)
     if link is None or link.patient_id != patient.id or link.status != "active":
         raise HTTPException(404, "Doctor not found")
     link.status = "revoked"
-    # Console links this doctor opened stop working at once (consultation calls re-check the share link).
+    # Console links this doctor opened stop working right away (consultation calls re-check the share link).
     db.execute(delete(ShareLink).where(ShareLink.patient_id == patient.id, ShareLink.doctor_user_id == link.doctor_user_id))
     doctor = db.get(User, link.doctor_user_id)
     db.add(AccessLog(patient_id=patient.id, who=patient.name, role="Patient",

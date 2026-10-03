@@ -1,10 +1,9 @@
 """Nearby doctor finder over the FICTIONAL sample directory in BackEnd/data/doctors.json.
 
-Python does the ranking (distance, review-weighted rating, specialty fit, open now,
-language, fee). India only: a location outside India's bounding box falls back to
-the patient's city, then Kochi.
+Python does the ranking (distance, review weighted rating, specialty fit, open now, language, fee). India only: a
+location outside India's bounding box falls back to the patient's city, then Kochi.
 
-The AI layer (ai/doctor_ai.py) only explains and parses; it never invents a doctor.
+The AI part (ai/doctor_ai.py) only explains and parses. It never invents a doctor.
 """
 from __future__ import annotations
 
@@ -19,7 +18,7 @@ from zoneinfo import ZoneInfo
 DATA = Path(__file__).resolve().parents[1] / "data" / "doctors.json"
 IST = ZoneInfo("Asia/Kolkata")
 
-# India's bounding box (mainland + islands, generous). Anything outside is "not in India".
+# India's bounding box (mainland and islands, a bit generous). Anything outside counts as not in India.
 INDIA_BOUNDS = {"south": 6.0, "north": 37.6, "west": 68.0, "east": 97.5}
 DEFAULT_ORIGIN = {"lat": 9.9312, "lng": 76.2673, "label": "Kochi", "source": "default"}
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -108,7 +107,7 @@ def city_coords(name: str | None) -> dict | None:
 def resolve_origin(lat: float | None, lng: float | None, city: str | None,
                    patient_lat: float | None = None, patient_lng: float | None = None,
                    patient_city: str | None = None) -> dict:
-    """Where to measure distance from. Browser location > chosen city > profile > Kochi. India only."""
+    """Where to measure distance from: browser location, then chosen city, then profile, then Kochi. India only."""
     outside = lat is not None and lng is not None and not in_india(lat, lng)
     if lat is not None and lng is not None and in_india(lat, lng):
         return {"lat": lat, "lng": lng, "label": "Your location", "source": "device", "outsideIndia": False}
@@ -135,7 +134,7 @@ def _mins(hhmm: str) -> int:
 
 
 def open_on(doc: dict, day: str, at: datetime | None = None) -> bool:
-    """Open on that day (any hours), or open right now when `at` is given."""
+    """Open on that day (any hours), or open right now if `at` is given."""
     span = (doc.get("hours") or {}).get(day)
     if not span:
         return False
@@ -154,7 +153,7 @@ def closes_at(doc: dict, now: datetime) -> str | None:
 
 
 def bayes_rating(rating: float, reviews: int, prior: float = 4.0, weight: int = 25) -> float:
-    """Rating pulled toward 4.0 when there are few reviews, so 5.0 from 6 reviews does not beat 4.6 from 900."""
+    """Rating pulled toward 4.0 when there are few reviews, so 5.0 from 6 reviews doesn't beat 4.6 from 900."""
     return (rating * reviews + prior * weight) / (reviews + weight)
 
 
@@ -175,7 +174,7 @@ def search(origin: dict, specialty: str | None = None, language: str | None = No
            open_now: bool = False, emergency: bool = False, max_km: float | None = None, max_fee: int | None = None,
            min_rating: float | None = None, teleconsult: bool = False, limit: int = 12,
            now: datetime | None = None) -> dict:
-    """Rank the directory. Returns {results, specialty, relaxed} where relaxed explains any widened filter."""
+    """Ranks the directory. Returns {results, specialty, relaxed}, where relaxed explains any widened filter."""
     now = now or datetime.now(IST)
     today = DAYS[now.weekday()]
     want_day = today if day in (None, "today") else day
@@ -206,7 +205,7 @@ def search(origin: dict, specialty: str | None = None, language: str | None = No
             if open_now and not is_open:
                 continue
             br = bayes_rating(d["rating"], d["reviews"])
-            # Distance matters most in an emergency; otherwise balance it with quality.
+            # Distance matters most in an emergency, otherwise balance it with quality.
             dist_w = 55 if spec == "Emergency" else 34
             parts = {
                 "distance": round(dist_w * math.exp(-dist / (6 if spec == "Emergency" else 12)), 1),
@@ -216,7 +215,7 @@ def search(origin: dict, specialty: str | None = None, language: str | None = No
                 "language": 5 if (language or "Malayalam") in d["languages"] else 0,
             }
             score = round(sum(parts.values()), 1)
-            # At a hospital matched through a department, show the department, not the head doctor's specialty.
+            # For a hospital matched through a department, show the department, not the head doctor's specialty.
             dept = spec if (spec and d["type"] == "hospital" and d["specialty"] != spec
                             and (sm == 1 or spec == "Emergency")) else None
             out.append({**d, "department": dept, "distanceKm": round(dist, 1), "openNow": bool(is_open), "closesAt": closes_at(d, now),
@@ -227,8 +226,8 @@ def search(origin: dict, specialty: str | None = None, language: str | None = No
             out.sort(key=lambda d: (-d["score"], d["distanceKm"]))
         return out
 
-    # Search close first, then widen: a great doctor 180 km away should not beat a good one 5 km away.
-    # Inside the first radius we rank by score; places found by widening are added after, nearest first.
+    # Search close first, then widen: a great doctor 180 km away shouldn't beat a good one 5 km away.
+    # Inside the first radius we rank by score, places found by widening come after, nearest first.
     tiers = [max_km] if max_km is not None else [40.0, 150.0, None]
     results = rank(specialty, tiers[0])
     for radius in tiers[1:]:
@@ -249,7 +248,7 @@ def search(origin: dict, specialty: str | None = None, language: str | None = No
         relaxed.append(f"No {specialty} matched, so General Physicians are shown instead.")
         specialty = "General Physician"
         results = rank(specialty, max_km)
-    # The nearest specialist is far: offer nearby General Physicians to be seen first.
+    # The nearest specialist is far, so offer nearby General Physicians to see first.
     nearby_gp: list[dict] = []
     if results and specialty not in (None, "General Physician", "Emergency") and min(d["distanceKm"] for d in results) > 60:
         nearby_gp = rank("General Physician", 40.0)[:3]
@@ -257,11 +256,11 @@ def search(origin: dict, specialty: str | None = None, language: str | None = No
 
 
 def parse_query(q: str) -> dict:
-    """Python reading of a free-text search. The AI parser (ai/doctor_ai.py) can fill in what this misses."""
+    """Python's reading of a free text search. The AI parser (ai/doctor_ai.py) can fill in what this misses."""
     t = " " + (q or "").lower() + " "
     out: dict = {}
     for w in sorted(SPECIALTY_WORDS, key=len, reverse=True):
-        # Short words must be whole words ("ear" is not in "early"); longer ones are stems ("diabet").
+        # Short words must be whole words ("ear" isn't in "early"), longer ones are stems ("diabet").
         tail = r"(?![a-z])" if len(w) <= 4 else ""
         if re.search(rf"(?<![a-z]){re.escape(w)}{tail}", t):
             out["specialty"] = SPECIALTY_WORDS[w]

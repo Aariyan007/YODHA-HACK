@@ -1,14 +1,12 @@
-"""Hospital record import from a FHIR R4 Bundle (Phase 6).
+"""Hospital record import from a FHIR R4 Bundle.
 
-Reads Patient, Encounter, Observation, Condition, MedicationStatement,
-MedicationRequest (+ Medication) and DiagnosticReport. Any other resource type
-is skipped without failing. Records are mapped onto the same tables as uploads
-and checked with the same rules (status bands, duplicate / allergy / clash,
-trend) and the same Groq summary + Malayalam step.
+Reads Patient, Encounter, Observation, Condition, MedicationStatement, MedicationRequest (+ Medication) and
+DiagnosticReport. Any other resource type is skipped without failing. Records go into the same tables as uploads
+and get the same checks (status bands, duplicate, allergy, clash, trend) and the same Groq summary and Malayalam step.
 
-Dedupe: every timeline card gets a stable `external_id` built from its source
-resources (type, id and a content hash). A card whose id already exists for the
-patient is skipped, so importing the same bundle twice adds nothing.
+Dedupe: every timeline card gets a stable `external_id` built from its source resources (type, id and a content
+hash). If a card with that id already exists for the patient it's skipped, so importing the same bundle twice
+adds nothing.
 """
 from __future__ import annotations
 
@@ -29,7 +27,7 @@ from .schemas import alert_out, document_out
 from .health_hooks import after_new_data
 
 MAX_BYTES = 2 * 1024 * 1024
-MAX_SUMMARIES = 12  # Groq calls are slow; later cards get the plain fallback text
+MAX_SUMMARIES = 12  # Groq calls are slow, so later cards get the plain fallback text
 LOINC_SYS = "loinc.org"
 ICD10_HINT = "icd-10"  # matches .../sid/icd-10, icd-10-cm, icd-10-who, id.who.int/icd10 below
 ACTIVE_MED = {"active", "intended", "on-hold", "draft", "unknown", ""}
@@ -120,7 +118,7 @@ def parse_bundle(raw: bytes) -> dict:
 
 
 def _observations_from(res: dict) -> list[dict]:
-    """One Observation resource -> list of {code, loinc, name, value, unit, date}. BP panels give two."""
+    """One Observation resource becomes a list of {code, loinc, name, value, unit, date}. BP panels give two."""
     date = _date(res.get("effectiveDateTime"), (res.get("effectivePeriod") or {}).get("start"), res.get("issued"))
     out = []
     parts = [res] + [c for c in (res.get("component") or []) if isinstance(c, dict)]
@@ -179,7 +177,7 @@ def import_bundle(patient_id: str, raw: bytes) -> dict:
     bundle = parse_bundle(raw)
     fallback_date = _date(bundle.get("timestamp")) or datetime.now().date().isoformat()
 
-    # Index resources. `refs` lets us resolve "Observation/o1" and "urn:uuid:.." links.
+    # Index the resources. `refs` lets us resolve links like "Observation/o1" and "urn:uuid:..".
     ignored: dict[str, int] = {}
     by_type: dict[str, list[dict]] = {}
     refs: dict[str, dict] = {}

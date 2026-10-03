@@ -1,4 +1,4 @@
-"""Tests for the Laya decision layer and its safety contract. No network, no model: the Laya service is faked.
+"""Tests for the Laya decision layer and its safety rules. No network, no model: the Laya service is faked.
 
 Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_decision.py -v
 """

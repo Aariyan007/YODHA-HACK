@@ -1,6 +1,7 @@
-"""Phase 12-13: Doctor Agent tools. Same registry, same executor, same permission manager: a doctor's agent can only touch a
-patient with an ACTIVE care link (checked on every call). The agent flags and prepares; it never decides. Where two records
-disagree it says "verify" and shows both sources: it never picks one."""
+"""Doctor Agent tools. Same registry, executor and permission manager: a doctor's agent can only touch a patient
+with an ACTIVE care link (checked on every call). The agent flags and prepares, it never decides. Where two records
+disagree it says "verify" and shows both sources, it never picks one.
+"""
 from __future__ import annotations
 
 import re
@@ -191,7 +192,7 @@ def doctor_brief(ctx: AgentContext, args: dict) -> dict:
     return {"data": {"risks": len(hc["risks"])}, "blocks": blocks, "evidence": [_ev(last)] if last else []}
 
 
-# ---------------------------------------------------------------- consultation draft (needs the doctor's approval before saving)
+# ------------ consultation draft (needs the doctor's approval before saving)
 
 @tool("consult.draft_from_notes", "Turn the doctor's typed or dictated notes into a draft visit note (SOAP) with flags. Nothing is saved to the patient's record.",
       {"type": "object", "properties": {"notes": {"type": "string", "minLength": 10, "maxLength": 4000}}, "required": ["notes"], "additionalProperties": False},

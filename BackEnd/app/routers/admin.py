@@ -1,6 +1,7 @@
-"""Operator view: how the agents are being used and whether they are healthy. Admins are the emails in ADMIN_EMAILS.
-Anyone else gets 404 (the page does not exist for them). No record text, tokens or keys are ever returned: counts, tool
-names, statuses, short error types and yes/no flags for which services are configured."""
+"""Operator view: how the agents are used and whether they're healthy. Admins are the emails in ADMIN_EMAILS.
+Anyone else gets 404 (the page doesn't exist for them). No record text, tokens or keys are ever returned: only
+counts, tool names, statuses, short error types and yes/no flags for which services are set up.
+"""
 from __future__ import annotations
 
 import os

@@ -1,4 +1,4 @@
-"""Tiny key-value store. Uses Redis if reachable, else an in-memory dict."""
+"""Tiny key-value store. Uses Redis if it can be reached, else an in-memory dict."""
 import logging
 import os
 import time
@@ -8,7 +8,7 @@ from . import database  # noqa: F401  (loads .env)
 _memory: dict[str, tuple[str, float | None]] = {}
 _redis = None
 KIND = "memory"
-_degraded = False  # True after a Redis error at runtime: we fall back to memory until the next successful call
+_degraded = False  # True after a Redis error at runtime: we use memory until the next successful call
 
 log = logging.getLogger("store")
 
@@ -16,7 +16,7 @@ url = os.getenv("REDIS_URL", "").strip()
 
 
 def _connect(retries: int = 5, wait: float = 1.0) -> None:
-    """Connect to Redis, retrying a few times (in Docker, Redis may be a second behind the backend)."""
+    """Connects to Redis, retrying a few times (in Docker, Redis can be a second behind the backend)."""
     global _redis, KIND
     import redis
 
@@ -41,7 +41,7 @@ else:
 
 
 def _redis_call(fn, fallback):
-    """Run a Redis operation; on any error log once and use the in-memory fallback instead of failing the request."""
+    """Runs a Redis operation. On any error it logs once and uses the in-memory fallback instead of failing the request."""
     global _degraded
     try:
         out = fn()
@@ -101,7 +101,7 @@ def delete(key: str) -> None:
 
 
 def delete_prefix(prefix: str) -> int:
-    """Delete every key that starts with `prefix`. Returns how many were removed."""
+    """Deletes every key that starts with `prefix`. Returns how many were removed."""
     def mem() -> int:
         gone = [k for k in _memory if k.startswith(prefix)]
         for k in gone:

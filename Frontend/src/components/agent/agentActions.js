@@ -1,6 +1,6 @@
 // What each Agent action does in this preview. Nothing here calls a model and nothing is written to the
 // patient's record. Results are built from the patient's own data (see agentData.js). Anything the agent
-// cannot really do yet returns an honest "not connected yet" result instead of invented content.
+// can't really do yet returns an honest "not connected yet" result instead of made up content.
 import { getHealthCheck, listMyDoctors } from "../../api/client.js";
 import { courseOf, deltaList, fmt, longDate, unitText } from "../../design/data.js";
 import { courseText } from "../../design/medication.jsx";
@@ -133,7 +133,7 @@ export async function runAction(id, data) {
   return preview(PREVIEW_TITLES[id] || "This action");
 }
 
-/** A typed request is matched to an action with plain keywords. No model is involved. */
+/* A typed request is matched to an action with plain keywords. No model involved. */
 export function intentFor(text) {
   const t = (text || "").toLowerCase();
   const rules = [

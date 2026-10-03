@@ -1,5 +1,6 @@
-"""Small JSON-schema checker for tool arguments (type, required, enum, min/max, length, no extra keys).
-Tool arguments come from an LLM, so they are treated as untrusted input."""
+"""Small JSON schema checker for tool arguments (type, required, enum, min/max, length, no extra keys).
+Tool arguments come from an LLM, so they count as untrusted input.
+"""
 from __future__ import annotations
 
 from typing import Any

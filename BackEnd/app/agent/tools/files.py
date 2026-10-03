@@ -1,6 +1,7 @@
-"""Phase 7: reading a file the person gave the agent. Extraction (L2: draft, stored on the file row, never on the health
-thread), entities, evidence, summary and comparison with earlier results. All read from the stored extraction, so the
-numbers shown always carry the document line they came from."""
+"""Reading a file the person gave the agent. Extraction (L2: a draft stored on the file row, never on the health
+thread), entities, evidence, summary and comparison with earlier results. All of it reads from the stored extraction,
+so the numbers shown always carry the document line they came from.
+"""
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -15,7 +16,7 @@ from ..executor import ToolError
 from ..registry import tool
 from ..types import L2, block
 
-EXTRACTOR = _gemini_extract  # tests replace this; production uses Gemini
+EXTRACTOR = _gemini_extract  # tests replace this, production uses Gemini
 FILE_ARG = {"type": "object", "properties": {"fileId": {"type": "string", "minLength": 1, "maxLength": 32}},
             "required": ["fileId"], "additionalProperties": False}
 

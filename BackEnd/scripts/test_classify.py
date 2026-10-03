@@ -1,8 +1,8 @@
-"""Visit-classification grounding tests. No network: the model's reply is faked.
+"""Visit classification grounding tests. No network, the model's reply is faked.
 
     cd BackEnd && ./venv/bin/python -W ignore scripts/test_classify.py -v
 
-The model may propose anything. These tests check that code keeps only what the transcript supports.
+The model can propose anything. These tests check that code only keeps what the transcript supports.
 """
 from __future__ import annotations
 
@@ -125,7 +125,7 @@ class Grounding(unittest.TestCase):
 
 
 class FallbackSafety(unittest.TestCase):
-    """The plan-text fallback (used when the AI is rate-limited) must not create wrong prescriptions."""
+    """The plan text fallback (used when the AI is rate limited) must not create wrong prescriptions."""
 
     def setUp(self):
         from app.routers.consultations import _extract_medicines_from_plan
@@ -151,14 +151,14 @@ class FallbackSafety(unittest.TestCase):
         self.assertEqual(pantop["duration"], "14 d")
 
 
-class RateLimitError(Exception):  # same class name the Groq SDK uses; the code matches on the name
+class RateLimitError(Exception):  # same class name the Groq SDK uses, the code matches on the name
     def __init__(self, retry_after=None):
         super().__init__("rate limited")
         self.response = type("R", (), {"headers": {"retry-after": retry_after} if retry_after is not None else {}})()
 
 
 class LimitHandling(unittest.TestCase):
-    """_chat_json: fall back to the other model on a rate limit; wait only for SHORT limits; never wait out a daily one."""
+    """_chat_json: use the other model on a rate limit, wait only for SHORT limits, never wait out a daily one."""
 
     def run_case(self, behaviours, **kw):
         from unittest import mock

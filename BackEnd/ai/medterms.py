@@ -1,13 +1,13 @@
-"""Fix mis-heard medicine names in a transcript line.
+"""Fixes medicine names that speech-to-text heard wrong in a transcript line.
 
-Speech engines are weakest on drug names ("Glycomet" -> "glycum", "clarithromicin"). A wrong drug name in
-a medical record is a safety problem, so this is deliberately conservative:
+Speech engines are weakest on drug names ("Glycomet" becomes "glycum"). A wrong drug name in a medical record
+is a safety problem, so this is careful on purpose:
 
-- It only touches a sentence that sounds like prescribing (a dose, "tablet", "start", "twice daily"...).
-- It only replaces a word that is NOT already a known medicine and is not an ordinary English word.
-- Tier 1 (the patient's own medicines + Indian brands/generics) allows a looser match, but the first
-  three letters must agree. Tier 2 (the DDInter generic list) needs a close spelling match.
-- Every change is reported back as {"from", "to"} so the screen can show it and the doctor can undo it.
+- It only touches sentences that sound like prescribing (a dose, "tablet", "start", "twice daily"...).
+- It only replaces a word that isn't already a known medicine and isn't an ordinary English word.
+- Tier 1 (the patient's own medicines + Indian brands and generics) allows a looser match, but the first three
+  letters must agree. Tier 2 (DDInter generics) needs a close spelling match.
+- Every change comes back as {"from", "to"} so the screen can show it and the doctor can undo it.
   Nothing is changed silently.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ from .safety import BRAND_TO_GENERIC
 
 _DDI_DB = Path(__file__).resolve().parents[1] / "data" / "ddi" / "ddi.sqlite"
 
-# Words that appear in prescribing talk and must never be "corrected" into a drug.
+# Words used in prescribing talk that must never get 'corrected' into a drug.
 _ORDINARY = {
     "daily", "twice", "thrice", "before", "after", "morning", "evening", "night", "dosage", "tablet", "tablets",
     "capsule", "capsules", "syrup", "injection", "weeks", "months", "medicine", "medicines", "medication",
@@ -42,7 +42,7 @@ _WORD = re.compile(r"[A-Za-z][A-Za-z\-]{4,}")
 
 @lru_cache(maxsize=1)
 def _tiers() -> tuple[frozenset[str], frozenset[str]]:
-    """(tier1, tier2). Built once. Tier 1 = Indian brands + their generics; tier 2 = DDInter generics."""
+    """(tier1, tier2), built once. Tier 1 = Indian brands and their generics, tier 2 = DDInter generics."""
     t1 = {w.lower() for w in list(BRAND_TO_GENERIC) + list(BRAND_TO_GENERIC.values())}
     t1 = {w for w in t1 if len(w) >= 5 and re.fullmatch(r"[a-z\-]+", w)}
     t2: set[str] = set()
@@ -73,7 +73,7 @@ def _match(word: str, pool, cutoff: float, need_prefix: bool) -> str | None:
 
 
 def correct(text: str, patient_meds: list[str] | None = None) -> tuple[str, list[dict]]:
-    """Return (text, fixes). fixes = [{"from": heard, "to": medicine}]. Unchanged text when unsure."""
+    """Returns (text, fixes). fixes = [{"from": heard, "to": medicine}]. Text is unchanged when unsure."""
     if not text or not _CONTEXT.search(text):
         return text, []
     t1, t2 = _tiers()

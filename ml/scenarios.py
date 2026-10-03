@@ -1,6 +1,7 @@
 """Scenario table used to generate and describe training messages: (urgency, specialist id, situation).
-Written by hand. The wording of the generated messages comes from an LLM; the LABELS come from this table,
-so every generated row is marked synthetic."""
+Written by hand. The wording of the generated messages comes from an LLM, but the LABELS come from this table,
+so every generated row is marked synthetic.
+"""
 
 SCENARIOS = [
     # ---- emergency

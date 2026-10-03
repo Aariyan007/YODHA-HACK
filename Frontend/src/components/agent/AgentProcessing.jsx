@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { reducedMotion } from "../../anim.js";
 
-// "Working through your health thread": a thread being walked, node by node. Not typing dots.
+// "Working through your health thread": a thread being walked node by node. Not typing dots.
 export default function AgentProcessing({ label }) {
   const ref = useRef(null);
   useEffect(() => {

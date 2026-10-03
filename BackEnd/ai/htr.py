@@ -1,5 +1,6 @@
-"""Client for the optional handwriting reader (htr/, TrOCR). Returns None whenever it is off, slow or failing: it is only ever a
-third reader, never required."""
+"""Client for the optional handwriting reader (htr/, TrOCR). Returns None when it's off, slow or failing.
+It's only ever a third reader and is never required.
+"""
 from __future__ import annotations
 
 import os
@@ -17,7 +18,7 @@ def available() -> bool:
 
 
 def read(image: bytes) -> list[str] | None:
-    """Text lines the reader saw, or None. Three failures in a row switch it off for 5 minutes (circuit breaker)."""
+    """Text lines the reader saw, or None. Three failures in a row turn it off for 5 minutes (circuit breaker)."""
     global _fails, _open_until
     if not available():
         return None
@@ -34,7 +35,7 @@ def read(image: bytes) -> list[str] | None:
 
 
 def seen(name: str, lines: list[str]) -> bool:
-    """Did the third reader see something close to this drug name? (loose: handwriting readers are noisy)"""
+    """Did the third reader see something close to this drug name? Loose match, handwriting readers are noisy."""
     import difflib
     n = "".join(c for c in name.lower() if c.isalnum())
     if len(n) < 3:

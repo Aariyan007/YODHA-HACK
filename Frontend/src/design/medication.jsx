@@ -1,5 +1,5 @@
 // Medication as a timeline and as rows, never as a grid of identical cards.
-// Timing, course and instructions are shown only when the prescription record actually has them.
+// Timing, course and instructions show only when the prescription record really has them.
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { reducedMotion } from "../anim.js";
@@ -21,7 +21,7 @@ export function courseText(c) {
   return `Day ${c.day} of ${c.total}`;
 }
 
-// ── Today ───────────────────────────────────────────────────────────────────
+// -- Today --
 export function MedicationTimeline({ reminders = [], medicines = [], onTake, readOnly = false }) {
   const { t, lang } = useT();
   const ml = lang === "ml";
@@ -76,7 +76,7 @@ export function MedicationTimeline({ reminders = [], medicines = [], onTake, rea
   );
 }
 
-// ── All active medicines, as rows ───────────────────────────────────────────
+// -- All active medicines, as rows --
 export function MedicationList({ medicines = [] }) {
   const { t, lang } = useT();
   const ml = lang === "ml";

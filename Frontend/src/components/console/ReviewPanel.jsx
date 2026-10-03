@@ -4,14 +4,7 @@ import { Loading } from "../ui.jsx";
 import { FlagList } from "./FlagBanner.jsx";
 import { VisitClassification } from "./VisitClassification.jsx";
 
-/**
- * State 3 — Review & edit.
- *
- * On mount: calls /finalize to get the full SOAP note (each field carries its
- * source_line indexes). The doctor edits any of S / O / A / P in-place and
- * approves. We track which fields the doctor edited so the backend can record
- * them in editedFields.
- */
+/* State 3, Review and edit. On mount it calls /finalize to get the full SOAP note (each field has its source_line indexes). The doctor edits any of S / O / A / P in place and approves. We track which fields were edited so the backend can record them in editedFields. */
 export function ReviewPanel({
   consultationId,
   shareToken,

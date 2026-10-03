@@ -1,6 +1,7 @@
-"""Phase 11: patient write actions. Every tool here is L3: the executor parks it, shows the person exactly what will change
-(`preview`), and runs the handler only after /confirm. Each has a `verify` that checks the world afterwards, so "done" is only
-said when it is true. Medicine changes are L4 and have no tool at all (the planner answers them with an explanation)."""
+"""Patient write actions. Every tool here is L3: the executor parks it, shows the person exactly what will change
+(`preview`), and only runs the handler after /confirm. Each has a `verify` that checks afterwards, so "done" is only
+said when it's true. Medicine changes are L4 and have no tool at all (the planner answers with an explanation).
+"""
 from __future__ import annotations
 
 import hashlib
@@ -26,7 +27,7 @@ class _NullBus:
         pass
 
 
-# ---------------------------------------------------------------- add a read file to the health thread
+# ------------ add a file we've read to the health thread
 
 def _extracted(ctx: AgentContext, file_id: str) -> tuple[AgentFile, dict]:
     f = ctx.db.scalar(select(AgentFile).where(AgentFile.id == file_id, AgentFile.patient_id == ctx.patient_id, AgentFile.status.in_(("extracted", "confirmed"))))
@@ -78,7 +79,7 @@ def records_add_from_file(ctx: AgentContext, args: dict) -> dict:
             "evidence": [{"kind": "document", "id": rec["id"], "title": rec["title"], "date": rec["date"]}]}
 
 
-# ---------------------------------------------------------------- sharing: QR / revoke
+# ------------ sharing: QR / revoke
 
 def _share_preview(ctx: AgentContext, args: dict) -> list[dict]:
     scope = args.get("scope", "full")
@@ -99,7 +100,7 @@ def sharing_create(ctx: AgentContext, args: dict) -> dict:
     from ...routers.shares import make_share
     link = make_share(ctx.db, ctx.patient_id, args.get("scope", "full"), args.get("hours", 24))
     ref = share_ref(link.token)
-    # The token is a secret: it is NOT put in the task result, the audit log or the response. The browser fetches it once,
+    # The token is a secret, so it is NOT put in the task result, the audit log or the response. The browser fetches it once,
     # with the person's login, from GET /api/agent/shares/{ref} while this short-lived key exists.
     store.set_value(f"agent:qr:{ctx.patient_id}:{ref}", json.dumps({"url": f"/share/{link.token}", "scope": link.scope, "expiresAt": iso(link.expires_at)}), ttl=15 * 60)
     ctx.db.add(AccessLog(patient_id=ctx.patient_id, who=ctx.actor_name, role="Patient", action=f"Made a {link.scope} share link", via="Agent"))
@@ -173,7 +174,7 @@ def care_revoke_doctor(ctx: AgentContext, args: dict) -> dict:
             "blocks": [block("text", text=f"{user.name} no longer has access to your record.")]}
 
 
-# ---------------------------------------------------------------- care loop: mark a dose taken
+# ------------ care loop: mark a dose taken
 
 def _dose(ctx: AgentContext, args: dict) -> dict:
     from ...routers.patients import build_reminders, today
@@ -205,7 +206,7 @@ def careloop_mark_taken(ctx: AgentContext, args: dict) -> dict:
             "blocks": [block("care_item", key=d["key"], name=d["name"], dose=d["dose"], time=d["time"], taken=True)]}
 
 
-# ---------------------------------------------------------------- log a home reading
+# ------------ log a home reading
 
 READING_FIELDS = {"sbp": "BP top", "dbp": "BP bottom", "pulse": "Pulse", "spo2": "Oxygen", "weight": "Weight", "temp": "Temperature", "sugar": "Sugar"}
 READING_SCHEMA = {"type": "object", "properties": {
@@ -241,7 +242,7 @@ def health_log_reading(ctx: AgentContext, args: dict) -> dict:
     return {"data": {"documentId": rec["id"]}, "target": rec["id"], "ref": rec["id"], "blocks": blocks}
 
 
-# ---------------------------------------------------------------- medicines the person confirms (e.g. unclear handwriting)
+# ------------ medicines the person confirms (e.g. unclear handwriting)
 
 UNCLEAR_PREFIX = "Handwriting unclear: "
 
@@ -272,7 +273,7 @@ def _pick_unclear(ctx: AgentContext, names: list[str] | None) -> list[tuple[str,
 
 
 def _safety(ctx: AgentContext, names: list[str]) -> list[dict]:
-    """The same interaction / allergy / duplicate checks an uploaded prescription gets, for medicines added by hand."""
+    """The same interaction, allergy and duplicate checks an uploaded prescription gets, for medicines added by hand."""
     from ai import safety
     p = ctx.db.get(Patient, ctx.patient_id)
     existing = [{"name": m.name, "generic": m.generic} for m in ctx.db.scalars(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.active.is_(True)))]
@@ -334,7 +335,7 @@ def medications_confirm_unclear(ctx: AgentContext, args: dict) -> dict:
     return {"data": {"added": names}, "_ids": ids, "target": ",".join(ids)[:80], "blocks": blocks}
 
 
-# ---------------------------------------------------------------- set the dose / timing / course of a medicine the person already has
+# ------------ set the dose, timing or course of a medicine the person already has
 
 def _my_med(ctx: AgentContext, name: str) -> Medicine:
     key = (name or "").strip().lower()
@@ -401,7 +402,7 @@ def medications_update(ctx: AgentContext, args: dict) -> dict:
                        block("text", text=f"Updated {m.name}.{when}")]}
 
 
-# ---------------------------------------------------------------- general "how is it usually taken" from a public label (never overwrites the prescription)
+# ------------ general 'how is it usually taken' from a public label (never overwrites the prescription)
 
 def _meds_missing_timing(ctx: AgentContext, names: list[str] | None) -> list[Medicine]:
     meds = list(ctx.db.scalars(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.active.is_(True))))
@@ -469,7 +470,7 @@ def medications_add_usual_timing(ctx: AgentContext, args: dict) -> dict:
             "blocks": [block("text", text="Added as general information: " + "; ".join(lines) + ". Your own prescription instructions were not touched.")]}
 
 
-# ---------------------------------------------------------------- Telegram reminders: save the chat id and switch them on
+# ------------ Telegram reminders: save the chat id and switch them on
 
 def _chat_id(raw: str) -> str:
     from ...routers.reminders import CHAT_ID_RE

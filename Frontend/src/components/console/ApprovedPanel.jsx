@@ -3,13 +3,7 @@ import { TimelineItem } from "../ui.jsx";
 import { LangContext } from "../../i18n.js";
 import { VisitClassification } from "./VisitClassification.jsx";
 
-/**
- * State 4 — Approved.
- *
- * Shows a success message and a preview of what the patient sees on their
- * timeline (reuses TimelineItem). The EN/ML toggle wraps the preview in a
- * local LangContext.Provider so the global app language is not disturbed.
- */
+/* State 4, Approved. Shows a success message and a preview of what the patient sees on their timeline (reuses TimelineItem). The EN/ML toggle wraps the preview in its own LangContext.Provider so the app language isn't disturbed. */
 export function ApprovedPanel({ result, patient, onNewConsultation, onBack }) {
   const [lang, setLang] = useState("en");
   const [speaking, setSpeaking] = useState(false);
@@ -108,11 +102,7 @@ export function ApprovedPanel({ result, patient, onNewConsultation, onBack }) {
   );
 }
 
-/**
- * The record returned by /approve matches the backend timeline shape but with
- * a `summary: {en, ml}` object. TimelineItem reads `summary` + `summaryMl` as
- * flat fields via pick(), so we normalise here.
- */
+/* The record from /approve matches the backend timeline shape but has a `summary: {en, ml}` object. TimelineItem reads `summary` + `summaryMl` as flat fields through pick(), so we normalise here. */
 function toTimelineDoc(rec) {
   return {
     ...rec,

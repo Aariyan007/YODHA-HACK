@@ -1,6 +1,6 @@
-"""Doctor side (Phase 8): link a patient with their invite code, list patients, open a record, start a consultation.
+"""Doctor side: link a patient with their invite code, list patients, open a record, start a consultation.
 
-Every patient route first checks an ACTIVE CareLink and answers 404 otherwise, so a doctor cannot tell
+Every patient route first checks for an ACTIVE CareLink and answers 404 otherwise, so a doctor can't tell
 whether a patient id exists.
 """
 from __future__ import annotations
@@ -85,7 +85,7 @@ def my_patients(doctor: User = Depends(current_doctor), db: Session = Depends(ge
 
 @router.get("/patients/{patient_id}/snapshot")
 def patient_snapshot(patient_id: str, doctor: User = Depends(current_doctor), db: Session = Depends(get_db)):
-    """Same shape as the share snapshot, so the existing read-only record view renders it."""
+    """Same shape as the share snapshot, so the existing read-only record view can show it."""
     patient = _linked_patient(db, doctor, patient_id)
     _log(db, doctor, patient, "Viewed full history")
     db.commit()
@@ -98,7 +98,7 @@ def patient_snapshot(patient_id: str, doctor: User = Depends(current_doctor), db
 
 @router.post("/patients/{patient_id}/console-token")
 def console_token(patient_id: str, doctor: User = Depends(current_doctor), db: Session = Depends(get_db)):
-    """A normal share link (8 h) so the existing consultation console and its X-Share-Token flow are reused."""
+    """A normal share link (8 h), so the existing consultation console and its X-Share-Token flow get reused."""
     patient = _linked_patient(db, doctor, patient_id)
     link = ShareLink(token=secrets.token_urlsafe(16), patient_id=patient.id, scope="full", doctor_user_id=doctor.id,
                      expires_at=datetime.now(timezone.utc) + timedelta(hours=CONSOLE_HOURS))

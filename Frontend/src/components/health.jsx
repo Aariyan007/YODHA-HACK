@@ -17,7 +17,7 @@ export const doctorsLink = (specialty, extra = {}) => {
   return `/doctors?${p.toString()}`;
 };
 
-// ── Emergency banner: always Python-driven, never waits for AI ───────────────
+// -- Emergency banner: always driven by Python, never waits for AI --
 export function EmergencyBanner({ risk }) {
   const { lang, pick } = useT();
   const ref = useRef(null);
@@ -41,7 +41,7 @@ export function EmergencyBanner({ risk }) {
   );
 }
 
-// ── One risk ────────────────────────────────────────────────────────────────
+// -- One risk --
 export function RiskCard({ risk, showFinder = true }) {
   const { lang, pick } = useT();
   const ml = lang === "ml";
@@ -76,7 +76,7 @@ const KIND_ICON = { worse: "↗", better: "↘", steady: "→", missing: "?", in
 // Which review points count as "attention" vs "normal".
 const ATTENTION_KINDS = new Set(["worse", "missing"]);
 
-// ── Health Check review — hierarchy: what it means → what to know → questions ─
+// -- Health Check review: what it means, what to know, questions --
 export function HealthCheckPanel({ data, compact = false }) {
   const { lang, pick } = useT();
   const ml = lang === "ml";
@@ -109,7 +109,7 @@ export function HealthCheckPanel({ data, compact = false }) {
           </span>
           <p className="hc-headline">{pick(review, "headline")}</p>
 
-          {/* WHAT IT MEANS — evidence split into normal / attention */}
+          {/* WHAT IT MEANS: evidence split into normal / attention */}
           {points.length > 0 && (
             <ul className="hc-points">
               {points.map((p, i) => {
@@ -166,7 +166,7 @@ export function HealthCheckPanel({ data, compact = false }) {
   );
 }
 
-// ── "Check yourself": add a reading and see it against your thread ───────────
+// -- "Check yourself": add a reading and see it against your thread --
 const fmtN = (v) => (Math.abs(v) >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10));
 
 // Reading result: today vs previous recorded reading + a small trend.
@@ -175,7 +175,7 @@ function ReadingResult({ today, insights, result, ml }) {
   const prevSeries = (code) => insights?.series?.find((s) => s.code === code)?.points;
   const sugarCode = today.sugar != null ? today.sugarType : null;
 
-  // Build the primary comparison (BP preferred, else first vital that has a prior value).
+  // Builds the main comparison (BP first, else the first vital that has an earlier value).
   const bpSbp = prevLab("sbp"), bpDbp = prevLab("dbp");
   let primary = null;
   if (today.sbp != null && today.dbp != null) {
@@ -224,7 +224,7 @@ function ReadingResult({ today, insights, result, ml }) {
     : primary.lower === false ? (ml ? "നിങ്ങളുടെ പുതിയ റീഡിംഗ് മുൻ രേഖയേക്കാൾ കൂടുതലാണ്." : "Your latest reading is higher than your previous recorded reading.")
     : (ml ? "നിങ്ങളുടെ പുതിയ റീഡിംഗ് മുൻ രേഖയിൽ നിന്ന് വ്യത്യസ്തമാണ്." : "Your latest reading differs from your previous recorded reading.");
 
-  // Reveal the comparison step by step: today → previous → deltas → trend → insight.
+  // Reveals the comparison step by step: today, previous, changes, trend, insight.
   const rrRef = useRef(null);
   useEffect(() => {
     if (!rrRef.current || reducedMotion()) return;

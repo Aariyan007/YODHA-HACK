@@ -1,11 +1,11 @@
-"""Download DDInter (drug-drug interactions) and build BackEnd/data/ddi/ddi.sqlite.
+"""Downloads DDInter (drug interactions) and builds BackEnd/data/ddi/ddi.sqlite.
 
-    cd BackEnd && ./venv/bin/python scripts/build_ddi.py            # download what is missing, then build
+    cd BackEnd && ./venv/bin/python scripts/build_ddi.py            # download what's missing, then build
     ./venv/bin/python scripts/build_ddi.py --no-download            # rebuild from the files already in data/ddi/raw
 
 Source: DDInter 2.0, https://ddinter2.scbdd.com/download/ (Computational Biology & Drug Design Group, CSUT).
-Licence: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (as published for DDInter downloads). Fine for
-this project; do not ship it in a paid product. The downloaded files and the built database are gitignored.
+Licence: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (as published for the DDInter downloads). Fine for
+this project, but don't ship it in a paid product. The downloaded files and the built database are gitignored.
 
 Each CSV row is (DDInterID_A, Drug_A, DDInterID_B, Drug_B, Level) with Level Major / Moderate / Minor / Unknown.
 """

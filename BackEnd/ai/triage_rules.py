@@ -1,8 +1,8 @@
-"""Plain-Python triage rules. They run FIRST, always, and nothing downstream may lower what they decide.
+"""Plain Python triage rules. They always run first and nothing after them may lower what they decide.
 
-- `emergency_hit(text)`: keyword patterns for emergencies in English, Malayalam script and Manglish.
-- `rules_urgency(text)`: emergency / None. (Specialist keywords live in routers/documents.py SYMPTOM_RULES.)
-- `merge_urgency(rules, model, confidence)`: the escalate-only merge used with the Laya classifier.
+- emergency_hit(text): keyword patterns for emergencies in English, Malayalam script and Manglish.
+- rules_urgency(text): emergency or None. (Specialist keywords are in routers/documents.py SYMPTOM_RULES.)
+- merge_urgency(rules, model, confidence): the raise-only merge used with the Laya classifier.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ EMERGENCY_PATTERNS: list[tuple[str, str]] = [
     (r"ഫിറ്റ്സ്|ഫിറ്റ്\s*വന്ന|അപസ്മാരം", "seizure"),
     (r"കുഞ്ഞ്\s*(ശ്വാസം\s*എടുക്കുന്നില്ല|അനങ്ങുന്നില്ല)", "baby not breathing"),
     (r"ജീവിതം\s*അവസാനിപ്പിക്ക|മരിക്കണം|ആത്മഹത്യ", "thoughts of self-harm"),
-    # ---- Manglish (Malayalam in English letters; spellings vary, so patterns are loose)
+    # ---- Manglish (Malayalam in English letters, spellings vary so the patterns are loose)
     (r"nen[jg]?[uc]?\s*vedana|nenju\s*vedhana|nenjil\s*vedana", "chest pain"),
     (r"sh?[wv]?asam\s*(mutt|kitt|edukk)|swasam\s*(mutt|kitt|edukk)", "trouble breathing"),
     (r"mukham\s*kodi|samsaram\s*kuzh|kai\s*thalar", "signs of stroke"),
@@ -59,11 +59,11 @@ def rules_urgency(text: str) -> str | None:
 
 
 def merge_urgency(rules: str | None, model: str | None, confidence: float, *, min_confidence: float = 0.55) -> tuple[str | None, str]:
-    """Escalate-only merge. Returns (level, source) with source in {"rules", "model", "rules+model", "none"}.
-
-    - Rules say emergency: that is final, whatever the model says.
-    - The model may RAISE the level when it is confident enough; it can never lower what the rules decided.
-    - A low-confidence model answer is ignored (source falls back to rules or none).
+    """Raise-only merge. Returns (level, source) where source is "rules", "model", "rules+model" or "none".
+    
+    - Rules say emergency: that's final, whatever the model says.
+    - The model can raise the level if it's confident enough, never lower what the rules decided.
+    - A low-confidence model answer is ignored.
     """
     r = LEVELS.index(rules) if rules in LEVELS else -1
     m = LEVELS.index(model) if (model in LEVELS and confidence >= min_confidence) else -1

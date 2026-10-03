@@ -1,4 +1,4 @@
-"""Turn extractor medicines + follow-up into [{id,title,when,until}] reminders."""
+"""Turns the extracted medicines and follow-up into [{id,title,when,until}] reminders."""
 from __future__ import annotations
 
 import re
@@ -21,12 +21,12 @@ SCHEDULE_TIMES: dict[str, list[str]] = {
 
 
 def parse_schedule(sched: str | None) -> list[str]:
-    """Return clock times from a schedule like BD / 1-0-1 / twice daily."""
+    """Gives clock times from a schedule like BD, 1-0-1 or twice daily."""
     if not sched:
         return []
     s = sched.strip().lower()
 
-    # 1-0-1 style (morning-afternoon-night; optional 4th slot = bedtime)
+    # 1-0-1 style (morning, afternoon, night, optional 4th slot = bedtime)
     m = re.match(r"^(\d)\s*[-x]\s*(\d)\s*[-x]\s*(\d)(?:\s*[-x]\s*(\d))?$", s)
     if m:
         slots = ["08:00", "14:00", "20:00", "22:00"]
@@ -57,7 +57,7 @@ def parse_schedule(sched: str | None) -> list[str]:
 
 
 def parse_duration_days(schedule: str | None, duration: str | None) -> int | None:
-    """x7d / 7 days / 1 week → number of days. None = ongoing."""
+    """x7d, 7 days or 1 week become a number of days. None means ongoing."""
     for src in (duration, schedule):
         if not src:
             continue

@@ -1,4 +1,4 @@
-"""Speech-to-text logic tests. No network, no database writes.
+"""Speech to text logic tests. No network, no database writes.
 
     cd BackEnd && ./venv/bin/python -W ignore scripts/test_stt.py -v
 """

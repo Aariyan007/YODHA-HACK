@@ -1,16 +1,15 @@
-"""End-to-end smoke test against a RUNNING server.
+"""End to end smoke test against a RUNNING server.
 
     cd BackEnd && DEMO_MODE=true ./venv/bin/uvicorn app.main:app --port 8000   # terminal 1
     cd BackEnd && ./venv/bin/python scripts/smoke.py                            # terminal 2
     (BASE_URL=http://host:port to point somewhere else)
 
-Steps: login, upload the prescription test image, check the clash / duplicate
-alerts, play the demo consultation, approve it, check the new timeline record,
-import the FHIR sample (twice, to prove dedupe), upload the lab report to trigger
-the HbA1c trend alert, then POST /api/demo/reset.
-Needs DEMO_MODE=true on the server for the first and last steps. It starts and
-ends by resetting the demo patient, so it WIPES Ammini's uploads, imports and visits.
-Exit code 0 only if every step passes.
+Steps: login, upload the prescription test image, check the clash / duplicate / alerts, play the demo consultation,
+approve it, check the new timeline record, import the FHIR sample (twice, to prove dedupe), upload the lab report to
+trigger the HbA1c trend alert, then POST /api/demo/reset.
+Needs DEMO_MODE=true on the server for the first and last steps. It starts and ends by resetting the demo patient,
+so it WIPES Ammini's uploads, imports and visits.
+Exit code is 0 only if every step passes.
 """
 from __future__ import annotations
 
@@ -67,7 +66,7 @@ def post(path, expect=200, **kw):
 
 
 def upload_and_wait(path: Path) -> tuple[dict, list[str], bool]:
-    """POST the file, follow the SSE stream, return (result, stages, from_cache)."""
+    """POSTs the file, follows the SSE stream, returns (result, stages, from_cache)."""
     up = post("/api/documents", files={"file": (path.name, path.read_bytes(), "image/png")}, headers=auth())
     stages, result = [], None
     with http.stream("GET", f"/api/jobs/{up['jobId']}/events") as s:

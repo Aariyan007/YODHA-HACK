@@ -1,4 +1,4 @@
-"""Sign-in: email + password for patients and doctors (Phase 8). The old phone OTP is demo-only."""
+"""Sign in with email and password for patients and doctors. The old phone OTP is demo only."""
 from __future__ import annotations
 
 import re

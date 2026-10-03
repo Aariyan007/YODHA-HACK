@@ -1,5 +1,6 @@
-"""Phase 4: read-only (L1) and navigation (L2) tools. They wrap the same builders the REST routes use, so the agent sees
-exactly what the app sees. Scope is applied here too: a labs-only share can never read prescriptions through the agent."""
+"""Read-only (L1) and navigation (L2) tools. They use the same builders as the REST routes, so the agent sees exactly
+what the app sees. Scope applies here too: a labs-only share can never read prescriptions through the agent.
+"""
 from __future__ import annotations
 
 import re
@@ -22,12 +23,12 @@ DOC_TYPES = ["lab", "prescription", "consultation", "visit", "scan", "vitals"]
 
 
 def condition_names(p: Patient) -> list[str]:
-    """Conditions are stored as {name, ...} objects (ICD-10 imports add more fields); older rows may be plain strings."""
+    """Conditions are stored as {name, ...} objects (ICD-10 imports add more fields), older rows may be plain strings."""
     return [str(c.get("name")) if isinstance(c, dict) else str(c) for c in (p.conditions or []) if (c.get("name") if isinstance(c, dict) else c)]
 
 
 def share_ref(token: str) -> str:
-    """A handle for a share link that is not the token (safe to show and to log)."""
+    """A handle for a share link that isn't the token (safe to show and log)."""
     import hashlib
     return hashlib.sha256(token.encode()).hexdigest()[:10]
 
@@ -267,7 +268,7 @@ def sharing_active(ctx: AgentContext, args: dict) -> dict:
             "blocks": [block("text", text=text)] + [block("care_item", key=r["ref"], name=f"Share ({r['scope']})", time=r["expiresAt"]) for r in rows]}
 
 
-# ---------------- navigation (L2): the frontend executes the structured action
+# ---------------- navigation (L2): the frontend carries out the structured action
 
 PATIENT_ROUTES = {"/": "Home", "/timeline": "Health thread", "/medicines": "Medicines", "/reminders": "Reminders",
                   "/insights": "Health Check", "/upload": "Add a record", "/sharing": "Sharing", "/doctors": "Doctors",
@@ -283,7 +284,7 @@ ROUTE_WORDS = {"home": "/", "dashboard": "/", "timeline": "/timeline", "thread":
 
 
 def _route(raw: str, routes: dict) -> str | None:
-    """Accept '/sharing', 'sharing', 'Sharing page', 'health thread' and the like; only a known screen of this role comes out."""
+    """Accepts '/sharing', 'sharing', 'Sharing page', 'health thread' and so on. Only a known screen of this role comes out."""
     r = (raw or "").strip().lower().split("?")[0].split("#")[0]
     if r.startswith("http"):
         return None
@@ -291,7 +292,7 @@ def _route(raw: str, routes: dict) -> str | None:
         return "/" + r.strip("/") if r.strip("/") else "/"
     if r in ("/", ""):
         return "/" if "/" in routes else None
-    if r.startswith("/"):  # a path must be exact; only plain words get the friendly mapping
+    if r.startswith("/"):  # a path has to be exact, only plain words get the friendly mapping
         return None
     word = re.sub(r"\b(page|tab|screen|the|my)\b", "", r.replace("/", " ")).strip()
     word = re.sub(r"\s+", " ", word)
@@ -352,7 +353,7 @@ def triage_check(ctx: AgentContext, args: dict) -> dict:
     return {"data": {"urgency": r.get("urgency"), "specialist": r.get("specialist"), "emergency": bool(r.get("urgent"))}, "blocks": blocks}
 
 
-# ---------------------------------------------------------------- medicine safety questions
+# ---------------- medicine safety questions
 
 @tool("medications.check_interactions", "Check the person's current medicines against each other and against their listed allergies for known bad combinations.",
       permission="meds:read", roles=ROLES, audit_category="medications")

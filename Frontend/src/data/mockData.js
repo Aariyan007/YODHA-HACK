@@ -1,4 +1,4 @@
-// Mock API responses. Generated from the real backend, so shapes match exactly.
+// Mock API responses. Generated from the real backend, so the shapes match exactly.
 // Used when VITE_USE_MOCK=true. Keep in sync with BackEnd/app/schemas.py.
 
 export const login = {
@@ -1131,7 +1131,7 @@ export const demoUpload = {
   ]
 };
 
-// Keyword-based triage, mirrors BackEnd/app/routers/documents.py SYMPTOM_RULES.
+// Keyword based triage, same as BackEnd/app/routers/documents.py SYMPTOM_RULES.
 export const symptomRules = [
   { patterns: /chest\s+pain|heart\s+attack/i,   specialist: "Emergency / 108",            why: "Possible chest pain. Call 108 immediately or go to the nearest emergency room.", urgent: true },
   { patterns: /can'?t\s+breathe|short(ness)?\s+of\s+breath|breathless/i, specialist: "Emergency / 108", why: "Possible trouble breathing. Call 108 immediately.", urgent: true },
@@ -1160,7 +1160,7 @@ export function mockTriage(text) {
 }
 
 // ---------- Consultation mocks (Phase 4) ----------
-// 14-line scripted conversation mirrors BackEnd/app/routers/consultations.py DEMO_SCRIPT.
+// 14 line scripted conversation, same as BackEnd/app/routers/consultations.py DEMO_SCRIPT.
 export const consultationScript = [
   ["doctor",  "Hello, how are you feeling today?"],
   ["patient", "Doctor, I have been coughing for 4 days."],
@@ -1273,8 +1273,8 @@ export const mockFinalNote = {
   },
 };
 
-// Sample of what the real backend classifies from the scripted demo conversation above. Every item is
-// grounded in a transcript line (indexes match consultationScript) and details the doctor did not say are null.
+// A sample of what the real backend sorts out of the scripted demo conversation above. Every item is
+// grounded in a transcript line (indexes match consultationScript) and details the doctor didn't say are null.
 export const mockClassification = {
   source: "ai",
   complaints: [

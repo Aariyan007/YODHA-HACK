@@ -1,11 +1,11 @@
 """Laya decision service: a thin HTTP wrapper around the fine-tuned Laya checkpoint.
 
     POST /decide   {"state": {...}, "questions": {...}}  ->  {"answers": {...}, "model": "...", "ms": 12.3}
-    GET  /health   liveness + whether the model is loaded
+    GET  /health   alive, and whether the model is loaded
     GET  /info     model name, evaluation summary and whether the quality gate passed
 
 Config (env): LAYA_MODEL_DIR (default /models/laya), LAYA_FALLBACK=typed-decisions (use the Hub checkpoint if the
-folder is missing; development only), LAYA_API_KEY (optional shared secret), LAYA_MIN_URGENCY_ACC (default 0.80),
+folder is missing, development only), LAYA_API_KEY (optional shared secret), LAYA_MIN_URGENCY_ACC (default 0.80),
 LAYA_MIN_SPECIALIST_ACC (default 0.70). The gate reads <model dir>/eval_report.json, the file ml/eval.py writes.
 """
 from __future__ import annotations

@@ -1,13 +1,12 @@
-"""Groq-powered helpers for the live consultation flow.
+"""Groq helpers for the live consultation.
 
-Three jobs:
-    1. build a partial SOAP note from the live transcript (every 3 lines)
-    2. suggest up to 3 follow-up questions the doctor has not asked yet
-    3. produce the final SOAP note (with source_line indexes) at finalize-time
+Does three things:
+1. builds a rough SOAP note from the transcript (every 3 lines)
+2. suggests up to 3 questions the doctor hasn't asked yet
+3. builds the final SOAP note at finalize, with the source line numbers
 
-All calls are JSON-mode and wrapped in 25 s timeouts. A failure returns an
-empty structure so the endpoint can still respond; it never raises.
-Nothing in this module ever diagnoses — it only re-states what the doctor said.
+Every call has a 25 s timeout. If something fails we return an empty result instead of raising.
+Nothing here diagnoses, it only repeats what the doctor said.
 """
 from __future__ import annotations
 
@@ -18,7 +17,7 @@ from typing import Any
 from groq import Groq
 
 MODEL = "openai/gpt-oss-120b"
-FALLBACK_MODEL = "openai/gpt-oss-20b"  # own quota; used when MODEL is rate-limited (finalize only)
+FALLBACK_MODEL = "openai/gpt-oss-20b"  # own quota, used when MODEL is rate limited (finalize only)
 TIMEOUT_S = 25.0
 
 EMPTY_SOAP = {"subjective": None, "objective": None, "assessment": None, "plan": None}
@@ -28,8 +27,8 @@ def _client() -> Groq:
     key = os.getenv("GROQ_API_KEY")
     if not key:
         raise RuntimeError("GROQ_API_KEY is not set.")
-    # max_retries=0: the SDK would otherwise retry a rate-limited call twice, honouring retry-after, which can
-    # hang a request for a minute (nginx then answers 504). Fail fast and use the fallback; finalize waits explicitly.
+    # max_retries=0 because the SDK would retry a rate limited call twice and wait on retry-after,
+    # which can hang the request for a minute (nginx then gives a 504). Fail fast and use the fallback.
     return Groq(api_key=key, timeout=TIMEOUT_S, max_retries=0)
 
 
@@ -46,13 +45,13 @@ def _retry_after(e: Exception) -> float | None:
 
 def _chat_json(system: str, user: str, max_tokens: int = 900, wait_on_limit: float = 0.0,
                fallback_model: str | None = None) -> dict[str, Any] | None:
-    """Single JSON-mode Groq call. Returns parsed dict or None on any failure.
-
-    Rate limits (the free tier is 8,000 tokens/minute and 200,000 tokens/day per model):
-    - fallback_model: when the main model is rate-limited, try this one right away. It has its own quota.
-    - wait_on_limit > 0: still limited -> wait if Groq says the wait is at most this many seconds (a per-minute
-      limit), then try the main model once more. A daily limit is never waited out; the caller falls back instead.
-    Live per-line calls leave both unset so the doctor's screen never stalls.
+    """One JSON-mode Groq call. Returns a dict, or None if anything fails.
+    
+    Free tier limits are 8,000 tokens/min and 200,000/day per model, so:
+    - fallback_model: if the main model is rate limited, try this one straight away (own quota).
+    - wait_on_limit: if Groq says the wait is short (per-minute limit), wait and try the main model once more.
+      A daily limit is never waited out.
+    Live per-line calls set neither, so the doctor's screen never hangs.
     """
     try:
         return _chat_json_once(system, user, max_tokens)
@@ -84,7 +83,7 @@ def _chat_json(system: str, user: str, max_tokens: int = 900, wait_on_limit: flo
 
 
 def _chat_json_once(system: str, user: str, max_tokens: int, model: str | None = None) -> dict[str, Any] | None:
-    """One JSON-mode Groq call. Raises on API errors so the caller can decide to wait and retry."""
+    """One JSON-mode Groq call. Raises on API errors so the caller can wait and retry."""
     client = _client()
     kwargs = dict(
         model=model or MODEL,
@@ -112,7 +111,7 @@ def _chat_json_once(system: str, user: str, max_tokens: int, model: str | None =
 
 
 def _lines_block(lines: list[dict]) -> str:
-    """Render transcript lines with 0-based indexes so the LLM can cite them."""
+    """Turn the transcript into numbered lines so the model can point at them."""
     return "\n".join(f"[{i}] {ln.get('speaker', '?')}: {ln.get('text', '')}" for i, ln in enumerate(lines))
 
 
@@ -131,7 +130,7 @@ _PARTIAL_SYSTEM = (
 
 
 def partial_soap(lines: list[dict]) -> dict:
-    """Return a {subjective, objective, assessment, plan} dict. Empty on failure."""
+    """Gives back {subjective, objective, assessment, plan}. Empty if the call fails."""
     if not lines:
         return dict(EMPTY_SOAP)
     out = _chat_json(_PARTIAL_SYSTEM, _lines_block(lines), max_tokens=500)
@@ -185,7 +184,7 @@ _FINAL_SYSTEM = (
 
 
 def final_soap(lines: list[dict], retry: bool = True) -> dict:
-    """Return SOAP with per-field source_line indexes. One retry on malformed output."""
+    """SOAP note with source line numbers per field. Retries once if the output is broken."""
     if not lines:
         return _empty_final()
     out = _chat_json(_FINAL_SYSTEM, _lines_block(lines), max_tokens=1200, wait_on_limit=8.0, fallback_model=FALLBACK_MODEL)
@@ -229,7 +228,7 @@ def _normalise_final(obj: dict, max_idx: int) -> dict:
 # ---------- speaker guess ----------
 
 def guess_speaker(text: str) -> str:
-    """Cheap rule: a question-shaped line is from the doctor, else patient."""
+    """Quick guess: a line that looks like a question is the doctor, anything else is the patient."""
     t = (text or "").strip()
     if not t:
         return "patient"

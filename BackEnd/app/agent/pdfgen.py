@@ -1,8 +1,9 @@
-"""PDF generation from structured records. Every fact carries a numbered source (document title + date); the footer states
-what the file is and is not. No internal ids, paths or tokens go in the text or in the PDF metadata.
+"""Makes PDFs from structured records. Every fact has a numbered source (document title and date) and the footer says
+what the file is and isn't. No internal ids, paths or tokens go in the text or the PDF metadata.
 
-reportlab's built-in fonts do not cover Malayalam (it also does not shape complex scripts), so PDFs are English; characters
-outside Latin-1 are replaced with '?' rather than rendered wrongly."""
+reportlab's built-in fonts don't cover Malayalam (and it can't shape complex scripts), so PDFs are English.
+Characters outside Latin-1 become '?' instead of showing wrong.
+"""
 from __future__ import annotations
 
 import io

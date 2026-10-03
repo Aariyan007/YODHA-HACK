@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { agentShareQr } from "../../api/client.js";
 import { appUrl } from "../../routing.js";
 
-// The real share link the agent just made (confirmed by the person). The token is fetched here, once, with their login.
+// The real share link the agent just made (the person confirmed it). The token is fetched here once, with their login.
 export default function AgentQR({ qr }) {
   const [copied, setCopied] = useState(false);
   const show = qr.show || "both";

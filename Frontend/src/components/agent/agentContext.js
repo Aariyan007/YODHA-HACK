@@ -1,4 +1,4 @@
-// Page -> what the Agent says it is working with, and which actions make sense there.
+// Page to what the Agent says it's working with, and which actions make sense there.
 import { deltaList } from "../../design/data.js";
 
 const ACTION = (id, title, sub) => ({ id, title, sub });
@@ -39,7 +39,7 @@ export const CONTEXTS = [
 
 export const contextFor = (pathname) => CONTEXTS.find((c) => c.match(pathname)) || CONTEXTS[0];
 
-/** Up to three real facts about the current page, from loaded data. Empty until data arrives. */
+/* Up to three real facts about the current page, from loaded data. Empty until the data arrives. */
 export function factsFor(ctx, data) {
   if (!data || ctx.doctor) return [];
   const open = (data.alerts || []).filter((a) => !a.resolved).length;

@@ -1,8 +1,8 @@
-"""Lab trend alert. Pure Python, no AI.
+"""Lab trend alert. Plain Python, no AI.
 
-If a lab value has risen in each of the patient's last 3+ tests, keep ONE open
-alert (kind "trend") with the real numbers. The wording states the numbers and
-asks the patient to show them to a doctor. It never names a cause or a treatment.
+If a lab value rose in each of the patient's last 3 or more tests, keep ONE open alert (kind "trend") with the real
+numbers. The wording gives the numbers and asks the patient to show them to a doctor. It never names a cause or
+a treatment.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def _fmt(v: float) -> str:
 
 
 def rising_run(values: list[float]) -> list[float]:
-    """The strictly rising run that ends at the latest value (may be length 1)."""
+    """The strictly rising run that ends at the latest value (can be length 1)."""
     run = values[-1:]
     for v in reversed(values[:-1]):
         if v < run[0]:
@@ -50,10 +50,10 @@ def test_key(o: Observation) -> str:
 
 
 def check_trends(db: Session, patient_id: str) -> list[dict]:
-    """Create or refresh trend alerts. Returns the alerts touched, as plain dicts.
-
-    Match tests by LOINC when stored, else by lab code, else by name. Does not
-    commit; the caller owns the transaction (flushes so the alert gets an id).
+    """Creates or refreshes trend alerts. Returns the alerts touched as plain dicts.
+    
+    Tests are matched by LOINC if stored, else lab code, else name. Doesn't commit, the caller owns the transaction
+    (it flushes so the alert gets an id).
     """
     obs = list(db.scalars(select(Observation).where(Observation.patient_id == patient_id)))
     groups: dict[str, list[Observation]] = {}

@@ -1,7 +1,7 @@
 """Request ids and one JSON log line per request. Pure ASGI so it never buffers SSE streams.
 
-Secrets travel in URL paths here (share tokens, job ids), so those segments are redacted
-before anything is logged. Query strings are never logged.
+Secrets travel in URL paths here (share tokens, job ids), so those parts are redacted before anything is logged.
+Query strings are never logged.
 """
 from __future__ import annotations
 
@@ -22,12 +22,12 @@ SLOW_MS = float(os.getenv("SLOW_REQUEST_MS", "1000"))  # requests slower than th
 
 
 def configure_logging() -> None:
-    """Plain message lines to stdout (Docker collects stdout); our access lines are already JSON."""
+    """Plain message lines to stdout (Docker collects stdout), our access lines are already JSON."""
     root = logging.getLogger()
     if not root.handlers:
         logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="%(message)s")
     root.setLevel(logging.INFO)
-    # httpx logs full request URLs at INFO, and the Telegram bot token is part of its URL. Keep libraries quiet.
+    # httpx logs full request URLs at INFO and the Telegram bot token is part of its URL. Keep the libraries quiet.
     for noisy in ("httpx", "httpcore", "urllib3", "google", "google_genai", "groq", "hpack", "apscheduler"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").disabled = True  # replaced by the JSON line below

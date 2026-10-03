@@ -1,4 +1,4 @@
-"""Reminder settings, Telegram test, taken-marking, and demo helpers (Phase 5)."""
+"""Reminder settings, Telegram test, marking doses taken, and demo helpers."""
 from __future__ import annotations
 
 import re

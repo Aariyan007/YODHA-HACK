@@ -1,12 +1,12 @@
-"""Evaluate a Laya checkpoint on the held-out sets and write ml/reports/<name>.json and .md.
+"""Evaluates a Laya checkpoint on the held-out sets and writes ml/reports/<name>.json and .md.
 
     python ml/eval.py --model typed-decisions                 # zero-shot baseline from the Hub
     python ml/eval.py --model ml/out/laya-medithread --name finetuned
 
-Reports: accuracy and macro-F1 for urgency and specialist, expected calibration error (ECE), per-language accuracy,
-under-triage (model less urgent than the label: the dangerous direction), and the red-team emergency gate
-(rules alone, model alone, rules + model with the escalate-only merge). The gate PASSES only if rules + model
-catch every red-team message. Exit code 1 if the gate fails.
+Reports: accuracy and macro-F1 for urgency and specialist, expected calibration error (ECE), per language accuracy,
+under-triage (model less urgent than the label, the dangerous direction), and the red-team emergency gate
+(rules alone, model alone, rules + model with the raise-only merge). The gate PASSES only if rules + model catch
+every red-team message. Exit code is 1 if the gate fails.
 """
 from __future__ import annotations
 

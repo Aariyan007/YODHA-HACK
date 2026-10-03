@@ -1,4 +1,4 @@
-// Turns the Agent Engine's structured blocks into the result shape AgentResult already renders.
+// Turns the Agent Engine's blocks into the result shape AgentResult already shows.
 // Presentation only: every value shown here came from the server's tool results.
 const TITLES = {
   agent: "MediThread",

@@ -1,16 +1,14 @@
-"""Danger checks over a patient's whole record. Pure Python, no AI.
+"""Danger checks over a patient's whole record. Plain Python, no AI.
 
-Reads every stored Observation (uploads, hospital imports, home readings, seed)
-and returns a list of risks: blood pressure, sugar, kidney, salts, oxygen, pulse,
-blood counts, liver, cholesterol, thyroid, temperature, weight change, and
-values that keep rising across reports.
+Reads every stored Observation (uploads, hospital imports, home readings, seed) and returns a list of risks: blood
+pressure, sugar, kidney, salts, oxygen, pulse, blood counts, liver, cholesterol, thyroid, temperature, weight
+change, and values that keep rising across reports.
 
-Each risk states the real numbers, the level (emergency / high / watch), which
-kind of doctor to see, and nothing else. The wording never names a cause and
-never suggests a medicine or a dose.
+Each risk gives the real numbers, the level (emergency / high / watch) and which kind of doctor to see, nothing
+else. The wording never names a cause and never suggests a medicine or dose.
 
-`refresh_risk_alerts` keeps ONE open Alert (kind "risk") per risk key, updates
-it when the numbers change, and resolves it when a newer reading is fine.
+`refresh_risk_alerts` keeps ONE open Alert (kind "risk") per risk key, updates it when the numbers change, and
+resolves it when a newer reading is fine.
 """
 from __future__ import annotations
 
@@ -27,7 +25,7 @@ from .trends import HIGHER_IS_WORSE, _series, rising_run, test_key
 LEVELS = ("emergency", "high", "watch")
 LEVEL_RANK = {"emergency": 0, "high": 1, "watch": 2}
 SEVERITY_FOR_LEVEL = {"emergency": "high", "high": "high", "watch": "medium"}
-# An emergency is only an emergency when the reading is recent. Older readings drop to "high".
+# An emergency only counts when the reading is recent. Older readings drop to "high".
 EMERGENCY_FRESH_DAYS = 3
 OLD_READING_DAYS = 180
 
@@ -90,7 +88,7 @@ def _ev(o: Observation) -> dict:
 def _latest_by_key(obs: list[Observation]) -> dict[str, Observation]:
     out: dict[str, Observation] = {}
     for o in sorted(obs, key=lambda o: o.date or ""):
-        out[test_key(o)] = o  # the newest wins; same-date rows keep insert order
+        out[test_key(o)] = o  # the newest wins, rows with the same date keep insert order
     return out
 
 
@@ -162,7 +160,7 @@ def _bp(latest: dict[str, Observation], today: date) -> list[Risk]:
 
 # ---------- simple single-value rules ----------
 # (code, level, test, title, en_template, ml_template, specialist, reason)
-# test is (op, threshold); templates get {v}, {unit}, {when}.
+# test is (op, threshold), templates get {v}, {unit}, {when}.
 SINGLE_RULES: list[tuple] = [
     # Sugar
     ("glucose_low", "emergency", ("<", 54), "Very low blood sugar",
@@ -319,7 +317,7 @@ def _test(op: str, v: float, t: float) -> bool:
 
 def _singles(latest: dict[str, Observation], today: date) -> list[Risk]:
     out: list[Risk] = []
-    done: set[str] = set()  # one risk per (rule key + direction); rules are ordered worst first
+    done: set[str] = set()  # one risk per (rule key + direction), rules are ordered worst first
     # Newest glucose of any kind stands for "glucose".
     gl = [latest[c] for c in GLUCOSE_CODES if c in latest]
     newest_glucose = max(gl, key=lambda o: o.date or "") if gl else None
@@ -397,7 +395,7 @@ def assess(db: Session, patient_id: str, today: date | None = None) -> list[dict
         return []
     latest = _latest_by_key(obs)
     risks = _bp(latest, today) + _singles(latest, today) + _rising(obs) + _weight(obs, today)
-    # A rising-trend risk is redundant when the same test already has a high/emergency risk.
+    # A rising trend risk is redundant when the same test already has a high or emergency risk.
     strong = {e["code"] for r in risks if r.level != "watch" for e in r.evidence}
     risks = [r for r in risks if not (r.key.startswith("rising_") and r.key[7:] in strong)]
     risks.sort(key=lambda r: (LEVEL_RANK[r.level], r.key))
@@ -405,17 +403,17 @@ def assess(db: Session, patient_id: str, today: date | None = None) -> list[dict
 
 
 def refresh_risk_alerts(db: Session, patient_id: str, today: date | None = None) -> tuple[list[dict], list[dict]]:
-    """Keep one open "risk" Alert per risk key. Returns (risks, newly_created_emergencies).
-
-    Does not commit; the caller owns the transaction. Rising trends stay with app/trends.py
-    (kind "trend"), so they are not duplicated here.
+    """Keeps one open "risk" Alert per risk key. Returns (risks, newly_created_emergencies).
+    
+    Doesn't commit, the caller owns the transaction. Rising trends stay in app/trends.py (kind "trend") so they
+    aren't duplicated here.
     """
     risks = assess(db, patient_id, today)
     wanted = {r["key"]: r for r in risks if not r["key"].startswith("rising_")}
     open_rows = list(db.scalars(select(Alert).where(
         Alert.patient_id == patient_id, Alert.kind == "risk", Alert.resolved.is_(False))))
-    # Alerts are matched by title: a change of level (watch -> high) changes the title, which
-    # resolves the old alert and opens a new one, so an escalation is never hidden in an old card.
+    # Alerts are matched by title: a change of level (watch to high) changes the title, which
+    # resolves the old alert and opens a new one, so an escalation never hides in an old card.
     by_title = {row.title: row for row in open_rows}
     new_emergencies: list[dict] = []
     seen_titles = set()

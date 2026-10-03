@@ -1,17 +1,17 @@
-"""Build the Laya training and evaluation files in ml/data/ from open datasets, generated text and hand-written tests.
+"""Builds the Laya training and evaluation files in ml/data/ from open datasets, generated text and hand-written tests.
 
     cd BackEnd && ./venv/bin/python ../ml/prepare_data.py
 
 Output (all JSONL, one example per line, the format Laya's trainer reads: state / questions / gold are JSON strings):
-    train.jsonl                triage rows + consultation-line rows
-    test_handwritten.jsonl     67 human-written triage messages (EN / Malayalam / Manglish), both questions
-    test_gretel.jsonl          real-language symptom descriptions, specialist question only
+    train.jsonl                triage rows + consultation line rows
+    test_handwritten.jsonl     67 human written triage messages (EN / Malayalam / Manglish), both questions
+    test_gretel.jsonl          real symptom descriptions, specialist question only
     test_lines.jsonl           held-out consultation lines (synthetic)
     redteam.jsonl              emergencies that must never be missed
     SOURCES.json               what went in, with licences and counts
 
-Honest limits: urgency labels come from synthetic or rule-mapped sources, specialist labels for gretel rows come from
-OUR mapping of its diagnosis column (the model never outputs a diagnosis). Nothing here is clinical ground truth.
+Honest limits: urgency labels come from synthetic or rule mapped sources, and specialist labels for gretel rows come
+from OUR mapping of its diagnosis column (the model never outputs a diagnosis). Nothing here is clinical ground truth.
 """
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ SOURCES = {
     "triage500.jsonl": f"{HF}/syntech-ai/medical-triage-500/resolve/main/medical_triage_500.jsonl",
 }
 
-# gretelai/symptom_to_diagnosis: diagnosis -> (specialist id, urgency distribution). OUR mapping, weak labels.
+# gretelai/symptom_to_diagnosis: diagnosis to (specialist id, urgency distribution). OUR mapping, weak labels.
 GRETEL_MAP = {
     "cervical spondylosis": ("orthopaedician", {"routine": 0.8, "urgent": 0.2}),
     "impetigo": ("dermatologist", {"routine": 0.8, "urgent": 0.2}),
@@ -85,7 +85,7 @@ def jl(path: Path) -> list[dict]:
 
 
 def smooth(label: str, labels, eps: float) -> dict:
-    """Hard label, or a little probability spread to the others for synthetic rows (eps=0 for human labels)."""
+    """Hard label, or a little probability spread over the others for synthetic rows (eps=0 for human labels)."""
     labels = list(labels)
     return {k: (1 - eps) if k == label else eps / (len(labels) - 1) for k in labels}
 
@@ -157,7 +157,7 @@ def main() -> None:
     hand = [triage_row(t, urgency=u, specialist=s, meta={"source": "handwritten", "lang": l}) for t, u, s, l in handwritten.TEST]
     red = [triage_row(t, urgency="emergency", meta={"source": "handwritten-redteam", "lang": l}) for t, l in handwritten.REDTEAM]
 
-    # Person-written Malayalam / Manglish TRAINING rows. They must never appear in the held-out test or red-team sets.
+    # Person written Malayalam / Manglish TRAINING rows. They must never show up in the held-out test or red-team sets.
     test_texts = {t.strip().lower() for t, *_ in handwritten.TEST} | {t.strip().lower() for t, _ in handwritten.REDTEAM}
     clash = [t for t, *_ in handwritten_train.TRAIN if t.strip().lower() in test_texts]
     if clash:

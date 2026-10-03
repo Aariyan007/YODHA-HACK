@@ -1,5 +1,6 @@
-"""AgentResponseFormatter: tool results -> the structured blocks the Agent UI renders. Deterministic (no LLM), so every
-number on screen comes from a record and carries evidence."""
+"""Turns tool results into the blocks the Agent UI shows. No LLM, so every number on screen comes from a record
+and carries evidence.
+"""
 from __future__ import annotations
 
 from .planner import Plan
@@ -31,7 +32,7 @@ class AgentResponseFormatter:
                 if k not in seen:
                     seen.add(k)
                     evidence.append(e)
-        if plan.clarify and results:  # a standing note the person must see with the results (e.g. why a medicine change is not possible)
+        if plan.clarify and results:  # a standing note the person must see with the results (e.g. why a medicine change isn't possible)
             blocks.insert(0, block("text", text=plan.clarify))
         lead = LEAD.get(plan.intent)
         if lead and blocks and blocks[0]["type"] != "text" and not plan.clarify:

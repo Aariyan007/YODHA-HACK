@@ -1,4 +1,4 @@
-"""Static frontend serving for single-service hosting. No network.
+"""Static frontend serving for single service hosting. No network.
 
 Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_static_site.py -v
 """
