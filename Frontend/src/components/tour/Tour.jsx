@@ -41,12 +41,15 @@ export function Tour() {
   useLayoutEffect(() => {
     if (!step) { setRect(null); return; }
     let alive = true, tries = 0, timer;
-    let first = true;
-    const locate = () => {
+    const locate = (fromScroll) => {
       if (!alive) return;
       const el = findTarget(step.target);
       if (el) {
-        if (first) { first = false; el.scrollIntoView({ block: "center", behavior: "auto" }); }
+        // bring it on screen unless the person is scrolling themselves (the page may still be loading and move things)
+        if (!fromScroll) {
+          const b = el.getBoundingClientRect();
+          if (b.top < 0 || b.bottom > window.innerHeight) el.scrollIntoView({ block: "center", behavior: "auto" });
+        }
         const r = el.getBoundingClientRect();
         setRect({ x: r.left - PAD, y: r.top - PAD, w: r.width + PAD * 2, h: r.height + PAD * 2 });
       } else if (tries++ < 20 && step.target?.length) {
@@ -54,10 +57,13 @@ export function Tour() {
       } else setRect(null);
     };
     locate();
+    const settle = setInterval(() => locate(), 500); // content that loads late shifts the page: follow it for a few seconds
+    const stopSettle = setTimeout(() => clearInterval(settle), 4000);
     const onResize = () => locate();
+    const onScroll = () => locate(true);
     window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onResize, { passive: true });
-    return () => { alive = false; clearTimeout(timer); window.removeEventListener("resize", onResize); window.removeEventListener("scroll", onResize); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { alive = false; clearTimeout(timer); clearInterval(settle); clearTimeout(stopSettle); window.removeEventListener("resize", onResize); window.removeEventListener("scroll", onScroll); };
   }, [step, pathname]);
 
   // the demo moves on by itself
