@@ -113,6 +113,8 @@ class Alert(Base):
     message: Mapped[str] = mapped_column(Text)
     message_ml: Mapped[str | None] = mapped_column(Text)
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Structured detail for alerts that wait for an answer (e.g. an unclear handwritten medicine keeps its dose, schedule, duration).
+    data: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

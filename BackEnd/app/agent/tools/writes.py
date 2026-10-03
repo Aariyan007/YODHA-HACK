@@ -290,10 +290,15 @@ def medications_unclear(ctx: AgentContext, args: dict) -> dict:
 
 def _confirm_preview(ctx: AgentContext, args: dict) -> list[dict]:
     picked = _pick_unclear(ctx, args.get("names"))
-    rows = [{"label": "Add to your medicines", "value": name} for name, _ in picked]
+    rows = []
+    for name, alert in picked:
+        d = alert.data or {}
+        extra = " · ".join(str(x) for x in (d.get("dose"), d.get("schedule"), d.get("duration")) if x)
+        rows.append({"label": "Add to your medicines", "value": name + (f" ({extra})" if extra else "")})
     for a in _safety(ctx, [n for n, _ in picked]):
         rows.append({"label": f"Warning ({a['severity']})", "value": a["title"]})
-    rows.append({"label": "Note", "value": "Added by name only, as you confirmed they are correct. No dose or timing, so no reminders yet: tell me the timing to add it."})
+    if any(not (al.data or {}).get("schedule") and not (al.data or {}).get("times") for _, al in picked):
+        rows.append({"label": "Note", "value": "Some have no dose or timing from the page, so they get no reminders until you tell me the timing."})
     return rows
 
 
@@ -309,7 +314,13 @@ def medications_confirm_unclear(ctx: AgentContext, args: dict) -> dict:
     warnings = _safety(ctx, names)  # computed against the list as it is now, before these are added
     ids = []
     for name, alert in picked:
-        m = Medicine(patient_id=ctx.patient_id, name=name[:120], start_date=today(), prescribed_by=None, times=[])
+        d = alert.data or {}  # what the first reading saw next to the name: dose, schedule, duration, purpose
+        from ai import reminders as rem
+        sched = d.get("schedule")
+        m = Medicine(patient_id=ctx.patient_id, name=name[:120], dose=(d.get("dose") or None) and str(d["dose"])[:60],
+                     frequency=(sched or None) and str(sched)[:60], times=list(d.get("times") or rem.parse_schedule(sched) or []),
+                     instructions=(d.get("purpose") or None) and str(d["purpose"])[:200], start_date=today(), prescribed_by=None,
+                     duration_days=rem.parse_duration_days(sched, d.get("duration")))
         ctx.db.add(m)
         ctx.db.flush()
         ids.append(m.id)
@@ -318,6 +329,73 @@ def medications_confirm_unclear(ctx: AgentContext, args: dict) -> dict:
         ctx.db.add(AlertRow(patient_id=ctx.patient_id, severity=a["severity"], kind=a["kind"], title=a["title"], message=a["message"]))
     ctx.db.add(AccessLog(patient_id=ctx.patient_id, who=ctx.actor_name, role="Patient", action=f"Confirmed {len(ids)} handwritten medicine(s)", via="Agent"))
     ctx.db.flush()
-    blocks = [block("text", text="Added: " + ", ".join(names) + ". Tell me the dose and timing of any of them and I will add reminders.")]
+    blocks = [block("text", text="Added: " + ", ".join(names) + ". If one has no dose or timing yet, tell me and I will set it.")]
     blocks += [block("warning", severity=a["severity"], title=a["title"], text=a["message"]) for a in warnings[:4]]
     return {"data": {"added": names}, "_ids": ids, "target": ",".join(ids)[:80], "blocks": blocks}
+
+
+# ---------------------------------------------------------------- set the dose / timing / course of a medicine the person already has
+
+def _my_med(ctx: AgentContext, name: str) -> Medicine:
+    key = (name or "").strip().lower()
+    meds = list(ctx.db.scalars(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.active.is_(True))))
+    hits = [m for m in meds if key and (key == m.name.lower() or key in m.name.lower() or m.name.lower() in key)]
+    if not hits:
+        raise ToolError(f"I could not find a current medicine called {name}.")
+    if len(hits) > 1:
+        raise ToolError("More than one medicine matches: " + ", ".join(m.name for m in hits) + ". Which one?")
+    return hits[0]
+
+
+def _med_changes(args: dict) -> dict:
+    from ai import reminders as rem
+    ch: dict = {}
+    if args.get("dose"):
+        ch["dose"] = args["dose"][:60]
+    if args.get("frequency"):
+        ch["frequency"] = args["frequency"][:60]
+        ch["times"] = rem.parse_schedule(args["frequency"])
+    if args.get("times"):
+        ch["times"] = sorted(args["times"])
+    if args.get("duration_days"):
+        ch["duration_days"] = int(args["duration_days"])
+    if args.get("instructions"):
+        ch["instructions"] = args["instructions"][:200]
+    if not ch:
+        raise ToolError("Tell me what to set: the dose, how often or at what time, or for how many days.")
+    return ch
+
+
+def _med_preview(ctx: AgentContext, args: dict) -> list[dict]:
+    m = _my_med(ctx, args["name"])
+    ch = _med_changes(args)
+    label = {"dose": "Dose", "frequency": "How often", "times": "Reminder times", "duration_days": "Course (days)", "instructions": "Instructions"}
+    rows = [{"label": "Medicine", "value": m.name}] + [{"label": label[k], "value": ", ".join(v) if isinstance(v, list) else str(v)} for k, v in ch.items()]
+    if "times" in ch and not ch["times"]:
+        rows.append({"label": "Note", "value": "I could not turn that into clock times, so no reminder will be set. Give a time like 08:00."})
+    return rows
+
+
+@tool("medications.update", "Set the dose, how often / reminder times, course length or instructions of a medicine the person already has, as they tell you.",
+      {"type": "object", "properties": {"name": {"type": "string", "minLength": 2, "maxLength": 80}, "dose": {"type": "string", "maxLength": 60},
+                                        "frequency": {"type": "string", "maxLength": 60, "description": "e.g. once daily, twice daily, BD, 1-0-1, at night"},
+                                        "times": {"type": "array", "items": {"type": "string", "maxLength": 5}, "maxItems": 6, "description": "24h clock like 08:00"},
+                                        "duration_days": {"type": "integer", "minimum": 1, "maximum": 365}, "instructions": {"type": "string", "maxLength": 200}},
+       "required": ["name"], "additionalProperties": False},
+      permission="records:write", level=L3, confirmation_required=True, roles=("patient",), audit_category="write", preview=_med_preview,
+      verify=lambda ctx, a, out: all(getattr(ctx.db.get(Medicine, out["_id"]), k) == v for k, v in out["_changes"].items()))
+def medications_update(ctx: AgentContext, args: dict) -> dict:
+    m = _my_med(ctx, args["name"])
+    ch = _med_changes(args)
+    bad = [t for t in ch.get("times", []) if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t)]
+    if bad:
+        raise ToolError("Reminder times must look like 08:00 or 21:30.")
+    for k, v in ch.items():
+        setattr(m, k, v)
+    ctx.db.add(AccessLog(patient_id=ctx.patient_id, who=ctx.actor_name, role="Patient", action=f"Updated {m.name} details", via="Agent"))
+    ctx.db.flush()
+    when = (" Reminders at " + ", ".join(m.times) + ".") if ch.get("times") else ""
+    return {"data": {"medicine": m.name}, "_id": m.id, "_changes": ch, "target": m.id,
+            "blocks": [block("medication", id=m.id, name=m.name, dose=m.dose, frequency=m.frequency, times=m.times or [], instructions=m.instructions,
+                             prescribedBy=m.prescribed_by, startDate=m.start_date, durationDays=m.duration_days, active=True),
+                       block("text", text=f"Updated {m.name}.{when}")]}

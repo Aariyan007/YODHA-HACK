@@ -185,7 +185,7 @@ def _persist_result(patient_id: str, result: dict, sha: str, mime: str) -> dict:
                 continue  # recomputed below from stored Observations
             row = Alert(
                 patient_id=patient_id, severity=a["severity"], kind=a["kind"],
-                title=a["title"], message=a["message"], message_ml=a.get("messageMl"),
+                title=a["title"], message=a["message"], message_ml=a.get("messageMl"), data=a.get("data"),
             )
             db.add(row)
             db.flush()
@@ -247,7 +247,8 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
     for u in doc.get("uncertain_medicines") or []:  # handwriting that could not be read for sure: never a medicine, always a visible note
         analysis["alerts"].append({"severity": "medium", "kind": "handwriting", "title": f"Handwriting unclear: {str(u.get('name'))[:60]}",
                                    "message": f"I could not read this medicine name with confidence ({u.get('reason')}). It was not added to your medicines. "
-                                              "Please check it with your doctor or pharmacist."})
+                                              "Please check it with your doctor or pharmacist.",
+                                   "data": {"name": str(u.get("name")), **(u.get("details") or {})}})
     summary = summarise(doc, analysis["alerts"])
 
     # check: reminders + persistence
@@ -320,7 +321,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
         for a in analysis["alerts"]:
             row = Alert(
                 patient_id=patient_id, severity=a["severity"], kind=a["kind"],
-                title=a["title"], message=a["message"],
+                title=a["title"], message=a["message"], data=a.get("data"),
                 # Message_ml left English for simplicity; translator could be reused here.
                 message_ml=None,
             )
@@ -328,7 +329,7 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
             db.flush()
             saved_alerts.append({
                 "id": row.id, "severity": row.severity, "kind": row.kind,
-                "title": row.title, "message": row.message, "messageMl": None,
+                "title": row.title, "message": row.message, "messageMl": None, "data": row.data,
                 "resolved": False, "createdAt": now_iso,
             })
 

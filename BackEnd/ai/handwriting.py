@@ -56,6 +56,14 @@ def _known(name: str) -> bool:
     return bool(first) and (safety.to_generic(name) is not None or ddi.known_drug(first) or ddi.known_drug(name))
 
 
+DETAIL_KEYS = ("dose", "schedule", "times", "duration", "purpose")
+
+
+def _details(m: dict) -> dict:
+    """What the first reading saw next to the name, kept so a person who confirms the name does not lose it."""
+    return {k: m.get(k) for k in DETAIL_KEYS if m.get(k) not in (None, "", [])}
+
+
 def compare(first: list[dict], second: list[dict]) -> tuple[list[dict], list[dict]]:
     """-> (certain, uncertain). A medicine is certain only if both readings agree, the second is confident and legible, and the name is a real drug."""
     certain, uncertain = [], []
@@ -79,7 +87,7 @@ def compare(first: list[dict], second: list[dict]) -> tuple[list[dict], list[dic
         elif not _known(name):
             why = "this does not match a drug name I know"
         if why:
-            uncertain.append({"name": name, "alternative": (best or {}).get("name"), "reason": why})
+            uncertain.append({"name": name, "alternative": (best or {}).get("name"), "reason": why, "details": _details(m)})
         else:
             certain.append(m)
     return certain, uncertain
@@ -96,7 +104,7 @@ def second_pass(client, call, data: bytes, mime: str, doc: dict) -> dict:
         second = None
     meds = doc.get("medicines") or []
     if second is None:  # could not double-check: nothing handwritten is trusted as a medicine
-        doc["uncertain_medicines"] = [{"name": str(m.get("name")), "alternative": None, "reason": "I could not double-check this handwriting"} for m in meds]
+        doc["uncertain_medicines"] = [{"name": str(m.get("name")), "alternative": None, "reason": "I could not double-check this handwriting", "details": _details(m)} for m in meds]
         doc["medicines"] = []
     else:
         certain, uncertain = compare(meds, second.get("medicines") or [])
@@ -123,7 +131,7 @@ def _third_reader(img: bytes, doc: dict) -> None:
         saw = htr.seen(str(m.get("name") or ""), lines)
         m["htr_seen"] = saw
         if substantial and not saw and not m.get("dose"):  # no dose written and the third reader never saw the name: too thin to trust
-            demote.append({"name": str(m.get("name")), "alternative": None, "reason": "a third reader did not find this name on the page"})
+            demote.append({"name": str(m.get("name")), "alternative": None, "reason": "a third reader did not find this name on the page", "details": _details(m)})
         else:
             keep.append(m)
     doc["medicines"] = keep

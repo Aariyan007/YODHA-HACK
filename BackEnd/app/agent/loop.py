@@ -40,6 +40,7 @@ Examples of casual requests and what to do (people write loosely, in English, Ma
 - "closest hospital near me" / "emergency" / "casualty" -> doctors_search with emergency=true.  "heart doctor near me" -> doctors_search specialty=Cardiologist.
 - "i have chest pain" / "my head hurts a lot" / "feeling dizzy" -> triage_check with their words.
 - "those unclear medicines are correct, add them" / "yes the handwritten ones are right" -> medications_confirm_unclear (use medications_unclear first if you need the names).
+- "shelcal 500 once daily in the morning for 30 days" / "set telma to 8am and 8pm" -> medications_update (name + dose / frequency / times / duration_days).
 - "open meds" / "take me to reminders" -> navigation_navigate.  "find a heart doctor near me" -> doctors_search.
 - Follow-ups like "same but 1 hour", "no the other one", "do it again" refer to the earlier turns shown to you.
 {extra}"""

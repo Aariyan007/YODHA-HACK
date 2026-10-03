@@ -223,6 +223,19 @@ class UnclearHandwriting(Writes):
         self.assertEqual(self.meds(), ["Chymoral Forte", "Volini Gel"])
         self.assertEqual(self.open_unclear(), [])
 
+    def test_details_seen_on_the_page_survive_into_the_medicine(self):
+        with self.Session() as db:
+            for a in db.scalars(select(Alert)):
+                a.data = {"name": a.title.split(": ")[1], "dose": "1 tab", "schedule": "BD", "duration": "5 days", "purpose": "pain"}
+            db.commit()
+        r = self.say("those unclear handwriting medicines are correct, add them")
+        self.assertIn("1 tab", " ".join(p["value"] for p in r["confirmation"]["preview"]))
+        self.confirm(r)
+        with self.Session() as db:
+            m = db.scalar(select(Medicine).where(Medicine.name == "Volini Gel"))
+        self.assertEqual((m.dose, m.frequency, m.duration_days, m.instructions), ("1 tab", "BD", 5, "pain"))
+        self.assertEqual(m.times, ["08:00", "20:00"])        # so reminders and the course show up on the Medicines page
+
     def test_only_the_named_one(self):
         from app.agent.context import AgentContext
         from app.agent.executor import AgentExecutor
@@ -266,6 +279,41 @@ class UnclearHandwriting(Writes):
             db.commit()
         r = self.say("those unclear handwriting medicines are correct, add them")
         self.assertTrue(any(p["label"].startswith("Warning") for p in r["confirmation"]["preview"]), r["confirmation"]["preview"])
+
+
+class UpdateMedicine(Writes):
+    def setUp(self):
+        super().setUp()
+        with self.Session() as db:
+            db.add(Medicine(id="m1", patient_id=self.pid, name="Shelcal 500", times=[], start_date="2026-10-03"))
+            db.add(Medicine(id="m2", patient_id=self.pid2, name="Shelcal 500", times=[], start_date="2026-10-03"))
+            db.commit()
+
+    def test_set_timing_and_course_after_a_yes(self):
+        from app.agent.context import AgentContext
+        from app.agent.executor import AgentExecutor
+        with self.Session() as db:
+            ctx = AgentContext(db=db, role="patient", actor_id=self.pid, actor_name="one", patient_id=self.pid)
+            r = AgentExecutor().run(ctx, "medications.update", {"name": "shelcal", "dose": "1 tab", "frequency": "once daily", "duration_days": 30})
+            self.assertEqual(r.status, "needs_confirmation")
+            self.assertIn("30", str(r.confirmation["preview"]))
+            self.assertTrue(AgentExecutor().confirm(ctx, r.confirmation["id"], True).ok)
+            db.commit()
+            m = db.get(Medicine, "m1")
+            self.assertEqual((m.dose, m.duration_days, m.times), ("1 tab", 30, ["08:00"]))
+            self.assertEqual(db.get(Medicine, "m2").duration_days, None)     # another patient's medicine untouched
+
+    def test_bad_input_is_refused(self):
+        from app.agent.context import AgentContext
+        from app.agent.executor import AgentExecutor
+        with self.Session() as db:
+            ctx = AgentContext(db=db, role="patient", actor_id=self.pid, actor_name="one", patient_id=self.pid)
+            ex = AgentExecutor()
+            self.assertEqual(ex.run(ctx, "medications.update", {"name": "Nope"}).status, "failed")
+            self.assertEqual(ex.run(ctx, "medications.update", {"name": "shelcal"}).status, "failed")            # nothing to set
+            r = ex.run(ctx, "medications.update", {"name": "shelcal", "times": ["25:99"]})
+            self.assertEqual(r.status, "needs_confirmation")
+            self.assertEqual(ex.confirm(ctx, r.confirmation["id"], True).status, "failed")                          # invalid clock refused
 
 
 class SafetyTests(Writes):
