@@ -488,6 +488,11 @@ class AgentLoopTests(Base_):
         llm = J([{"tool_calls": [("medications__list", {})]}, {"content": "You take Metformin 500 mg."}])
         AgentEngine(llm=llm, runner=lambda f: f()).chat(self.ctx(), "what pills am i on")
 
+    def test_text_only_tool_results_are_shown_when_the_reply_is_removed(self):
+        e = self.eng([{"tool_calls": [("health__conditions", {})]}, {"content": "You have diabetes and it is 99 percent controlled."}])
+        out = e.chat(self.ctx(), "what conditions do I have")
+        self.assertIn("Type 2 diabetes", " ".join(b.get("text", "") for b in out["blocks"]))  # not "I could not put an answer together"
+
     def test_follow_ups_see_the_earlier_turn(self):
         e = self.eng([{"tool_calls": [("medications__list", {})]}, {"content": "You take Metformin."}, {"content": "Metformin, 500 mg."}])
         ctx = self.ctx()

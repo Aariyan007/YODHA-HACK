@@ -110,7 +110,9 @@ class AgentPlanner:
         if role != "patient":
             return None
         low = text.lower()
-        if R_MED_CHANGE.search(low) and not R_NAV.match(text) and self._timing(role, text) is None:
+        if (t := self._timing(role, text)) is not None:  # precise, safe, and the model tends to pick the lookup when asked to add
+            return t
+        if R_MED_CHANGE.search(low) and not R_NAV.match(text):
             return self._rules(role, text)
         if R_SEND.search(low):
             return self._rules(role, text)

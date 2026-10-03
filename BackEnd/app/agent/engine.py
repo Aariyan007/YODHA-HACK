@@ -193,6 +193,9 @@ class AgentEngine:
             if not supported:
                 log.info("judge removed a reply (%d unsupported claim(s))", len(_bad))
                 reply = ""
+        if not reply and not cards and not conf:
+            # The reply was removed and the tools returned only text (no cards): show what the tools said rather than nothing.
+            cards = [b for r in results if r.ok for b in r.blocks if b["type"] == "text"]
         blocks = ([block("text", text=loop.plain(reply))] if reply else []) + cards
         if not blocks:
             blocks = [block("text", text="I could not put an answer together. Please try asking another way.")]
