@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MediThread System Flow</title>
+<style>
+:root{--bg:#EEF4EA;--panel:#FBFDF8;--ink:#223029;--ink2:#5A6A62;--line:#C9D9CD;--deep:#659287;--sage:#88BDA4;--soft:#B1D3B9;--warn:#B07F2A;--ok:#2E6A52}
+@media (prefers-color-scheme:dark){:root{--bg:#10201B;--panel:#17291F;--ink:#E8F1E1;--ink2:#9DB5A8;--line:#2B4237;--deep:#86C7AB;--sage:#6FAF92;--soft:#2B4A3D;--warn:#D9A84A;--ok:#86C7AB}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif}
+header{padding:20px 20px 8px;max-width:1100px;margin:auto}h1{margin:0;font-size:1.5rem;font-weight:600}p.sub{margin:4px 0 0;color:var(--ink2)}
+.bar{max-width:1100px;margin:12px auto;padding:0 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 14px;border-radius:999px;cursor:pointer;min-height:40px}
+button.on{background:var(--deep);color:#fff;border-color:var(--deep)}button:focus-visible{outline:2px solid var(--deep);outline-offset:2px}
+.stage{max-width:1100px;margin:0 auto;padding:0 20px 8px}svg{width:100%;height:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px}
+.node rect{fill:var(--panel);stroke:var(--line);stroke-width:1.5;rx:12;transition:all .3s}.node text{fill:var(--ink);font-size:13px;font-weight:600;text-anchor:middle;pointer-events:none}
+.node .t2{font-weight:400;fill:var(--ink2);font-size:11px}.node.hot rect{fill:var(--soft);stroke:var(--deep);stroke-width:2.5}
+.node.code rect{stroke-dasharray:0}.node.ai rect{stroke:var(--warn)}.edge{stroke:var(--line);stroke-width:1.5;fill:none}.edge.hot{stroke:var(--deep);stroke-width:2.5}
+.dot{fill:var(--deep)}.cap{max-width:1100px;margin:10px auto 0;padding:0 20px}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:grid;gap:4px}
+.card b{font-size:1.02rem}.card span{color:var(--ink2)}.tag{display:inline-block;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--deep);font-weight:600}
+.legend{max-width:1100px;margin:10px auto 28px;padding:0 20px;display:flex;gap:16px;flex-wrap:wrap;color:var(--ink2);font-size:.85rem}.legend i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:6px;vertical-align:-1px;border:2px solid var(--line)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<header><h1>How a request moves through MediThread</h1><p class="sub">Pick a flow and press Play. Boxes with an amber border are AI; the rest is plain code, database or messaging.</p></header>
+<div class="bar" id="flows"></div>
+<div class="bar"><button id="play" class="on">Pause</button><button id="prev">Back</button><button id="next">Next</button><span id="count" style="color:var(--ink2)"></span></div>
+<div class="stage"><svg viewBox="0 0 1000 520" id="svg" role="img" aria-label="System diagram"></svg></div>
+<div class="cap"><div class="card" id="cap"></div></div>
+<div class="legend"><span><i style="border-color:var(--warn)"></i>AI model</span><span><i style="border-color:var(--line)"></i>code, data, messaging</span><span><i style="background:var(--soft);border-color:var(--deep)"></i>active now</span></div>
+<script>
+const N={browser:{x:20,y:210,w:120,h:60,t:"Browser",s:"React app"},nginx:{x:190,y:210,w:120,h:60,t:"nginx",s:"limits, TLS"},api:{x:370,y:210,w:130,h:60,t:"FastAPI",s:"routers + auth"},
+agent:{x:370,y:60,w:130,h:60,t:"Agent engine",s:"planner, executor",c:1},safe:{x:370,y:370,w:130,h:60,t:"Safety code",s:"risk, interactions"},
+pg:{x:600,y:210,w:130,h:60,t:"Postgres",s:"all records"},rd:{x:600,y:370,w:130,h:60,t:"Redis",s:"limits, cache"},
+groq:{x:600,y:60,w:130,h:60,t:"Groq",s:"summaries, agent",ai:1},gem:{x:790,y:60,w:130,h:60,t:"Gemini",s:"reads documents",ai:1},
+vault:{x:790,y:210,w:130,h:60,t:"Vault",s:"AES-256 files"},tg:{x:790,y:370,w:130,h:60,t:"Telegram",s:"reminders"},stt:{x:190,y:60,w:130,h:60,t:"Speech to text",s:"Scribe / Whisper",ai:1}};
+const F={
+login:{name:"Sign in",steps:[["browser","nginx","POST /api/auth/login","The browser sends email and password.","Edge"],["nginx","api","rate limit, then proxy","nginx allows 10 sign-in tries a minute, then forwards.","Edge"],
+["api","rd","check lockout","5 wrong tries for the same email and IP lock it for 15 minutes.","Safety"],["api","pg","load user, verify hash","Password is checked against the scrypt hash. At most 3 hashes run at once.","Auth"],
+["api","browser","JWT token","A signed token with the role (patient or doctor) goes back. Every later call carries it.","Auth"]]},
+upload:{name:"Upload a record",steps:[["browser","nginx","POST /api/documents","A photo or PDF is sent.","Edge"],["nginx","api","size and type checks","10 MB limit, real file type read from the bytes, duplicate check by hash.","Safety"],
+["api","gem","extract to JSON","Gemini reads the document. Handwriting gets a second careful reading.","AI"],["api","safe","Python checks","Duplicates, allergies, drug interactions, lab ranges: plain code, no AI.","Safety"],
+["api","groq","write the summary","Groq writes a plain summary and the Malayalam version.","AI"],["api","pg","save the record","Document, test values, medicines and alerts are saved, then trends and the whole-record danger check run.","Data"],
+["api","browser","progress stream","The page shows stages live, then the new card.","Result"]]},
+agent:{name:"Ask the Agent",steps:[["browser","nginx","POST /api/agent/chat","A typed or spoken request.","Edge"],["nginx","api","limits, then proxy","Per-minute and per-day limits protect the shared AI quota.","Edge"],
+["api","agent","guards run first","Medicine changes and 'send to my doctor' are refused before any model sees them.","Safety"],["agent","groq","pick tools","The model can only ask for one of 46 registered tools.","AI"],
+["agent","pg","executor runs the tool","Code checks role, ownership and arguments. Writes wait for Yes or No.","Safety"],["agent","groq","write the reply","The reply is written from tool results only.","AI"],
+["agent","api","check the reply","Every number must be in the results; a second model removes unsupported claims.","Safety"],["api","browser","reply and cards","The person sees a short answer and the data cards.","Result"]]},
+visit:{name:"Doctor visit",steps:[["browser","nginx","audio clip","The doctor console sends each spoken sentence.","Edge"],["nginx","api","proxy with share token","The share token is the credential. Expired links are refused.","Safety"],
+["api","stt","speech to text","Silence and ghost text like 'thank you' are filtered. Drug names are corrected and shown as heard to corrected.","AI"],["api","safe","live flags","Duplicate, clash, allergy, emergency and missing-info flags in plain code.","Safety"],
+["api","groq","draft the note","A partial note and follow-up questions every 3 lines. Finalize builds the full note and classification.","AI"],["api","pg","approve and save","Only after the doctor approves: visit card, medicines, reminders, alerts. Nothing reached the patient before.","Data"]]},
+remind:{name:"Reminders",steps:[["api","pg","scheduler wakes (30 s)","The scheduler finds doses due now (India time).","Data"],["api","rd","claim the dose","A key per medicine, time and date is claimed first, so a restart never double-sends.","Safety"],
+["api","tg","send the message","One Telegram message per dose, then hourly nudges until marked taken (max 5, none after 22:00).","Result"],["api","tg","missed dose","If it stays untaken, the family chat is told once.","Result"]]}};
+const svg=document.getElementById("svg"),NS="http://www.w3.org/2000/svg";
+const mk=(n,a={},p=svg)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e};
+const ctr=k=>[N[k].x+N[k].w/2,N[k].y+N[k].h/2];
+const nodes={},edges={};
+function edge(a,b){const id=a+">"+b;if(edges[id])return edges[id];const[x1,y1]=ctr(a),[x2,y2]=ctr(b);const p=mk("path",{d:`M${x1} ${y1} L${x2} ${y2}`,class:"edge"});edges[id]=p;return p}
+Object.keys(F).forEach(f=>F[f].steps.forEach(s=>edge(s[0],s[1])));
+for(const k in N){const n=N[k],g=mk("g",{class:"node"+(n.ai?" ai":"")});mk("rect",{x:n.x,y:n.y,width:n.w,height:n.h},g);
+const a=mk("text",{x:n.x+n.w/2,y:n.y+26},g);a.textContent=n.t;const b=mk("text",{x:n.x+n.w/2,y:n.y+44,class:"t2"},g);b.textContent=n.s;nodes[k]=g}
+const dot=mk("circle",{r:7,class:"dot",cx:-20,cy:-20});
+let cur="login",i=0,playing=true,timer=null,raf=null;
+const bar=document.getElementById("flows"),cap=document.getElementById("cap"),count=document.getElementById("count");
+for(const k in F){const b=document.createElement("button");b.textContent=F[k].name;b.onclick=()=>{cur=k;i=0;show();restart()};b.dataset.k=k;bar.appendChild(b)}
+function show(){document.querySelectorAll("#flows button").forEach(b=>b.classList.toggle("on",b.dataset.k===cur));
+const st=F[cur].steps[i];Object.values(nodes).forEach(n=>n.classList.remove("hot"));Object.values(edges).forEach(e=>e.classList.remove("hot"));
+nodes[st[0]].classList.add("hot");nodes[st[1]].classList.add("hot");edges[st[0]+">"+st[1]].classList.add("hot");
+cap.innerHTML=`<span class="tag">${st[4]} · step ${i+1} of ${F[cur].steps.length}</span><b>${st[2]}</b><span>${st[3]}</span>`;count.textContent=F[cur].name;
+const[x1,y1]=ctr(st[0]),[x2,y2]=ctr(st[1]);const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;const t0=performance.now(),D=reduce?1:1100;cancelAnimationFrame(raf);
+const tick=t=>{const p=Math.min(1,(t-t0)/D);dot.setAttribute("cx",x1+(x2-x1)*p);dot.setAttribute("cy",y1+(y2-y1)*p);if(p<1)raf=requestAnimationFrame(tick)};raf=requestAnimationFrame(tick)}
+function step(d){const L=F[cur].steps.length;i=(i+d+L)%L;show()}
+function restart(){clearInterval(timer);if(playing)timer=setInterval(()=>step(1),3600)}
+document.getElementById("play").onclick=e=>{playing=!playing;e.target.textContent=playing?"Pause":"Play";e.target.classList.toggle("on",playing);restart()};
+document.getElementById("next").onclick=()=>{step(1);restart()};document.getElementById("prev").onclick=()=>{step(-1);restart()};
+show();restart();
+</script></body></html>
