@@ -1,13 +1,276 @@
 # MediThread
 
-A patient health-record app for an elderly patient and the people who care for them: upload a prescription or lab photo, get a plain-language summary (English and Malayalam), safety warnings, medicine reminders on Telegram, and a doctor console that turns a spoken visit into a SOAP note.
+One health thread for every family. Upload a prescription or lab photo and MediThread reads it, explains it in plain English and Malayalam, checks it against the rest of the record for danger signs and bad medicine combinations, and reminds the patient on Telegram. A doctor gets a read-only view of the linked patient and a voice console that turns a spoken visit into a SOAP note. An assistant (the **Agent**) can read the record, explain it and take safe actions on it, always asking Yes or No before it saves or shares anything.
 
-It also checks every reading in the record (reports, hospital imports, home readings, what the doctor said in a visit) for danger signs such as very high blood pressure, low sugar, kidney or potassium problems and low oxygen. An AI review explains the whole record in plain words, and a doctor finder shows nearby doctors on an India map, ranked by distance, rating and reviews, language and hours, with AI-written reasons for the top picks.
+Team FullSleeve: S. Aariyan, Jithin P R, Mathew Maijo. Built for the YODHA hackathon (core: Problem Statement 2, unified healthcare journey; also Problem Statement 1, clinical documentation assistant).
 
-The AI never diagnoses and never tells anyone what to take. It restates what the document or the doctor said, and flags things to show a doctor.
+**The one rule that shapes everything:** the AI proposes, code decides. The AI never diagnoses and never tells anyone what to take. It restates what a document or a doctor said, and flags things to show a doctor. Every number it states must exist in the record, every write goes through a registered tool, and anything that changes data is confirmed by the person first.
 
-- `BackEnd/` FastAPI, SQLAlchemy (Supabase Postgres, SQLite fallback), APScheduler. Gemini reads documents, Groq writes summaries and translations. Safety checks are plain Python.
-- `Frontend/` Vite + React (JavaScript).
+## Contents
+
+1. [Features](#features)
+2. [Architecture](#architecture)
+3. [Request flows](#request-flows)
+4. [The Agent](#the-agent)
+5. [Data model](#data-model)
+6. [Safety and privacy](#safety-and-privacy)
+7. [Repository layout](#repository-layout)
+8. [Start it](#start-it) (run locally, accounts, Docker stack)
+9. [Deploying](#deploying)
+10. [Environment variables](#environment-variables)
+11. [Demo mode](#demo-mode), [tests](#tests-and-checks), [known limits](#known-limits)
+
+## Features
+
+| Area | What it does |
+| --- | --- |
+| Records | Photo or PDF upload (jpg/png/webp/pdf, 10 MB, type checked by magic bytes). Gemini extracts, Groq writes the summary and Malayalam translation. Hospital FHIR bundles import with de-duplication. Handwritten prescriptions get a second careful reading; anything not agreed by both readings is shown as "unclear", never saved as a medicine. |
+| Timeline and charts | Every record on one thread, with trend charts for every test that has two or more results. |
+| Safety checks | Duplicate medicines, allergy clashes, drug interactions (DDInter plus hand-written patient messages), lab thresholds, rising trends, and a whole-record danger check (blood pressure, sugar, kidneys, potassium, oxygen and more) in plain Python. Emergency banner with a Call 108 button. |
+| Health review | A plain-language AI review of the whole record. Points whose numbers are not in the record, or that diagnose or advise on medicines, are dropped in code. Falls back to rules without Groq. |
+| Reminders | Telegram message per dose, hourly nudges until taken, a missed-dose alert to the family, refill and follow-up notices. Survives restarts. |
+| Doctor finder | Ranked by distance, rating, specialty, language and hours on an India map (fictional sample directory). |
+| Doctor console | A linked doctor speaks the visit (speech to text), flags and suggested questions appear live, the visit is classified into complaints, diagnoses, medicines, tests and advice, and nothing reaches the patient until the doctor approves. |
+| Agent | Chat or voice assistant for patients and doctors, with files, PDFs, confirmations, background tasks and an audit log. See [The Agent](#the-agent). |
+| Onboarding | A guided tour and an auto-playing demo for new users, and the Agent answers "how do I..." questions and can show the steps on screen. |
+| Accounts | Email and password, patient or doctor roles, one-time invite codes to link a doctor, revoke any time, access history. |
+
+## Architecture
+
+### System context
+
+```mermaid
+flowchart LR
+  subgraph Clients
+    P[Patient browser<br/>React app]
+    D[Doctor browser<br/>React app + console]
+    TG[Telegram app]
+  end
+  subgraph Edge
+    N[nginx<br/>TLS, static files, rate limits, CSP<br/>local Docker stack only]
+  end
+  subgraph Backend[FastAPI backend - one worker]
+    R[Routers]
+    A[Agent engine]
+    PIPE[Upload pipeline]
+    SAFE[Python safety layer<br/>risk, trends, interactions]
+    SCH[APScheduler<br/>reminders every 30 s]
+    V[Encrypted vault<br/>AES-256-GCM]
+  end
+  subgraph Data
+    PG[(Supabase Postgres)]
+    RD[(Redis<br/>optional)]
+  end
+  subgraph External[External services]
+    GEM[Gemini<br/>document reading]
+    GRQ[Groq<br/>summaries, agent, judge, Whisper]
+    EL[ElevenLabs<br/>speech to text]
+    TGB[Telegram Bot API]
+    FDA[openFDA labels]
+    DDI[(DDInter SQLite<br/>local file)]
+  end
+  P --> N
+  D --> N
+  N -->|/api| R
+  R --> A
+  R --> PIPE
+  PIPE --> SAFE
+  A --> SAFE
+  R --> PG
+  A --> RD
+  R --> RD
+  R --> V
+  PIPE --> GEM
+  PIPE --> GRQ
+  A --> GRQ
+  R --> EL
+  A --> FDA
+  SAFE --> DDI
+  SCH --> PG
+  SCH --> TGB
+  TGB --> TG
+```
+
+### Deployment shapes
+
+| | Local Docker stack | Hosted (Render) |
+| --- | --- | --- |
+| Entry | nginx on 8080 (http) and 8443 (https) | one web service |
+| Frontend | built into the nginx image | built into the API image, served by `app/static_site.py` |
+| Backend | `backend` container, one uvicorn worker, read-only filesystem | same code in one container (`deploy/render/Dockerfile`) |
+| Redis | `redis:7-alpine` with AOF volume | none: state falls back to memory |
+| Database | Supabase Postgres (transaction pooler, port 6543) | Supabase Postgres |
+| Files | Docker volume `vault` | container disk (wiped on redeploy) |
+
+Optional overlays: `docker-compose.ai.yml` adds the Laya triage classifier, and `docker-compose.htr.yml` adds a TrOCR handwriting reader. Both are off by default.
+
+### Backend layers
+
+```
+routers/        HTTP only: auth, patients, documents, consultations, reminders, doctors, shares, care,
+                doctor, imports, agent, doctor_agent, admin, demo
+app/            domain logic in plain Python: auth, risk, trends, labs, vitals, health_hooks,
+                reminder_service, fhir_import, vault, store (Redis with memory fallback), observability
+app/agent/      the Agent engine: planner, loop, executor, registry, permissions, tools, judge, memory, tasks, audit
+ai/             everything that talks to a model or an AI-adjacent dataset: extractor, handwriting,
+                pipeline, translator, health_review, consultation, visit_classify, transcribe,
+                safety/ddi/interactions, drug_usage, decision (Laya), triage_rules, doctor_ai
+```
+
+The rule inside every layer: **models write words, Python decides facts.** Risk levels, the emergency banner, interaction alerts, trend alerts and every permission check never depend on a model.
+
+### Frontend
+
+React 19 and Vite (JavaScript). `src/api/client.js` lists every endpoint. `src/design/` holds the component system and `mt.css` (tokens, chapters, components). `src/pages/` has the screens (Home, Health Thread, Health Check, Medicines, Reminders, Doctors, Sharing, Upload, Triage, Profile, doctor home and console, Admin). `src/components/agent/` is the Agent panel, `src/components/tour/` the guided tour. Motion uses GSAP and IntersectionObserver, with reduced-motion support. A mock-data build (`npm run build:single`) runs from `file://` as an offline backup.
+
+## Request flows
+
+### Sign in
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant N as nginx
+  participant API as FastAPI
+  participant S as Redis / memory
+  participant DB as Postgres
+  B->>N: POST /api/auth/login (email, password)
+  N->>N: rate limit auth 10/min
+  N->>API: proxy
+  API->>S: check lockout (5 failures per email+IP = 15 min)
+  API->>DB: load user, verify scrypt hash
+  API-->>B: JWT (sub = patient id, role) + profile
+  B->>B: store token in localStorage
+  B->>API: later calls with Authorization: Bearer
+  API->>API: current_patient / current_doctor check the role
+```
+
+A doctor token on a patient route is 401, and the reverse. A doctor sees a patient only through an active care link (otherwise 404).
+
+### Upload a record
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant API as FastAPI
+  participant T as Background thread
+  participant G as Gemini
+  participant Q as Groq
+  B->>API: POST /api/documents (file)
+  API->>API: size, magic bytes, duplicate hash check
+  API-->>B: job id
+  B->>API: GET /api/jobs/{id}/events (SSE)
+  API->>T: start pipeline
+  T->>G: extract JSON (handwriting gets a second pass)
+  T->>T: Python checks: duplicates, allergies, interactions, lab ranges
+  T->>Q: plain-language summary + Malayalam
+  T->>T: save Document, Observations, Medicines, Alerts
+  T->>T: trends + whole-record risk check, Telegram notice for new emergencies
+  T-->>B: stage updates, then the finished card
+```
+
+Results are cached by file SHA-256 in `BackEnd/demo_cache/`, so a re-upload replays instantly and does not spend quota.
+
+### A doctor visit
+
+```mermaid
+sequenceDiagram
+  participant Dr as Doctor console
+  participant API as FastAPI
+  participant STT as Scribe / Whisper
+  participant LLM as Groq
+  Dr->>API: POST /consultations/start (share token)
+  loop each spoken sentence
+    Dr->>API: audio clip
+    API->>STT: transcribe (silence and phantom text filtered)
+    API->>API: drug-name correction (shown as heard to corrected)
+    API->>API: Python flags: duplicate, clash, allergy, emergency, missing info
+    API->>LLM: partial SOAP + follow-up questions (every 3 lines)
+  end
+  Dr->>API: finalize
+  API->>LLM: full SOAP and visit classification in parallel
+  API->>API: validate: every item must cite a doctor line and share real words
+  Dr->>API: approve (may remove items, cannot add any)
+  API->>API: write visit card, medicines, reminders, alerts, Telegram notice
+```
+
+Nothing reaches the patient timeline before approve.
+
+### Reminders
+
+`app/reminder_service.py` runs an APScheduler job every 30 seconds (Asia/Kolkata). For each dose it claims a dedup key (`medicine@HH:MM@date`) in the store and in the `sent_doses` table before sending, so a restart never double-sends. It also sends hourly nudges (max 5 per dose, none after 22:00), a missed-dose message to the family chat, and refill and follow-up notices the day before.
+
+## The Agent
+
+One engine, two agents (patient and doctor). The model never touches the database: it can only propose **registered tool calls**, and code decides what runs.
+
+```mermaid
+flowchart TD
+  U[Person: typed text, voice, or file] --> G{Guards before the model<br/>medicine change, send to doctor,<br/>timing, how-to}
+  G -->|handled| OUT
+  G --> L[LLM loop: Groq function calling<br/>picks tools from a small relevant subset]
+  L -->|model unavailable| RP[Rule planner]
+  L --> EX[Executor - the only door]
+  RP --> EX
+  EX --> C1[unknown tool?] --> C2[schema valid?] --> C3[role, ownership, care link]
+  C3 --> C4{level}
+  C4 -->|L1 read / L2 draft| H[handler]
+  C4 -->|L3 write| P[park for confirmation<br/>show exact preview]
+  P -->|Yes| H
+  H --> VF[verify result in DB] --> AUD[audit log]
+  AUD --> RW[Reply written from tool results only]
+  RW --> CHK[Code check: every number in results<br/>no diagnosis wording]
+  CHK --> J[Second-model judge removes unsupported claims]
+  J --> OUT[Reply + data cards to the UI]
+```
+
+- **Levels.** L1 read; L2 reversible or draft (navigate, summarise, PDF, extraction); L3 writes, always confirmed with a preview and a verify afterwards; L4 never executes (medicine changes: the Agent explains, and no tool exists).
+- **Tools** (about 46): patient reads (what changed, open items, medicines, interactions, side effects from FDA labels with verified quotes, triage, nearby doctors, navigation), files and PDFs, writes (add record from file, create or revoke a share, revoke a doctor, mark dose taken, log a reading, confirm unclear medicines, set up Telegram reminders), doctor tools (brief, changes since visit, record conflicts, missing info, draft and approve a visit), and `app.help` and `app.tour` for how-to questions.
+- **Tasks.** Quick plans run inline. Plans with a slow step run in a background thread (`agent_tasks` table), and the UI polls for step labels. A task stops at the first failure or confirmation.
+- **Files.** Uploaded files are encrypted with AES-256-GCM (`app/vault.py`), bound to the file and patient by AAD. Extraction keeps a value only if it is found in the document's own text, with page, line and quote.
+- **Memory** keeps the person's words, tool names and verified replies for 2 hours. It never stores record or document text.
+- **Voice.** Audio becomes text in the input box (ElevenLabs Scribe, falling back to Groq Whisper). Speech never runs a tool by itself.
+- **Audit.** Every tool call writes ids and outcomes (never record text or secrets) to `agent_audit`. An admin page (`/admin`, allow-listed emails) shows counts only.
+
+## Data model
+
+Main tables (SQLAlchemy, `app/models.py`; `add_missing_columns()` adds new nullable columns at startup):
+
+| Table | Holds |
+| --- | --- |
+| `users`, `patients` | login identity (role patient or doctor) and the patient profile |
+| `documents` | timeline cards: type (`lab`, `prescription`, `consultation`, `visit`, `scan`), summary EN and ML, extracted items, source lines, `external_id` for import dedupe |
+| `observations` | every lab and vital value with code, LOINC, unit, reference range and source |
+| `medicines`, `reminders`, `sent_doses`, `sent_notices`, `reminder_settings` | prescriptions, dose times, send tracking, per-patient reminder preferences |
+| `alerts` | open warnings by kind (`interaction`, `duplicate`, `clash`, `allergy`, `lab`, `trend`, `risk`, `handwriting`) and severity |
+| `share_links`, `invite_codes`, `care_links` | QR links, one-time doctor codes, active doctor access |
+| `consultations` | transcript, flags, SOAP note, classification, state |
+| `agent_tasks`, `agent_files`, `agent_audit` | Agent work, encrypted file records, audit trail |
+| `ai_decisions` | audit of Laya decisions (hash of the input, never the text) |
+
+## Safety and privacy
+
+- **Role separation.** Patient and doctor tokens are not interchangeable. Unlinked or fake ids answer 404, so ids cannot be probed. Fake share tokens answer 404, expired ones 410.
+- **Doctors never see "handwriting unclear" notes.** Those alerts are patient-only and are filtered out of shares, the doctor view, the doctor Agent and PDFs.
+- **Nothing silent.** Writes need confirmation. The medicine-change guard runs before the model. "Send to my doctor" never fakes delivery.
+- **Secrets stay secret.** Tokens never appear in task results, audit or logs (request paths are redacted, and the HTTP client loggers are forced to WARNING because they would log the Telegram URL). Share-link QR tokens are fetched once from short-lived storage.
+- **Encryption.** Vault files use AES-256-GCM with a random storage key. Passwords use scrypt.
+- **Edge hardening** (Docker stack). Rate limits, 11 MB upload cap, CSP and security headers, non-root containers, read-only backend filesystem, no published port for the backend or Redis.
+- **Data sources.** DDInter (CC BY-NC-SA 4.0) and one training dataset are non-commercial; see `ml/DATA_LICENSES.md`. The doctor directory is fictional.
+
+## Repository layout
+
+```
+BackEnd/            FastAPI app (see Backend layers), scripts/ (tests, smoke, security sweep), data/ (doctors, DDInter)
+Frontend/           Vite + React app
+deploy/nginx/       nginx image, config snippets, certificate generator
+deploy/render/      single-container Dockerfile for the hosted copy
+laya/, ml/, models/ optional triage classifier service, training code and datasets, local weights
+htr/                optional TrOCR handwriting service
+docker-compose*.yml the stack and its optional overlays
+render.yaml, DEPLOY.md   hosted deployment blueprint and steps
+SPEC.md, CLAUDE.md  original spec and working notes for contributors
+```
 
 ## Start it
 
@@ -72,6 +335,10 @@ de-duplication. Redis and the backend have no published ports: only nginx is rea
 - **Laya** (https://huggingface.co/convaiinnovations/laya): a small classifier that helps with symptom triage and with spotting emergencies in what a patient types or a doctor says, in English, Malayalam and Manglish. Rules always run first; the model can only raise urgency, never lower it, and it is used only after it passes its own evaluation gate. Setup, training and the honest numbers are in [`ml/README.md`](ml/README.md). Run it with `docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build --wait`.
 - Data sources and licences: [`ml/DATA_LICENSES.md`](ml/DATA_LICENSES.md). DDInter and one training source are non-commercial.
 
+## Deploying
+
+The hosted copy is one Render web service that runs the API and serves the built frontend (see `render.yaml`, `deploy/render/Dockerfile` and `DEPLOY.md`). Set the secrets in the Render dashboard, not in the repo. Free-tier limits apply: the service sleeps when idle (so reminders pause), Redis is absent (state is per process), and the vault does not survive a redeploy. Run only one copy against a database at a time: a local stack and the hosted one together would each send every reminder.
+
 ## Environment variables
 
 Set them in the root `.env` (gitignored). Never commit values.
@@ -89,6 +356,12 @@ Set them in the root `.env` (gitignored). Never commit values.
 | `DEMO_MODE` | backend | `true` turns on the demo-only endpoints (see below). Off by default. |
 | `OPENFDA_ENABLE` | backend | `1` adds an OpenFDA lookup for unknown drug pairs. Off by default (too many false positives). |
 | `RESET_DB` | backend | `1` drops all tables and re-seeds at startup. |
+| `FILE_ENC_KEY` | backend | 32-byte urlsafe base64 key for the encrypted file vault. Without it file features answer 503. `FILE_ENC_KEY_PREV` decrypts old files during rotation. |
+| `ELEVENLABS_API_KEY` | backend | Optional. Speech to text for the Agent and console (Scribe). Falls back to Groq Whisper. |
+| `ADMIN_EMAILS` | backend | Comma-separated emails allowed to open `/admin`. |
+| `LAYA_URL`, `HTR_URL` | backend | Optional Laya triage and TrOCR services. Off when unset. |
+| `AGENT_JUDGE` | backend | `0` turns off the second-model reply judge. |
+| `DB_POOL_MODE` | backend | `transaction` (Docker default) uses Supabase port 6543; `session` opts out. |
 | `VITE_USE_MOCK` | frontend | `true` runs the UI on built-in mock data, no backend needed. |
 | `VITE_API_URL` | frontend | Backend base URL. Empty = same origin (Vite proxy). |
 
