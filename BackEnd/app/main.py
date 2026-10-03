@@ -110,3 +110,9 @@ def ready(response: Response):
     if not ok:
         response.status_code = 503
     return {"ready": ok, **checks}
+
+
+# Single-service hosting: serve the built frontend from here when a build is present (a no-op under the Docker stack).
+from . import static_site  # noqa: E402
+
+static_site.mount(app)
