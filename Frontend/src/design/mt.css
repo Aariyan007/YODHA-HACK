@@ -131,7 +131,7 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 /* ── Type ───────────────────────────────────────────────────────────────── */
 .mt-label { font: 600 0.72rem/1.2 var(--font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mt-ink-3); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .mt-display { font-family: var(--f-display); font-weight: 600; font-size: clamp(2.5rem, 1.5rem + 4.4vw, 4.6rem); line-height: 1.02; letter-spacing: -0.022em; color: var(--mt-ink); margin: var(--u2) 0 0; }
-.mt-display em { font-style: normal; color: var(--mt-deep); }
+.mt-display em { font-style: italic; color: var(--mt-deep); }
 .mt-lede { font-family: var(--f-display); font-size: clamp(1.1rem, 0.95rem + 0.7vw, 1.45rem); line-height: 1.38; color: var(--mt-ink-2); max-width: 46ch; margin: var(--u2) 0 0; }
 .mt-opening { min-width: 0; }
 .mt-asof { display: inline-flex; align-items: center; gap: 10px; margin: var(--u3) 0 0; font-size: 0.8rem; letter-spacing: 0.06em; color: var(--mt-ink-3); }
@@ -650,3 +650,6 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-evd-foot { display: flex; flex-wrap: wrap; gap: var(--u1); justify-content: flex-end; margin-top: var(--u3); padding-top: var(--u2); border-top: 1px solid var(--mt-line); }
 @keyframes mt-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mt-evd { animation: none; } }
+
+/* the document card's label row shares the class "top" with the page header bar: undo the header's sticky/z-index/background there */
+.mt-doc .paper .top { position: static; z-index: auto; top: auto; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; border: 0; box-shadow: none; padding: 0; height: auto; min-height: 0; }

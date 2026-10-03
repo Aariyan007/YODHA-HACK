@@ -8,6 +8,7 @@
 // A document preview elsewhere on the page can light up its node here (see threadLink in primitives.jsx).
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { gsap } from "gsap";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { reducedMotion } from "../anim.js";
 import { useT } from "../i18n.js";
@@ -66,7 +67,7 @@ export function EvidenceDialog({ doc, onClose }) {
     return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; prev?.focus?.({ preventScroll: true }); };
   }, [onClose]);
   if (!doc) return null;
-  return (
+  return createPortal(
     <div className="mt-evd" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="mt-evd-box" role="dialog" aria-modal="true" aria-label={doc.title} tabIndex={-1} ref={ref} data-lenis-prevent>
         <button type="button" className="mt-evd-x" onClick={onClose} aria-label="Close">×</button>
@@ -76,7 +77,8 @@ export function EvidenceDialog({ doc, onClose }) {
           <button type="button" className="mt-btn sm" onClick={onClose}>{t("close") === "close" ? "Close" : t("close")}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
