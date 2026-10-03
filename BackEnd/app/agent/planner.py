@@ -52,6 +52,7 @@ R_TOOK = re.compile(r"(?:mark|log|i (?:took|have taken|had))\s+(?:my\s+)?(?:dose
 R_LOG = _P(r"\b(log|add|record|enter|save|note down|note)\b")
 R_MED_CHANGE = _P(r"\b(stop|skip|quit|double|increase|reduce|lower|raise|change|switch|start)\b.{0,25}\b(medicine|medication|tablet|pill|dose|metformin|insulin|telma|atorva|amlodipine)", r"\bshould i (stop|take|skip|change|increase|reduce)\b")
 R_SYMPTOM = _P(r"\b(i have|i've got|i am having|i'm having|i feel|i am feeling|i'm feeling|having|feeling)\b.{0,25}\b(pain|ache|aching|hurts?|hurting|dizzy|dizziness|fever|short of breath|breathless|nausea|vomiting|cough|palpitation|weak(ness)?)\b", r"\b(heart ache|chest pain|can'?t breathe)\b")
+R_UNCLEAR = _P(r"(unclear|handwrit|could ?n.?t read|couldn.?t read|not read).{0,60}(correct|right|fine|ok|add|confirm)", r"(correct|right|fine|add|confirm).{0,40}(unclear|handwrit)", r"\b(those|these|they|them)\b.{0,25}\b(are |is )?(correct|right)\b.{0,30}\badd")
 R_NAV = re.compile(r"^\s*(?:please\s+)?(?:open|go to|take me to|show me the|navigate to)\s+(?:the\s+|my\s+)?(.+?)(?: page| tab| screen)?\s*$", re.I)
 R_MEDS = _P(r"medicin", r"tablet", r"\bpills?\b", r"prescri", r"മരുന്ന്", r"\bdrugs?\b")
 R_DUE = _P(r"\bleft\b.{0,25}\b(eat|take|taking|tablet|medicine|pill)", r"\b(still|remaining|yet)\b.{0,20}\b(take|eat|tablet|medicine|pill)", r"\bdue\b", r"reminder", r"dose", r"care.?loop", r"today'?s", r"missed", r"taken")
@@ -178,6 +179,8 @@ class AgentPlanner:
                                 "Here is your current list; I can also prepare questions for your next visit.")
         if R_SHARE_STOP.search(low) and role == "patient":
             return Plan("share_stop", [Step("sharing.revoke", {"all": True})])
+        if role == "patient" and R_UNCLEAR.search(low):  # "those unclear handwriting ones are correct, add them"
+            return Plan("confirm_unclear", [Step("medications.confirm_unclear")])
         if role == "patient" and (m := R_DOC_REMOVE.search(text)) and re.search(r"\bdr\b", m.group(1), re.I):
             return Plan("doctor_remove", [Step("care.revoke_doctor", {"name": m.group(1).strip()[:80]})])
         if R_SHARE_NEW.search(low) and role == "patient":

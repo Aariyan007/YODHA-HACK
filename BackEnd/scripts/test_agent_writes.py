@@ -22,7 +22,7 @@ from app import store
 from app.agent.planner import AgentPlanner
 from app.agent.llm import NullLLM
 from app.agent.registry import REGISTRY
-from app.models import (AccessLog, AgentAudit, AgentFile, AgentTask, CareLink, Document, Medicine, Observation, Patient, ShareLink, User)
+from app.models import (Alert, AccessLog, AgentAudit, AgentFile, AgentTask, CareLink, Document, Medicine, Observation, Patient, ShareLink, User)
 
 
 class Writes(base.ExtractBase):
@@ -193,6 +193,79 @@ class DoseAndReadingTests(Writes):
     def test_asking_about_a_reading_does_not_write(self):
         self.say("what was my bp")
         self.assertEqual(self.count(Observation), 0)
+
+
+class UnclearHandwriting(Writes):
+    def setUp(self):
+        super().setUp()
+        with self.Session() as db:
+            for name in ("Chymoral Forte", "Volini Gel"):
+                db.add(Alert(patient_id=self.pid, severity="medium", kind="handwriting", title=f"Handwriting unclear: {name}",
+                             message="I could not read this medicine name with confidence."))
+            db.commit()
+
+    def meds(self):
+        with self.Session() as db:
+            return sorted(m.name for m in db.scalars(select(Medicine).where(Medicine.patient_id == self.pid)))
+
+    def open_unclear(self):
+        with self.Session() as db:
+            return db.scalars(select(Alert).where(Alert.patient_id == self.pid, Alert.kind == "handwriting", Alert.resolved.is_(False))).all()
+
+    def test_confirming_all_adds_them_after_a_yes_and_clears_the_alerts(self):
+        r = self.say("those unclear handwriting medicines are correct, add them")
+        self.assertEqual(r["status"], "waiting_for_confirmation")
+        vals = " ".join(p["value"] for p in r["confirmation"]["preview"])
+        self.assertIn("Chymoral Forte", vals)
+        self.assertIn("Volini Gel", vals)
+        self.assertEqual(self.meds(), [])                         # nothing yet
+        self.assertEqual(self.confirm(r)["status"], "completed")
+        self.assertEqual(self.meds(), ["Chymoral Forte", "Volini Gel"])
+        self.assertEqual(self.open_unclear(), [])
+
+    def test_only_the_named_one(self):
+        from app.agent.context import AgentContext
+        from app.agent.executor import AgentExecutor
+        with self.Session() as db:
+            ctx = AgentContext(db=db, role="patient", actor_id=self.pid, actor_name="one", patient_id=self.pid)
+            r = AgentExecutor().run(ctx, "medications.confirm_unclear", {"names": ["volini"]})
+            self.assertEqual(r.status, "needs_confirmation")
+            cid = r.confirmation["id"]
+            self.assertTrue(AgentExecutor().confirm(ctx, cid, True).ok)
+            db.commit()
+        self.assertEqual(self.meds(), ["Volini Gel"])
+        self.assertEqual([a.title for a in self.open_unclear()], ["Handwriting unclear: Chymoral Forte"])
+
+    def test_unknown_name_and_nothing_waiting_are_refused(self):
+        from app.agent.context import AgentContext
+        from app.agent.executor import AgentExecutor
+        with self.Session() as db:
+            ctx = AgentContext(db=db, role="patient", actor_id=self.pid, actor_name="one", patient_id=self.pid)
+            self.assertEqual(AgentExecutor().run(ctx, "medications.confirm_unclear", {"names": ["Zorbexil"]}).status, "failed")
+        with self.Session() as db:
+            for a in db.scalars(select(Alert)):
+                a.resolved = True
+            db.commit()
+        r = self.say("those unclear medicines are correct, add them")
+        self.assertEqual(r["status"], "failed")
+        self.assertEqual(self.meds(), [])
+
+    def test_other_patients_unclear_medicines_are_not_touched(self):
+        with self.Session() as db:
+            db.add(Alert(patient_id=self.pid2, severity="medium", kind="handwriting", title="Handwriting unclear: Secretol", message="x"))
+            db.commit()
+        self.confirm(self.say("those unclear handwriting medicines are correct, add them"))
+        with self.Session() as db:
+            self.assertEqual(db.scalars(select(Medicine).where(Medicine.patient_id == self.pid2)).all(), [])
+            self.assertFalse(db.scalar(select(Alert).where(Alert.title == "Handwriting unclear: Secretol")).resolved)
+
+    def test_allergy_clash_is_surfaced_in_the_confirmation(self):
+        with self.Session() as db:
+            db.get(Patient, self.pid).allergies = ["Penicillin"]
+            db.add(Alert(patient_id=self.pid, severity="medium", kind="handwriting", title="Handwriting unclear: Amoxicillin", message="x"))
+            db.commit()
+        r = self.say("those unclear handwriting medicines are correct, add them")
+        self.assertTrue(any(p["label"].startswith("Warning") for p in r["confirmation"]["preview"]), r["confirmation"]["preview"])
 
 
 class SafetyTests(Writes):

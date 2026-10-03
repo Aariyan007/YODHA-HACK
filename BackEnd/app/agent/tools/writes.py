@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from ai import pipeline
 from ... import store, vault
-from ...models import AccessLog, AgentFile, CareLink, Document, Medicine, Observation, Patient, ShareLink, User
+from ...models import AccessLog, AgentFile, Alert, CareLink, Document, Medicine, Observation, Patient, ShareLink, User
 from ...schemas import VitalsIn, document_out, iso
 from ..context import AgentContext
 from ..executor import ToolError
@@ -239,3 +239,85 @@ def health_log_reading(ctx: AgentContext, args: dict) -> dict:
     blocks += [block("warning", severity=r.get("level"), title=r.get("title"), text=r.get("message") or r.get("detail"),
                      emergency=bool(r.get("emergency"))) for r in out["risks"][:3]]
     return {"data": {"documentId": rec["id"]}, "target": rec["id"], "ref": rec["id"], "blocks": blocks}
+
+
+# ---------------------------------------------------------------- medicines the person confirms (e.g. unclear handwriting)
+
+UNCLEAR_PREFIX = "Handwriting unclear: "
+
+
+def _unclear_alerts(ctx: AgentContext) -> dict[str, Alert]:
+    """name (lower) -> the open "handwriting unclear" alert for it."""
+    out = {}
+    for a in ctx.db.scalars(select(Alert).where(Alert.patient_id == ctx.patient_id, Alert.kind == "handwriting", Alert.resolved.is_(False))):
+        if a.title.startswith(UNCLEAR_PREFIX):
+            out[a.title[len(UNCLEAR_PREFIX):].strip().lower()] = a
+    return out
+
+
+def _pick_unclear(ctx: AgentContext, names: list[str] | None) -> list[tuple[str, Alert]]:
+    pool = _unclear_alerts(ctx)
+    if not pool:
+        raise ToolError("There are no unclear handwritten medicines waiting for you to confirm.")
+    if not names:
+        return [(a.title[len(UNCLEAR_PREFIX):].strip(), a) for a in pool.values()]
+    picked = []
+    for n in names:
+        key = n.strip().lower()
+        hit = pool.get(key) or next((a for k, a in pool.items() if key and (key in k or k in key)), None)
+        if hit is None:
+            raise ToolError(f"I have no unclear medicine called {n}. The ones waiting are: " + ", ".join(a.title[len(UNCLEAR_PREFIX):] for a in pool.values()) + ".")
+        picked.append((hit.title[len(UNCLEAR_PREFIX):].strip(), hit))
+    return picked
+
+
+def _safety(ctx: AgentContext, names: list[str]) -> list[dict]:
+    """The same interaction / allergy / duplicate checks an uploaded prescription gets, for medicines added by hand."""
+    from ai import safety
+    p = ctx.db.get(Patient, ctx.patient_id)
+    existing = [{"name": m.name, "generic": m.generic} for m in ctx.db.scalars(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.active.is_(True)))]
+    return safety.analyse(patient_name=p.name, patient_allergies=list(p.allergies or []), existing_medicines=existing,
+                          new_medicines=[{"name": n} for n in names], observations=[])["alerts"]
+
+
+@tool("medications.unclear", "List the medicines from handwritten prescriptions that could not be read with confidence and are waiting for the person to confirm.",
+      permission="meds:read", roles=("patient",), audit_category="medications")
+def medications_unclear(ctx: AgentContext, args: dict) -> dict:
+    names = [a.title[len(UNCLEAR_PREFIX):] for a in _unclear_alerts(ctx).values()]
+    text = ("Waiting for you to confirm: " + ", ".join(names) + ".") if names else "No unclear handwritten medicines are waiting."
+    return {"data": {"names": names}, "blocks": [block("text", text=text)]}
+
+
+def _confirm_preview(ctx: AgentContext, args: dict) -> list[dict]:
+    picked = _pick_unclear(ctx, args.get("names"))
+    rows = [{"label": "Add to your medicines", "value": name} for name, _ in picked]
+    for a in _safety(ctx, [n for n, _ in picked]):
+        rows.append({"label": f"Warning ({a['severity']})", "value": a["title"]})
+    rows.append({"label": "Note", "value": "Added by name only, as you confirmed they are correct. No dose or timing, so no reminders yet: tell me the timing to add it."})
+    return rows
+
+
+@tool("medications.confirm_unclear", "The person says the unclear handwritten medicines are correct: add them to their medicines (all waiting ones, or only the names given).",
+      {"type": "object", "properties": {"names": {"type": "array", "items": {"type": "string", "maxLength": 80}, "maxItems": 10}}, "additionalProperties": False},
+      permission="records:write", level=L3, confirmation_required=True, roles=("patient",), audit_category="write", preview=_confirm_preview,
+      verify=lambda ctx, a, out: all(ctx.db.scalar(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.id == i)) is not None for i in out["_ids"]))
+def medications_confirm_unclear(ctx: AgentContext, args: dict) -> dict:
+    from ...models import Alert as AlertRow
+    from ...routers.patients import today
+    picked = _pick_unclear(ctx, args.get("names"))
+    names = [n for n, _ in picked]
+    warnings = _safety(ctx, names)  # computed against the list as it is now, before these are added
+    ids = []
+    for name, alert in picked:
+        m = Medicine(patient_id=ctx.patient_id, name=name[:120], start_date=today(), prescribed_by=None, times=[])
+        ctx.db.add(m)
+        ctx.db.flush()
+        ids.append(m.id)
+        alert.resolved = True  # the person has answered it
+    for a in warnings:
+        ctx.db.add(AlertRow(patient_id=ctx.patient_id, severity=a["severity"], kind=a["kind"], title=a["title"], message=a["message"]))
+    ctx.db.add(AccessLog(patient_id=ctx.patient_id, who=ctx.actor_name, role="Patient", action=f"Confirmed {len(ids)} handwritten medicine(s)", via="Agent"))
+    ctx.db.flush()
+    blocks = [block("text", text="Added: " + ", ".join(names) + ". Tell me the dose and timing of any of them and I will add reminders.")]
+    blocks += [block("warning", severity=a["severity"], title=a["title"], text=a["message"]) for a in warnings[:4]]
+    return {"data": {"added": names}, "_ids": ids, "target": ",".join(ids)[:80], "blocks": blocks}
