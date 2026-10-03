@@ -104,7 +104,7 @@ for name, data, mime in [("evil.exe", b"MZ\x90\x00" + b"0" * 100, "application/o
 r = up("empty.png", b"", "image/png")
 check("upload empty file -> 400", r.status_code == 400, f"got {r.status_code}")
 
-# ---- accounts and roles (Phase 8) ----
+# ---- accounts and roles ----
 D = register("doctor")
 for path in ("/api/patients/me", "/api/patients/me/timeline", "/api/care/invite", "/api/documents"):
     method = "POST" if path in ("/api/care/invite", "/api/documents") else "GET"

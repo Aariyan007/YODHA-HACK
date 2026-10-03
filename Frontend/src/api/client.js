@@ -205,7 +205,7 @@ export function uploadDocument(file, callbacks = {}) {
   };
 }
 
-// ---------- hospital record import (Phase 6) ----------
+// ---------- hospital record import ----------
 
 // returns { imported:{timelineCards,observations,conditions,medicines}, total, duplicates, alreadyImported,
 // ignored:[{type,count}], skippedInvalid, records:[timeline item], alerts:[alert], message }
@@ -408,7 +408,7 @@ export async function runDemoConversation(consultationId, shareToken, onLine) {
   return last;
 }
 
-// ---------- reminders (Phase 5) ----------
+// ---------- reminders ----------
 
 let MOCK_REMINDER_SETTINGS = {
   remindersEnabled: false,
@@ -488,7 +488,7 @@ export const getDeepHealth = () =>
       })
     : request("/api/health/deep");
 
-// ---------- profile, home readings, health check (Phase 7) ----------
+// ---------- profile, home readings, health check ----------
 
 let MOCK_PROFILE = null;
 
@@ -550,7 +550,7 @@ const MOCK_HEALTH_CHECK = {
 // Real: GET /api/patients/me/health-check
 export const getHealthCheck = () => (USE_MOCK ? delay(MOCK_HEALTH_CHECK) : request("/api/patients/me/health-check"));
 
-// ---------- doctor finder (Phase 7, FICTIONAL sample directory) ----------
+// ---------- doctor finder ----------
 
 const qs = (params) => {
   const u = new URLSearchParams();

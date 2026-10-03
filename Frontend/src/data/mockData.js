@@ -1159,7 +1159,7 @@ export function mockTriage(text) {
   return { urgent: false, specialist: "General Physician", why: "A general check-up is a good starting point." };
 }
 
-// ---------- Consultation mocks (Phase 4) ----------
+// ---------- Consultation mocks ----------
 // 14 line scripted conversation, same as BackEnd/app/routers/consultations.py DEMO_SCRIPT.
 export const consultationScript = [
   ["doctor",  "Hello, how are you feeling today?"],

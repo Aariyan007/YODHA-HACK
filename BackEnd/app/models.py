@@ -49,7 +49,7 @@ class Document(Base):
     tags: Mapped[list] = mapped_column(JSON, default=list)
     items: Mapped[list] = mapped_column(JSON, default=list)
     image_path: Mapped[str | None] = mapped_column(String(300))
-    # Phase 2: richer upload data. All nullable so existing seed rows still fit.
+    # richer upload data. All nullable so existing seed rows still fit.
     status: Mapped[str | None] = mapped_column(String(10))  # good | watch | alert
     provider: Mapped[str | None] = mapped_column(String(200))
     doctor: Mapped[str | None] = mapped_column(String(200))
@@ -58,7 +58,7 @@ class Document(Base):
     source_lines: Mapped[list] = mapped_column(JSON, default=list)
     source_highlight: Mapped[list] = mapped_column(JSON, default=list)
     file_hash: Mapped[str | None] = mapped_column(String(64), index=True)
-    # Phase 6: where the record came from ("fhir" for hospital imports) and its
+    # where the record came from ("fhir" for hospital imports) and its
     # stable id in the source system, used to dedupe repeat imports.
     origin: Mapped[str | None] = mapped_column(String(20))
     external_id: Mapped[str | None] = mapped_column(String(120), index=True)
@@ -79,9 +79,9 @@ class Medicine(Base):
     start_date: Mapped[str | None] = mapped_column(String(10))
     prescribed_by: Mapped[str | None] = mapped_column(String(120))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Phase 5: nullable course length. None = ongoing (no end).
+    # nullable course length. None = ongoing (no end).
     duration_days: Mapped[int | None] = mapped_column(default=None)
-    # Phase 5: optional refill date (YYYY-MM-DD). None = no refill tracked.
+    # optional refill date (YYYY-MM-DD). None = no refill tracked.
     refill_due: Mapped[str | None] = mapped_column(String(10))
 
 
