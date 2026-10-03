@@ -98,3 +98,81 @@ def usage(name: str) -> dict | None:
         return None  # a network blip is not cached as "not found"
     _cache[key] = (time.time(), found)
     return found
+
+
+# ---------------------------------------------------------------- side effects (from the same public label)
+
+PATIENT_FIELDS = ("information_for_patients", "patient_medication_information", "spl_patient_package_insert")
+_side_cache: dict[str, tuple[float, dict | None]] = {}
+EXTRACT_SYSTEM = """You read the SOURCE text of a drug label and pull out side effects for a patient. Use ONLY the SOURCE.
+List up to 8 side effects a patient may notice (common) and up to 4 serious ones where the SOURCE says to get medical help or call a doctor.
+For every item copy a SHORT exact quote (under 110 characters) from the SOURCE that mentions it. Never add anything that is not in the SOURCE.
+Reply JSON only: {"common": [{"effect": "plain name", "quote": "exact words"}], "serious": [{"effect": "plain name", "quote": "exact words"}]}"""
+
+
+def _norm(t: str) -> str:
+    return re.sub(r"[^a-z0-9 ]+", "", re.sub(r"\s+", " ", (t or "").lower())).strip()
+
+
+def _source_text(labels: list[dict]) -> str:
+    """The label's patient side-effects section if it has one, else the start of the adverse reactions section."""
+    for field in PATIENT_FIELDS:
+        for lab in labels:
+            text = re.sub(r"\s+", " ", " ".join(lab.get(field) or []))
+            m = re.search(r"(what are the possible side effects|possible side effects|side effects of)", text, re.I)
+            if m:
+                return text[m.start(): m.start() + 2600]
+    for lab in labels:
+        text = re.sub(r"\s+", " ", " ".join(lab.get("adverse_reactions") or []))
+        if text:
+            return text[:2600]
+    return ""
+
+
+def verify_items(items, source: str) -> list[dict]:
+    """Keep an item only if its quote really is in the source and the effect is named in that quote. The model proposes, this decides."""
+    src = _norm(source)
+    out = []
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        q, e = str(it.get("quote") or "").strip(), str(it.get("effect") or "").strip()
+        words = [w for w in _norm(e).split() if len(w) > 3]
+        if 8 <= len(q) <= 160 and _norm(q) in src and (not words or any(w[:4] in _norm(q) for w in words)):
+            out.append({"effect": e[:60], "quote": q})
+    return out[:8]
+
+
+def side_effects(name: str, extractor=None) -> dict | None:
+    """{generic, common[{effect,quote}], serious[...], boxed, source, summarised} or None. Cached, never raises.
+    `extractor(system, user) -> dict|None` is the small model; without it only the label's boxed warning is returned."""
+    key = clean_name(name).lower()
+    if not key:
+        return None
+    hit = _side_cache.get(key)
+    if hit and time.time() - hit[0] < TTL:
+        return hit[1]
+    found = None
+    try:
+        for g in candidates(name)[:3]:
+            labels = _fetch(g)
+            if not labels:
+                continue
+            boxed = next((re.sub(r"\s+", " ", " ".join(l["boxed_warning"]))[:300] for l in labels if l.get("boxed_warning")), None)
+            src = _source_text(labels)
+            common = serious = []
+            summarised = False
+            if src and extractor is not None:
+                out = extractor(EXTRACT_SYSTEM, "SOURCE:\n" + src)
+                if isinstance(out, dict):
+                    common, serious = verify_items(out.get("common"), src), verify_items(out.get("serious"), src)
+                    summarised = True
+            if common or serious or boxed or src:
+                found = {"generic": g, "common": common, "serious": serious, "boxed": boxed, "source": SOURCE, "summarised": summarised,
+                         "hasText": bool(src)}
+                break
+    except Exception:
+        return None
+    if found and (found["summarised"] or not found["hasText"]):  # do not cache a result that only lacked the model
+        _side_cache[key] = (time.time(), found)
+    return found

@@ -350,3 +350,74 @@ def triage_check(ctx: AgentContext, args: dict) -> dict:
     else:
         blocks.append(block("text", text=f"{r['why']} A {r['specialist']} is a good fit. This is guidance on who to see, not a diagnosis."))
     return {"data": {"urgency": r.get("urgency"), "specialist": r.get("specialist"), "emergency": bool(r.get("urgent"))}, "blocks": blocks}
+
+
+# ---------------------------------------------------------------- medicine safety questions
+
+@tool("medications.check_interactions", "Check the person's current medicines against each other and against their listed allergies for known bad combinations.",
+      permission="meds:read", roles=ROLES, audit_category="medications")
+def medications_check_interactions(ctx: AgentContext, args: dict) -> dict:
+    from ai import safety
+    meds = list(ctx.db.scalars(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.active.is_(True))))
+    p = ctx.db.get(Patient, ctx.patient_id)
+    items = [(m, (safety.to_generic(m.name) or (m.generic or "").lower() or "").strip()) for m in meds]
+    known = [(m, g) for m, g in items if g]
+    blocks, found = [], 0
+    for i in range(len(known)):
+        for j in range(i + 1, len(known)):
+            (a, ga), (b, gb) = known[i], known[j]
+            if ga == gb:
+                blocks.append(block("warning", severity="high", title=f"{a.name} and {b.name} look like the same medicine", text=f"Both are {ga}. Taking both doubles the dose. Ask your doctor which to continue."))
+                found += 1
+            elif hit := safety.check_pair_level(ga, gb):
+                blocks.append(block("warning", severity=hit[0], title=f"{a.name} with {b.name}", text=hit[1]))
+                found += 1
+    for m, g in known:
+        fam = safety.allergy_hit(g, list(p.allergies or []))
+        if fam:
+            blocks.append(block("warning", severity="high", title=f"{m.name} and your {fam} allergy", text=f"{m.name} belongs to the {fam} family and your profile lists an allergy to it. Ask your doctor or pharmacist before the next dose."))
+            found += 1
+    unchecked = [m.name for m, g in items if not g]
+    head = (f"I checked {len(known)} medicine(s) against each other and your allergies: " + (f"{found} thing(s) to look at." if found else "I found no known bad combination.")) if len(known) >= 1 else "You have no current medicines to check."
+    out = [block("text", text=head)] + blocks
+    if unchecked:
+        out.append(block("text", text="I could not check these because I do not recognise them as known drugs: " + ", ".join(unchecked) + ". Ask your pharmacist about them."))
+    out.append(block("text", text="This uses the DDInter interaction database and curated rules. No result here is a guarantee, and you should never stop a medicine on your own: ask your doctor or pharmacist."))
+    return {"data": {"checked": len(known), "found": found}, "blocks": out}
+
+
+@tool("medications.side_effects", "Look up the common and serious side effects of the person's medicines (or the ones named) from the public FDA drug label. General information only.",
+      {"type": "object", "properties": {"names": {"type": "array", "items": {"type": "string", "maxLength": 80}, "maxItems": 6}}, "additionalProperties": False},
+      permission="meds:read", roles=ROLES, audit_category="medications", slow=True)
+def medications_side_effects(ctx: AgentContext, args: dict) -> dict:
+    from ai import drug_usage
+    from ..llm import _groq_judge
+    meds = list(ctx.db.scalars(select(Medicine).where(Medicine.patient_id == ctx.patient_id, Medicine.active.is_(True))))
+    if args.get("names"):
+        keys = [n.strip().lower() for n in args["names"]]
+        meds = [m for m in meds if any(k in m.name.lower() or m.name.lower() in k for k in keys)]
+        if not meds:
+            raise ToolError("I could not find a current medicine with that name.")
+    if not meds:
+        return {"data": {"found": 0}, "blocks": [block("text", text="You have no current medicines recorded.")]}
+    blocks, found = [], 0
+    for m in meds[:5]:
+        u = drug_usage.side_effects(m.name, extractor=_groq_judge)
+        if not u:
+            blocks.append(block("text", text=f"{m.name}: I could not find a public label for this (common for some Indian brands). Ask your pharmacist for the leaflet."))
+            continue
+        found += 1
+        parts = []
+        if u["hasText"] and not u["summarised"]:
+            parts.append("I could not summarise the side-effects section right now, so ask your pharmacist for the full list.")
+        if u["common"]:
+            parts.append("Common, from the label: " + "; ".join(f'{i["effect"]} (“{i["quote"]}”)' for i in u["common"][:6]) + ".")
+        if u["serious"]:
+            parts.append("Get medical help or call your doctor for: " + "; ".join(f'{i["effect"]} (“{i["quote"]}”)' for i in u["serious"][:4]) + ".")
+        if u["boxed"]:
+            parts.append(f"The label also carries a boxed warning: “{u['boxed']}”")
+        if not parts:
+            parts.append("The label has a side-effects section but I could not summarise it right now. Please ask your pharmacist.")
+        blocks.append(block("text", text=f"{m.name} ({u['generic']}): " + " ".join(parts)))
+    blocks.append(block("text", text=f"Source: US FDA drug label (openFDA). This is general information, not a complete list, and not advice about your own case. Do not stop a medicine on your own: ask your doctor or pharmacist."))
+    return {"data": {"found": found}, "blocks": blocks}

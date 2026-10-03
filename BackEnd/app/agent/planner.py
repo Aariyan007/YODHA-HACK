@@ -56,6 +56,8 @@ R_UNCLEAR = _P(r"(unclear|handwrit|could ?n.?t read|couldn.?t read|not read).{0,
 R_TIMING_ADD = _P(r"(look it up|search|google|find).{0,40}\b(add|save|put|fill)\b", r"\b(add|save|fill)\b.{0,30}\b(timing|when to take|before or after food|usual time|food)\b", r"no timing.{0,40}\b(add|fill)\b")
 R_TIMING = _P(r"before or after (food|meals?)", r"(with|without) food", r"when (should|do|to) i? ?take", r"what time (should|do) i", r"how (should|do) i take", r"empty stomach", r"\b(timing|time) (of|for) (my )?(medicine|tablet|pill)s?")
 R_TELEGRAM = re.compile(r"telegram|chat ?id", re.I)
+R_INTERACT = _P(r"(bad|dangerous|harmful|wrong|any|safe).{0,25}(combination|combo|mix|mixing)", r"\binteract", r"\bclash", r"(take|taking|safe).{0,20}\btogether", r"(medicines?|tablets?|pills?|drugs?).{0,25}(together|combined|mix)")
+R_SIDE = _P(r"side ?effects?", r"adverse (effects?|reactions?)", r"what (can|could|will|might).{0,25}(cause|do to me)", r"(does|do|is).{0,25}\bcause\b")
 R_NAV = re.compile(r"^\s*(?:please\s+)?(?:open|go to|take me to|show me the|navigate to)\s+(?:the\s+|my\s+)?(.+?)(?: page| tab| screen)?\s*$", re.I)
 R_MEDS = _P(r"medicin", r"tablet", r"\bpills?\b", r"prescri", r"മരുന്ന്", r"\bdrugs?\b")
 R_DUE = _P(r"\bleft\b.{0,25}\b(eat|take|taking|tablet|medicine|pill)", r"\b(still|remaining|yet)\b.{0,20}\b(take|eat|tablet|medicine|pill)", r"\bdue\b", r"reminder", r"dose", r"care.?loop", r"today'?s", r"missed", r"taken")
@@ -104,6 +106,10 @@ class AgentPlanner:
             return Plan("add_timing", [Step("medications.add_usual_timing")])
         if R_TIMING.search(low) and not re.search(r"\b(stop|skip|quit|double|increase|reduce|lower|raise|change|switch)\b", low):
             return Plan("timing_lookup", [Step("medications.usage_lookup")])
+        if R_SIDE.search(low) and re.search(r"medic|tablet|pill|drug|taking|\bmy\b|[a-z]{4,}", low):
+            return Plan("side_effects", [Step("medications.side_effects")])
+        if R_INTERACT.search(low) and re.search(r"medic|tablet|pill|drug|combination|together|taking|having", low):
+            return Plan("interactions", [Step("medications.check_interactions")])
         return None
 
     def guard(self, role: str, text: str) -> Plan | None:
