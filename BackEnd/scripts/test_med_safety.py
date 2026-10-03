@@ -90,6 +90,15 @@ class Tools(base.Writes):
         self.assertIn("could not summarise", t)
         self.assertNotIn("Nausea", t)
 
+    def test_a_named_medicine_asks_about_only_that_one(self):
+        from app.agent.planner import AgentPlanner
+        n = AgentPlanner._named_medicine
+        self.assertEqual(n("what are the side effects of telma"), "telma")
+        self.assertEqual(n("any side effects for pantocid 40"), "pantocid")
+        self.assertEqual(n("what can metformin cause"), "metformin")
+        self.assertIsNone(n("any side effects of my medicines"))
+        self.assertIsNone(n("what are the side effects"))
+
     def test_unknown_brand_is_admitted(self):
         with mock.patch.object(drug_usage, "_fetch", lambda g: []):
             t = self.texts(self.say("side effects of zorbexil"))

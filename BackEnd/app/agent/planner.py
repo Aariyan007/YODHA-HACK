@@ -96,6 +96,15 @@ class AgentPlanner:
                          source="none")
 
     @staticmethod
+    def _named_medicine(low: str) -> str | None:
+        """'side effects of telma' / 'what can pantocid cause' / 'does metformin cause ...' -> 'telma'. Plain words like 'my medicines' give None (= all)."""
+        generic = {"medicine", "medicines", "medication", "medications", "tablet", "tablets", "pill", "pills", "drug", "drugs", "these", "those", "them",
+                   "it", "this", "that", "all", "my", "the", "any", "everything"}
+        m = (re.search(r"side ?effects? (?:of|for|from|with) (?:my |the )?([a-z][a-z0-9\-]+)", low) or
+             re.search(r"(?:what (?:can|could|will|might)|does|do|is) (?:my |the )?([a-z][a-z0-9\-]+) (?:cause|do)\b", low))
+        return m.group(1) if m and m.group(1) not in generic else None
+
+    @staticmethod
     def _timing(role: str, text: str) -> Plan | None:
         """"Before or after food?" / "look it up and add the timing": a question about HOW a medicine is usually taken (label info),
         not a decision to start, stop or change one."""
@@ -107,7 +116,8 @@ class AgentPlanner:
         if R_TIMING.search(low) and not re.search(r"\b(stop|skip|quit|double|increase|reduce|lower|raise|change|switch)\b", low):
             return Plan("timing_lookup", [Step("medications.usage_lookup")])
         if R_SIDE.search(low) and re.search(r"medic|tablet|pill|drug|taking|\bmy\b|[a-z]{4,}", low):
-            return Plan("side_effects", [Step("medications.side_effects")])
+            names = AgentPlanner._named_medicine(low)
+            return Plan("side_effects", [Step("medications.side_effects", {"names": [names]} if names else {})])
         if R_INTERACT.search(low) and re.search(r"medic|tablet|pill|drug|combination|together|taking|having", low):
             return Plan("interactions", [Step("medications.check_interactions")])
         return None
