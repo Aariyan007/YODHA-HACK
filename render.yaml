@@ -1,4 +1,5 @@
-# Render Blueprint: one web service (API + built frontend) and a small Redis. Postgres stays on Supabase.
+# Render Blueprint: one web service (API + built frontend). Postgres stays on Supabase. No Redis: the app keeps
+# short-lived state (pending confirmations, rate limits) in memory, which is fine with one worker.
 # New > Blueprint > pick this repo. Render then asks for every value marked sync:false below.
 services:
   - type: web
@@ -17,11 +18,6 @@ services:
         value: transaction     # Supabase transaction pooler (port 6543)
       - key: JWT_SECRET
         generateValue: true
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: medithread-redis
-          property: connectionString
       - key: DATABASE_URL      # Supabase SESSION pooler URL (*.pooler.supabase.com, port 5432); the app rewrites it to 6543
         sync: false
       - key: FILE_ENC_KEY      # urlsafe base64 of 32 random bytes. NEVER change it later or stored files become unreadable
@@ -38,8 +34,3 @@ services:
         sync: false
       - key: ADMIN_EMAILS
         sync: false
-
-keyvalue:
-  - name: medithread-redis
-    plan: free
-    ipAllowList: []            # reachable only from inside your Render account

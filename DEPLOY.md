@@ -10,8 +10,8 @@ progress stream works. Postgres stays on Supabase. `render.yaml` describes every
   `python3 -c "import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"`
 
 ## 2. Create it
-Render dashboard > New > Blueprint > pick this repo > Apply. It creates the `medithread` web service and a free
-`medithread-redis`.
+Render dashboard > New > Blueprint > pick this repo > Apply. It creates the `medithread` web service. There is no Redis: pending
+confirmations and rate limits are kept in memory, so a restart forgets an unanswered confirmation (nothing else is lost).
 
 ## 3. Fill in the values it asks for
 | Name | Value |
