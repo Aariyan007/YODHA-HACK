@@ -195,6 +195,17 @@ class VitalsAndLabsTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(code_for_name(name), code)
 
+    def test_index_tests_are_not_the_main_test(self):
+        # an MPV of 10.1 fL was once filed as platelets and raised "platelets very low"
+        for name in ("Mean Platelet Volume", "MPV", "Platelet Distribution Width", "Plateletcrit", "MCH", "MCHC",
+                     "Mean Corpuscular Haemoglobin", "Mean Corpuscular Hemoglobin Concentration", "MCV", "RDW-CV"):
+            with self.subTest(name=name):
+                self.assertIsNone(code_for_name(name))
+        self.assertEqual(code_for_name("Platelets"), "platelets")
+        self.assertEqual(code_for_name("Haemoglobin"), "hb")
+        # and judged by its own printed range: 10.1 inside 7.6 - 10.8 is fine
+        self.assertEqual(lab_status(slug("Mean Platelet Volume"), 10.1, "7.6 - 10.8"), "good")
+
     def test_unknown_tests_get_distinct_codes(self):
         self.assertNotEqual(slug("Ferritin"), slug("Calcium"))
         self.assertTrue(slug("Ferritin").startswith("x_"))

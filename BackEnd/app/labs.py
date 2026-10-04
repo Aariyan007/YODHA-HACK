@@ -61,6 +61,12 @@ NAME_TO_CODE: dict[str, str] = {
 _NAME_KEYS = sorted(NAME_TO_CODE, key=len, reverse=True)
 
 
+_INDEX_TEST = re.compile(
+    r"mean\s+platelet|platelet\s+(distribution|volume|large\s+cell)|plateletcrit|\b(mpv|pdw|pct|plcr|p-lcr)\b"
+    r"|corpuscular|\b(mch|mchc|mcv|rdw)\b|cell\s+(haemoglobin|hemoglobin)|distribution\s+width"
+)
+
+
 def code_for_name(name: str | None) -> str | None:
     """Best lab code for a free text test name, or None if we don't know the test.
     
@@ -69,6 +75,11 @@ def code_for_name(name: str | None) -> str | None:
     """
     key = (name or "").lower().strip()
     if not key:
+        return None
+    # Red cell and platelet indices contain the name of the main test ("Mean PLATELET Volume", "Mean Corpuscular
+    # HAEMOGLOBIN"), but they're different measurements with different units and ranges. Filing them under the main
+    # test once turned an MPV of 10.1 fL into "platelets very low". They get their own code (judged by the printed range).
+    if _INDEX_TEST.search(key):
         return None
     best: tuple[int, int, str] | None = None
     for frag in _NAME_KEYS:
