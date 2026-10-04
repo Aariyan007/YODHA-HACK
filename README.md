@@ -6,6 +6,33 @@ Team FullSleeve: S. Aariyan, Jithin P R, Mathew Maijo. Built for the YODHA hacka
 
 **The one rule that shapes everything:** the AI proposes, code decides. The AI never diagnoses and never tells anyone what to take. It restates what a document or a doctor said, and flags things to show a doctor. Every number it states must exist in the record, every write goes through a registered tool, and anything that changes data is confirmed by the person first.
 
+## Highlights
+
+Measured on this codebase, not estimated:
+
+| | |
+| --- | --- |
+| **Guard-railed AI agent** | 46 registered tools, 4 permission levels, every write needs the person's Yes, replies checked by code and a second model. The AI can never touch the database. |
+| **Token cost** | one Agent question went from about 8,800 tokens to about 2,500 (about 3.5x cheaper) |
+| **Scale-out** | 1 to 3 load-balanced API copies: about 57 to 100 requests/s, typical page 1.15 s to 0.35 s |
+| **Resilience** | killed an API copy in the middle of a 100-user load test: **0 errors** |
+| **Autoscaling** | 2 to 6 copies in about 15 s under 150 users, 0 errors in 4,644 requests, then back down |
+| **Concurrency bug found and fixed** | 100 users at once caused 30 s timeouts (connections and threads waiting on each other); now 0 errors |
+| **Safety** | danger checks, interactions (about 160k DDInter pairs), trends and reminders are plain Python: they keep working when every AI service is down |
+| **Tests** | 365 automated tests across 21 suites, plus live smoke, security sweep (66 checks), load and chaos scripts |
+
+## Tech stack
+
+| Layer | Tools |
+| --- | --- |
+| Frontend | React 19, Vite, GSAP, Leaflet, Web Speech / MediaRecorder |
+| Backend | Python 3.12, FastAPI, SQLAlchemy, APScheduler, Pydantic |
+| Data | Supabase Postgres, Redis (cache, limits, queue, streams, leases), AES-256-GCM file vault |
+| AI | Gemini Flash (document reading), Groq `gpt-oss-120b` / `gpt-oss-20b` (agent, summaries, judge), Whisper `large-v3` and ElevenLabs Scribe (speech), Laya ModernBERT classifier (optional), TrOCR (optional) |
+| Medical data | DDInter interactions, openFDA labels, FHIR R4 import, LOINC codes |
+| Infra | Docker Compose, nginx (TLS, load balancing, rate limits, CSP), Render, GitHub |
+| Messaging | Telegram Bot API |
+
 ## Contents
 
 1. [Features](#features)
@@ -34,6 +61,7 @@ Team FullSleeve: S. Aariyan, Jithin P R, Mathew Maijo. Built for the YODHA hacka
 | Agent | Chat or voice assistant for patients and doctors, with files, PDFs, confirmations, background tasks and an audit log. See [The Agent](#the-agent). |
 | Onboarding | A guided tour and an auto-playing demo for new users, and the Agent answers "how do I..." questions and can show the steps on screen. |
 | Accounts | Email and password, patient or doctor roles, one-time invite codes to link a doctor, revoke any time, access history. |
+| Scale and resilience | Several API copies behind a load balancer, an upload queue with worker containers, a leader-elected reminder scheduler, circuit breakers, request lanes, load shedding, an autoscaler and a live metrics panel. See [Scaling: AWS in a box](#scaling-aws-in-a-box). |
 
 ## Architecture
 
@@ -47,48 +75,59 @@ flowchart LR
     TG[Telegram app]
   end
   subgraph Edge
-    N[nginx<br/>TLS, static files, rate limits, CSP<br/>local Docker stack only]
+    N[nginx load balancer<br/>TLS, rate limits, CSP,<br/>least-connections, retry on another copy]
   end
-  subgraph Backend[FastAPI backend - 3 copies + workers + scheduler]
-    R[Routers]
+  subgraph API[API copies x3 - stateless]
+    R[Routers + auth]
     A[Agent engine]
-    PIPE[Upload pipeline]
     SAFE[Python safety layer<br/>risk, trends, interactions]
-    SCH[APScheduler<br/>reminders every 30 s]
-    V[Encrypted vault<br/>AES-256-GCM]
+    BR[Circuit breakers<br/>request lanes, load shedding]
+  end
+  subgraph Workers[Worker containers x2]
+    PIPE[Upload pipeline]
+  end
+  subgraph Sched[Scheduler x2]
+    SCH[Reminders every 30 s<br/>one elected leader]
   end
   subgraph Data
     PG[(Supabase Postgres)]
-    RD[(Redis<br/>optional)]
+    RD[(Redis<br/>queue, progress streams,<br/>leases, limits, cache, metrics)]
+    V[(Encrypted vault<br/>AES-256-GCM)]
   end
   subgraph External[External services]
     GEM[Gemini<br/>document reading]
-    GRQ[Groq<br/>summaries, agent, judge, Whisper]
+    GRQ[Groq<br/>agent, summaries, judge, Whisper]
     EL[ElevenLabs<br/>speech to text]
     TGB[Telegram Bot API]
     FDA[openFDA labels]
-    DDI[(DDInter SQLite<br/>local file)]
+    DDI[(DDInter<br/>local SQLite)]
   end
   P --> N
   D --> N
   N -->|/api| R
   R --> A
-  R --> PIPE
-  PIPE --> SAFE
+  R --> SAFE
   A --> SAFE
   R --> PG
-  A --> RD
   R --> RD
   R --> V
+  R -->|upload job| RD
+  RD -->|claim job| PIPE
+  PIPE -->|progress| RD
   PIPE --> GEM
   PIPE --> GRQ
+  PIPE --> SAFE
+  PIPE --> PG
   A --> GRQ
-  R --> EL
   A --> FDA
+  R --> EL
   SAFE --> DDI
+  SCH -->|lease| RD
   SCH --> PG
   SCH --> TGB
   TGB --> TG
+  BR -.guards.-> GRQ
+  BR -.guards.-> GEM
 ```
 
 ### Deployment shapes
@@ -347,7 +386,10 @@ Main tables (SQLAlchemy, `app/models.py`; `add_missing_columns()` adds new nulla
 ## Repository layout
 
 ```
-BackEnd/            FastAPI app (see Backend layers), scripts/ (tests, smoke, security sweep), data/ (doctors, DDInter)
+BackEnd/            FastAPI app (see Backend layers), scripts/ (tests, smoke, security sweep, load test, autoscaler,
+                    scaling demo), data/ (doctors, DDInter)
+  app/worker_main.py, app/scheduler_main.py   entry points of the worker and scheduler containers
+  app/jobqueue.py, app/breaker.py, app/concurrency.py, app/metrics.py   queue, circuit breakers, lanes, live metrics
 Frontend/           Vite + React app
 deploy/nginx/       nginx image, config snippets, certificate generator
 deploy/render/      single-container Dockerfile for the hosted copy
@@ -546,8 +588,21 @@ cd BackEnd
 ./venv/bin/python -W ignore scripts/test_reminders.py -v     # reminder engine, fake clock
 ./venv/bin/python -W ignore scripts/test_risk.py -v          # danger checks, vitals parsing, AI-review guard
 ./venv/bin/python -W ignore scripts/test_doctors.py -v       # doctor finder: India-only, ranking, query parsing
+./venv/bin/python -W ignore scripts/test_agent.py -v         # agent core: registry, permissions, confirmation, planner, API
+./venv/bin/python -W ignore scripts/test_agent_writes.py -v  # every write: preview, confirm, verify, audit, secrets
+./venv/bin/python -W ignore scripts/test_doctor_agent.py -v  # doctor agent: care-link checks, brief, conflicts, draft + approve
+./venv/bin/python -W ignore scripts/test_classify.py -v      # visit classification grounding, rate-limit fallbacks
+./venv/bin/python -W ignore scripts/test_scale.py -v         # circuit breakers, leader election, request lanes, load shedding
 ./venv/bin/python scripts/smoke.py                           # needs a running server with DEMO_MODE=true
 ./venv/bin/python scripts/security_sweep.py                  # needs a running server
+```
+
+Scale checks against the running Docker stack (from the repo root):
+
+```bash
+docker compose exec -T -e BASE_URL=http://nginx:8081 worker python scripts/load_test.py --users 100 --seconds 30
+bash BackEnd/scripts/scale_demo.sh        # 1 copy vs 3 copies vs 3 with one killed mid-test
+python3 BackEnd/scripts/autoscale.py      # autoscaler; watch it on /admin
 ```
 
 `smoke.py` and `/api/demo/reset` wipe the demo patient's uploads, imports and visits in whatever database the server points at.
@@ -561,4 +616,7 @@ cd BackEnd
 - **No email verification or password reset.** The demo patient button and the phone OTP (any 6 digits) exist only with `DEMO_MODE=true`.
 - **Doctor data is fictional.** The doctor finder uses a made-up, Kerala-heavy sample directory (`BackEnd/data/doctors.json`); names, clinics, phone numbers and reviews are not real. The map needs internet for OpenStreetMap tiles.
 - **AI review needs Groq.** Without `GROQ_API_KEY` the health review and doctor explanations fall back to simple rules. Danger checks and the emergency banner never depend on AI.
+- **The database is the ceiling.** Past about 3 API copies throughput stays near 100 requests/s, because Supabase is reached over the internet. The next step is a closer database or a read replica.
+- **Agent background jobs run inside an API copy.** If that copy dies mid-job, that job is lost (uploads are safe: they go through the queue). A retried upload whose first worker died after saving could, rarely, save the record twice.
+- **The hosted copy is one process.** Render's free tier runs the API, uploads and scheduler in one process; the multi-copy setup is the local Docker stack.
 - **Not a medical device.** The checks cover a small list of common drugs and lab ranges. Always ask a doctor.
