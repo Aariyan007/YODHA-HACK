@@ -639,3 +639,23 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .adm-live { height: 160px; margin-top: var(--u3); }
 .adm-bar.bad i { background: var(--rust-ink, #9b4a2f); }
 .adm-table td.ok { color: var(--mt-deep-ink, #2e6a52); font-weight: 600; }
+
+/* doctor snapshot (QR link) and console: latest lab results table */
+.mt-results { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.mt-results th { text-align: left; font: 600 0.7rem/1.2 var(--font); letter-spacing: 0.12em; text-transform: uppercase; color: var(--mt-ink-3); padding: 10px 12px; border-bottom: 1px solid var(--mt-line); }
+.mt-results td { padding: 12px; border-bottom: 1px solid var(--mt-line); color: var(--mt-ink-2); vertical-align: middle; }
+.mt-results td:first-child { color: var(--mt-ink); font-weight: 600; }
+.mt-results td.v b { color: var(--mt-ink); font-size: 1rem; }
+.mt-results tr.st-alert td.v b { color: var(--rust-ink); }
+.mt-results tr.st-watch td.v b { color: var(--amber-ink); }
+.mt-chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font: 600 0.75rem/1.4 var(--font); background: color-mix(in srgb, var(--mt-soft) 55%, transparent); color: var(--mt-deep-ink); white-space: nowrap; vertical-align: middle; }
+.mt-chip.st-alert { background: color-mix(in srgb, var(--rust-ink) 12%, transparent); color: var(--rust-ink); }
+.mt-chip.st-watch { background: color-mix(in srgb, var(--amber-ink) 14%, transparent); color: var(--amber-ink); }
+@media (max-width: 720px) {
+  .mt-results thead { display: none; }
+  .mt-results tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 10px 0; border-bottom: 1px solid var(--mt-line); }
+  .mt-results td { border: 0; padding: 0; }
+  .mt-results td:nth-child(3), .mt-results td:nth-child(5) { font-size: 0.8rem; color: var(--mt-ink-3); }
+}
+.mt-snap-ro { font: 600 0.75rem/1 var(--font); padding: 8px 12px; border-radius: 999px; background: var(--mt-pale); color: var(--mt-deep-ink); }
+.mt-open-wide .mt-att-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0 var(--u4); }
