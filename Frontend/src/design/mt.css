@@ -634,3 +634,8 @@ body { background: var(--mt-pale); color: var(--mt-ink); }
 .mt-doc .trow .tv { font-weight: 600; color: var(--mt-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mt-doc .trow.st-watch .tv { color: var(--amber-ink); } .mt-doc .trow.st-alert .tv { color: var(--rust-ink); }
 .mt-doc .tmore { font-size: 0.75rem; font-weight: 600; color: var(--mt-deep-ink); }
+
+/* admin live system panel */
+.adm-live { height: 160px; margin-top: var(--u3); }
+.adm-bar.bad i { background: var(--rust-ink, #9b4a2f); }
+.adm-table td.ok { color: var(--mt-deep-ink, #2e6a52); font-weight: 600; }

@@ -62,3 +62,11 @@ def metrics(days: int = Query(default=7, ge=1, le=30), _: User = Depends(admin_u
         "services": {"redis": store.status().get("kind"), "vault": vault.available(), "groq": bool(os.getenv("GROQ_API_KEY")),
                      "gemini": bool(os.getenv("GEMINI_API_KEY")), "elevenlabs": bool(os.getenv("ELEVENLABS_API_KEY")), "telegram": bool(os.getenv("TELEGRAM_BOT_TOKEN"))},
     }
+
+
+@router.get("/live")
+def live(_: User = Depends(admin_user)):
+    """Live view of the whole system: requests per second, latency, every API copy, worker, scheduler, the upload
+    queue and the circuit breakers. Counts only."""
+    from .. import metrics
+    return metrics.live()

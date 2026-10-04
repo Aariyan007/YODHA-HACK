@@ -61,6 +61,8 @@ class RequestLogMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             path = scope.get("path", "")
+            from . import metrics
+            metrics.record(path, status["code"], (time.perf_counter() - started) * 1000)
             if path not in _QUIET:
                 client = scope.get("client")
                 ms = round((time.perf_counter() - started) * 1000, 1)

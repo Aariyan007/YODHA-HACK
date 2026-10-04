@@ -33,6 +33,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # housekeeping must never stop the server
         print(f"[agent] task purge skipped: {type(e).__name__}")
     reminder_service.start()
+    from . import metrics
+    metrics.start()
     try:
         yield
     finally:

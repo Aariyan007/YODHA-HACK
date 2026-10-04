@@ -706,3 +706,4 @@ const postAudio = async (path, blob) => {
 export const agentVoice = (blob) => postAudio("/api/agent/voice", blob);
 export const doctorAgentVoice = (patientId, blob) => postAudio(`/api/doctor-agent/voice?patientId=${encodeURIComponent(patientId)}`, blob);
 export const getAdminMetrics = (days = 7) => request(`/api/admin/metrics?days=${days}`);
+export const getAdminLive = () => request("/api/admin/live");
