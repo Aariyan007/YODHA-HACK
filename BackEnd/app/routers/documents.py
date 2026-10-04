@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from ai import decision, laya_schema as S, pipeline
 from ai.triage_rules import EMERGENCY_PATTERNS, emergency_hit, merge_urgency
-from .. import budget
+from .. import budget, jobqueue
 from ..auth import current_patient
 from ..models import Patient
 
@@ -57,7 +57,7 @@ async def upload_document(
 
 @router.get("/jobs/{job_id}")
 def job_status(job_id: str):
-    job = pipeline.JOBS.get(job_id)
+    job = jobqueue.get(job_id) if jobqueue.on() else pipeline.JOBS.get(job_id)
     if job is None:
         raise HTTPException(404, "Job not found")
     return {
@@ -69,9 +69,33 @@ def job_status(job_id: str):
     }
 
 
+def _sse(event: dict) -> str:
+    return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+
 @router.get("/jobs/{job_id}/events")
 async def job_events(job_id: str):
-    """SSE stream with no auth, protected by the hard to guess job_id."""
+    """SSE stream with no auth, protected by the hard to guess job_id. In queue mode the events come from the shared
+    Redis stream, so it doesn't matter which API copy the browser lands on or which worker runs the job."""
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    if jobqueue.on():
+        if jobqueue.get(job_id) is None:
+            raise HTTPException(404, "Job not found")
+
+        async def from_redis():
+            last = "0"  # replay from the start, so a reconnecting browser sees every stage again
+            while True:
+                rows = await asyncio.to_thread(jobqueue.events, job_id, last, 15000)
+                if not rows:
+                    yield ": keepalive\n\n"
+                    continue
+                for last, event in rows:
+                    yield _sse(event)
+                    if "done" in event or "error" in event:
+                        return
+
+        return StreamingResponse(from_redis(), media_type="text/event-stream", headers=headers)
+
     if job_id not in pipeline.JOBS:
         raise HTTPException(404, "Job not found")
 
@@ -84,15 +108,11 @@ async def job_events(job_id: str):
             except asyncio.TimeoutError:
                 yield ": keepalive\n\n"
                 continue
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            yield _sse(event)
             if "done" in event or "error" in event:
                 break
 
-    return StreamingResponse(
-        gen(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return StreamingResponse(gen(), media_type="text/event-stream", headers=headers)
 
 
 # ---------- Triage ----------

@@ -21,6 +21,9 @@ _QUIET = {"/api/health", "/health", "/api/health/ready"}  # Docker polls these e
 SLOW_MS = float(os.getenv("SLOW_REQUEST_MS", "1000"))  # requests slower than this are logged as warnings with "slow":true
 
 
+SERVED_BY = (os.getenv("HOSTNAME") or "local")[:12].encode()
+
+
 def configure_logging() -> None:
     """Plain message lines to stdout (Docker collects stdout), our access lines are already JSON."""
     root = logging.getLogger()
@@ -51,6 +54,7 @@ class RequestLogMiddleware:
             if message["type"] == "http.response.start":
                 status["code"] = message["status"]
                 message.setdefault("headers", []).append((b"x-request-id", rid.encode()))
+                message["headers"].append((b"x-served-by", SERVED_BY))  # which API copy answered (load balancing demo)
             await send(message)
 
         try:

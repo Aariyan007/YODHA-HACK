@@ -377,27 +377,37 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
 # ---------- entry point used by the HTTP layer ----------
 
 def start_job(patient_id: str, data: bytes, filename: str) -> tuple[str, bool]:
-    """Returns (job_id, from_cache). Starts a background thread, or finishes right away."""
+    """Returns (job_id, from_cache). In queue mode the job goes on the shared queue for a worker container,
+    otherwise it waits here and a thread starts when the browser connects (run_async)."""
+    from app import jobqueue
     sha = _hash(data)
     _save_upload(data, filename, sha)
     job_id = uuid.uuid4().hex
+    cached = _cache_path(sha).exists()
 
     # Duplicate-report check: same hash seen for this patient.
     with SessionLocal() as db:
         row = db.scalar(select(Document).where(Document.patient_id == patient_id, Document.file_hash == sha))
-    if row is not None:
-        JOBS[job_id] = {
-            "status": "done", "patient_id": patient_id, "sha": sha,
-            "error": "You already added this report. Open it on your Timeline.",
-            "started": time.time(),
-        }
-        return job_id, True
+    dup_error = "You already added this report. Open it on your Timeline." if row is not None else None
 
-    JOBS[job_id] = {
-        "status": "pending", "patient_id": patient_id, "sha": sha,
-        "started": time.time(), "cached": _cache_path(sha).exists(),
-    }
-    return job_id, _cache_path(sha).exists()
+    if jobqueue.on():
+        jobqueue.create(job_id, {"status": "pending", "patient_id": patient_id, "sha": sha,
+                                 "started": time.time(), "cached": cached, "attempts": 0})
+        if dup_error:
+            jobqueue.emit(job_id, {"error": dup_error})
+            return job_id, True
+        if jobqueue.workers():
+            jobqueue.enqueue(job_id)
+        else:  # no worker alive: run it here so the upload never hangs, still streaming through Redis
+            job = jobqueue.get(job_id)
+            Thread(target=process_job, args=(job, jobqueue.RedisBus(job_id)), daemon=True).start()
+        return job_id, cached
+
+    if dup_error:
+        JOBS[job_id] = {"status": "done", "patient_id": patient_id, "sha": sha, "error": dup_error, "started": time.time()}
+        return job_id, True
+    JOBS[job_id] = {"status": "pending", "patient_id": patient_id, "sha": sha, "started": time.time(), "cached": cached}
+    return job_id, cached
 
 
 def _emit_cached(bus: Bus, result: dict) -> dict:
@@ -407,8 +417,38 @@ def _emit_cached(bus: Bus, result: dict) -> dict:
     return result
 
 
+def process_job(job: dict, bus) -> None:
+    """Runs one upload job and reports through `bus` (in-process queue or the Redis stream). Never raises.
+    The last event is always {"done": True, "result": ...} or {"error": ...}."""
+    try:
+        if job.get("error"):
+            bus.send({"error": job["error"]})
+            return
+        cached = _load_cache(job["sha"])
+        if cached is not None:
+            # Still save to DB when a fresh demo DB has no record yet.
+            result = _persist_result(job["patient_id"], cached, job["sha"], _mime_from_name(_upload_name(job["sha"])))
+            _emit_cached(bus, result)
+        else:
+            result = _run_sync(job["patient_id"], _read_upload(job["sha"]), _upload_name(job["sha"]), job["sha"], bus)
+            _save_cache(job["sha"], result)
+        job["result"] = result
+        job["status"] = "done"
+        bus.send({"done": True, "result": result})
+    except ExtractError as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+        bus.send({"error": str(e)})
+    except Exception as e:
+        msg = f"Something went wrong while reading the document. ({type(e).__name__})"
+        job["status"] = "error"
+        job["error"] = msg
+        print(f"[pipeline] {type(e).__name__}: {e}")
+        bus.send({"error": msg})
+
+
 async def run_async(job_id: str) -> asyncio.Queue:
-    """Attaches an SSE listener to a job and starts the worker if it hasn't started."""
+    """In-process mode: attaches an SSE listener to a job and starts the worker if it hasn't started."""
     job = JOBS.get(job_id)
     if job is None:
         raise KeyError(job_id)
@@ -418,37 +458,9 @@ async def run_async(job_id: str) -> asyncio.Queue:
     queue: asyncio.Queue = asyncio.Queue()
     bus = Bus(loop, queue)
 
-    def worker():
-        try:
-            if job.get("error"):
-                bus.send({"error": job["error"]})
-                return
-            cached = _load_cache(job["sha"])
-            if cached is not None:
-                # Still save to DB when a fresh demo DB has no record yet.
-                result = _persist_result(job["patient_id"], cached, job["sha"],
-                                         _mime_from_name(_upload_name(job["sha"])))
-                _emit_cached(bus, result)
-            else:
-                result = _run_sync(job["patient_id"], _read_upload(job["sha"]), _upload_name(job["sha"]), job["sha"], bus)
-                _save_cache(job["sha"], result)
-            job["result"] = result
-            job["status"] = "done"
-            bus.send({"done": True, "result": result})
-        except ExtractError as e:
-            job["status"] = "error"
-            job["error"] = str(e)
-            bus.send({"error": str(e)})
-        except Exception as e:
-            msg = f"Something went wrong while reading the document. ({type(e).__name__})"
-            job["status"] = "error"
-            job["error"] = msg
-            print(f"[pipeline] {type(e).__name__}: {e}")
-            bus.send({"error": msg})
-
     if job["status"] == "pending":
         job["status"] = "running"
-        Thread(target=worker, daemon=True).start()
+        Thread(target=process_job, args=(job, bus), daemon=True).start()
     elif job["status"] == "done" and "result" in job:
         # Replay for a reconnecting listener.
         for s in STAGES_ORDER:

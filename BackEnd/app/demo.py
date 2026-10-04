@@ -82,6 +82,8 @@ def reset_demo() -> dict:
     # In-memory / Redis state tied to the rows we just removed.
     jobs = len(pipeline.JOBS)
     pipeline.JOBS.clear()
+    jobs += store.delete_prefix("job:")   # queue mode keeps job state and events in Redis
+    store.delete_prefix("jobev:")
     files = 0
     for p in pipeline.UPLOADS.glob("*"):
         if p.is_file():

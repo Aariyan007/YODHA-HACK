@@ -34,28 +34,92 @@ services:
       retries: 10
     mem_limit: 192m
 
+  # The API. Several copies run behind nginx (API_REPLICAS, default 3). They keep no state of their own: sessions are
+  # signed tokens, data is in Postgres, limits / caches / job progress are in Redis, files are on shared volumes.
   backend:
     build: ./BackEnd
     restart: unless-stopped
     env_file: .env
-    environment:
+    environment: &api_env
       REDIS_URL: redis://redis:6379/0   # beats the localhost value in .env
       DEMO_MODE: ${DEMO_MODE:-false}
       DB_POOL_MODE: ${DB_POOL_MODE:-transaction}   # Supabase transaction pooler (6543); set "session" to keep port 5432
       CORS_ORIGINS: ""                  # same origin behind nginx, so no CORS needed
-    volumes:
+      SCHEDULER: "off"                  # the scheduler service sends reminders, never the API copies
+      QUEUE_MODE: redis                 # uploads go on the shared queue for the worker service
+      DB_POOL_SIZE: "8"                 # per copy: 3 copies x 16 stays well inside the Supabase pooler's client cap
+      DB_MAX_OVERFLOW: "8"
+      MAX_INFLIGHT: "14"
+      MAX_AI_INFLIGHT: "6"
+    volumes: &app_volumes
       - ./BackEnd/demo_cache:/app/demo_cache
       - ./BackEnd/data/ddi:/app/data/ddi:ro   # built by scripts/build_ddi.py (DDInter, CC BY-NC-SA 4.0)
       - uploads:/app/uploads
       - vault:/app/vault   # encrypted agent files (AES-256-GCM)
     depends_on:
       redis: { condition: service_healthy }
+    deploy:
+      replicas: ${API_REPLICAS:-3}
     read_only: true
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    mem_limit: 768m
+    mem_limit: 512m
     # no published port: only nginx can reach it
+
+  # Upload workers: take jobs from the Redis queue (our SQS) and run the pipeline. Scale with WORKERS.
+  worker:
+    build: ./BackEnd
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *api_env
+      DB_POOL_SIZE: "3"
+      DB_MAX_OVERFLOW: "2"
+    command: ["python", "-m", "app.worker_main"]
+    volumes: *app_volumes
+    depends_on:
+      redis: { condition: service_healthy }
+    deploy:
+      replicas: ${WORKERS:-2}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,json,redis; r=redis.Redis.from_url(os.environ['REDIS_URL']); sys.exit(0 if r.exists('hb:worker:'+os.environ['HOSTNAME']) else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  # Reminder scheduler: two copies for failover, one leader elected through a Redis lease, so each dose is sent once.
+  scheduler:
+    build: ./BackEnd
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *api_env
+      SCHEDULER: "on"
+      DB_POOL_SIZE: "2"
+      DB_MAX_OVERFLOW: "1"
+    command: ["python", "-m", "app.scheduler_main"]
+    depends_on:
+      redis: { condition: service_healthy }
+    deploy:
+      replicas: ${SCHEDULERS:-2}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/tmp/scheduler-alive') < 60 else 1)"]
+      interval: 20s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
 
   nginx:
     build:
