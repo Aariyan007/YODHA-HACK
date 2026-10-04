@@ -40,11 +40,13 @@ def transcribe(audio: bytes, filename: str, mime: str, language: str | None = No
     if eng == "none":
         raise SpeechError("Voice is not set up on this server yet.", 503)
     if eng == "elevenlabs":
+        from . import breaker
         try:
-            return _eleven(audio, filename, mime, language)
-        except SpeechError:
+            with breaker.guard("elevenlabs"):
+                return _eleven(audio, filename, mime, language)
+        except (SpeechError, breaker.BreakerOpen) as e:
             if not os.getenv("GROQ_API_KEY"):
-                raise
+                raise e if isinstance(e, SpeechError) else SpeechError("The speech service is paused for a moment. Please try again shortly.", 503)
     try:
         out = whisper.transcribe(audio, filename, mime, language or None, [])
     except whisper.TranscribeError as e:

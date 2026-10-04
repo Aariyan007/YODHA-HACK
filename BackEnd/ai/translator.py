@@ -26,10 +26,12 @@ def _complete(prompt: str, system: str) -> str:
     )
     # gpt-oss models burn tokens on hidden reasoning. Turn it down so the
     # visible content isn't truncated.
-    try:
-        r = client.chat.completions.create(**kwargs, reasoning_effort="low")
-    except TypeError:
-        r = client.chat.completions.create(**kwargs)
+    from app import breaker
+    with breaker.guard(f"groq:{MODEL}"):
+        try:
+            r = client.chat.completions.create(**kwargs, reasoning_effort="low")
+        except TypeError:
+            r = client.chat.completions.create(**kwargs)
     out = (r.choices[0].message.content or "").strip()
     if not out and r.choices[0].finish_reason == "length":
         # Reasoning used up the budget, retry without reasoning or with a bigger budget.

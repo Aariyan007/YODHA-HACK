@@ -33,7 +33,8 @@ def _client() -> Groq:
 
 
 def _is_limit(e: Exception) -> bool:
-    return type(e).__name__ == "RateLimitError"
+    # an open circuit breaker is treated like a rate limit: skip to the fallback model, never wait it out
+    return type(e).__name__ in ("RateLimitError", "BreakerOpen")
 
 
 def _retry_after(e: Exception) -> float | None:
@@ -95,10 +96,12 @@ def _chat_json_once(system: str, user: str, max_tokens: int, model: str | None =
         temperature=0.1,
         response_format={"type": "json_object"},
     )
-    try:
-        r = client.chat.completions.create(**kwargs, reasoning_effort="low")
-    except TypeError:
-        r = client.chat.completions.create(**kwargs)
+    from app import breaker
+    with breaker.guard(f"groq:{kwargs['model']}"):
+        try:
+            r = client.chat.completions.create(**kwargs, reasoning_effort="low")
+        except TypeError:
+            r = client.chat.completions.create(**kwargs)
     try:
         from app import tokens
         tokens.record("json-calls", model or MODEL, getattr(r, "usage", None))  # consultation, visit classification, agent planner fallback
@@ -269,10 +272,12 @@ def patient_summary(final_note: dict) -> dict:
             messages=[{"role": "system", "content": _SUMMARY_SYSTEM_EN}, {"role": "user", "content": joined}],
             max_tokens=600, temperature=0.2,
         )
-        try:
-            r = client.chat.completions.create(**kwargs, reasoning_effort="low")
-        except TypeError:
-            r = client.chat.completions.create(**kwargs)
+        from app import breaker
+        with breaker.guard(f"groq:{MODEL}"):
+            try:
+                r = client.chat.completions.create(**kwargs, reasoning_effort="low")
+            except TypeError:
+                r = client.chat.completions.create(**kwargs)
         en = (r.choices[0].message.content or "").strip()
     except Exception as e:
         print(f"[consultation] EN summary failed: {type(e).__name__}")
@@ -287,10 +292,12 @@ def patient_summary(final_note: dict) -> dict:
             messages=[{"role": "system", "content": _SUMMARY_SYSTEM_ML}, {"role": "user", "content": en}],
             max_tokens=800, temperature=0.2,
         )
-        try:
-            r = client.chat.completions.create(**kwargs, reasoning_effort="low")
-        except TypeError:
-            r = client.chat.completions.create(**kwargs)
+        from app import breaker
+        with breaker.guard(f"groq:{MODEL}"):
+            try:
+                r = client.chat.completions.create(**kwargs, reasoning_effort="low")
+            except TypeError:
+                r = client.chat.completions.create(**kwargs)
         ml = (r.choices[0].message.content or "").strip()
     except Exception as e:
         print(f"[consultation] ML summary failed: {type(e).__name__}")

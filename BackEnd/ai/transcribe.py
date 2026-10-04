@@ -104,8 +104,12 @@ def transcribe(data: bytes, filename: str = "clip.webm", mime: str = "audio/webm
         kwargs["prompt"] = prompt
     if language:
         kwargs["language"] = language  # just a hint, leave it out to let Whisper detect the language
+    from app import breaker
     try:
-        r = client.audio.transcriptions.create(**kwargs)
+        with breaker.guard("groq:whisper"):
+            r = client.audio.transcriptions.create(**kwargs)
+    except breaker.BreakerOpen:
+        raise TranscribeError("Voice transcription is paused for a moment because the service kept failing. Type the line instead, or try again shortly.", 503)
     except Exception as e:  # network, quota, bad audio
         name = type(e).__name__
         code = getattr(e, "status_code", None)

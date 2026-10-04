@@ -110,10 +110,12 @@ def _call(facts: dict) -> dict | None:
                       {"role": "user", "content": "Record (JSON):\n" + json.dumps(facts, ensure_ascii=False)}],
             max_tokens=1800, temperature=0.2, response_format={"type": "json_object"},
         )
-        try:
-            r = client.chat.completions.create(**kwargs, reasoning_effort="low")
-        except TypeError:
-            r = client.chat.completions.create(**kwargs)
+        from app import breaker
+        with breaker.guard(f"groq:{MODEL}"):
+            try:
+                r = client.chat.completions.create(**kwargs, reasoning_effort="low")
+            except TypeError:
+                r = client.chat.completions.create(**kwargs)
         text = (r.choices[0].message.content or "").strip()
         return json.loads(text) if text else None
     except Exception as e:

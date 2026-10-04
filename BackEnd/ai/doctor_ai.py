@@ -32,10 +32,12 @@ def _chat_json(system: str, user: str, max_tokens: int = 1200) -> dict | None:
         client = Groq(api_key=key, timeout=TIMEOUT_S)
         kwargs = dict(model=MODEL, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                       max_tokens=max_tokens, temperature=0.2, response_format={"type": "json_object"})
-        try:
-            r = client.chat.completions.create(**kwargs, reasoning_effort="low")
-        except TypeError:
-            r = client.chat.completions.create(**kwargs)
+        from app import breaker
+        with breaker.guard(f"groq:{MODEL}"):
+            try:
+                r = client.chat.completions.create(**kwargs, reasoning_effort="low")
+            except TypeError:
+                r = client.chat.completions.create(**kwargs)
         text = (r.choices[0].message.content or "").strip()
         return json.loads(text) if text else None
     except Exception as e:

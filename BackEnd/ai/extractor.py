@@ -66,6 +66,12 @@ def _strip_fences(text: str) -> str:
 
 
 def _call(client: genai.Client, data: bytes, mime: str, prompt: str | None = None) -> str:
+    from app import breaker
+    with breaker.guard("gemini"):
+        return _call_models(client, data, mime, prompt)
+
+
+def _call_models(client: genai.Client, data: bytes, mime: str, prompt: str | None = None) -> str:
     cfg = types.GenerateContentConfig(
         response_mime_type="application/json",
         temperature=0.2,
@@ -104,6 +110,8 @@ def _call(client: genai.Client, data: bytes, mime: str, prompt: str | None = Non
 
 def explain_error(e: Exception) -> str:
     """Plain reason for a failed Gemini call. 'Try a sharper photo' is only right if the call worked."""
+    if type(e).__name__ == "BreakerOpen":
+        return "The AI reading service is having trouble right now, so we paused it for a moment. Please try again in a minute."
     code = getattr(e, "code", None) or getattr(e, "status_code", None)
     text = str(e).lower()
     if code == 429 or "resource_exhausted" in text or "quota" in text:

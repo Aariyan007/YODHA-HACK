@@ -1,0 +1,175 @@
+"""Scale and resilience pieces: circuit breakers, request lanes, load shedding. No network.
+
+Run: cd BackEnd && ./venv/bin/python -W ignore scripts/test_scale.py -v
+"""
+import asyncio
+import os
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+os.environ.setdefault("DATABASE_URL", "")
+
+from app import breaker, concurrency, store  # noqa: E402
+
+store._redis = None  # tests never touch a real Redis
+
+
+class Boom(Exception):
+    def __init__(self, code=None):
+        super().__init__("boom")
+        self.status_code = code
+
+
+class BreakerTest(unittest.TestCase):
+    def setUp(self):
+        store._memory.clear()
+        breaker._local.clear()
+
+    def run_guard(self, name, exc=None):
+        with breaker.guard(name):
+            if exc:
+                raise exc
+
+    def test_opens_after_threshold_and_skips_calls(self):
+        for _ in range(breaker.THRESHOLD):
+            with self.assertRaises(Boom):
+                self.run_guard("svc", Boom(503))
+        with self.assertRaises(breaker.BreakerOpen):
+            self.run_guard("svc")
+        self.assertEqual(breaker.states()[0]["state"], "open")
+
+    def test_a_bad_request_does_not_count(self):
+        for _ in range(breaker.THRESHOLD + 2):
+            with self.assertRaises(Boom):
+                self.run_guard("svc", Boom(400))
+        self.run_guard("svc")  # still closed
+
+    def test_success_resets_the_count(self):
+        for _ in range(breaker.THRESHOLD - 1):
+            with self.assertRaises(Boom):
+                self.run_guard("svc", Boom(500))
+        self.run_guard("svc")
+        with self.assertRaises(Boom):
+            self.run_guard("svc", Boom(500))
+        self.run_guard("svc")  # one failure after a success is not enough to open
+
+    def test_half_open_trial_closes_on_success(self):
+        for _ in range(breaker.THRESHOLD):
+            with self.assertRaises(Boom):
+                self.run_guard("svc", Boom(503))
+        st = breaker._read("svc")
+        st["open_until"] = 1  # cooldown is over
+        breaker._write("svc", st)
+        self.run_guard("svc")  # the one trial call works
+        self.assertEqual(breaker._read("svc").get("open_until"), 0)
+
+    def test_half_open_trial_failing_opens_again(self):
+        for _ in range(breaker.THRESHOLD):
+            with self.assertRaises(Boom):
+                self.run_guard("svc", Boom(503))
+        st = breaker._read("svc")
+        st["open_until"] = 1
+        breaker._write("svc", st)
+        with self.assertRaises(Boom):
+            self.run_guard("svc", Boom(503))
+        with self.assertRaises(breaker.BreakerOpen):
+            self.run_guard("svc")
+
+    def test_open_breaker_counts_as_a_limit_for_the_visit_note(self):
+        from ai import consultation
+        self.assertTrue(consultation._is_limit(breaker.BreakerOpen("groq:x")))
+
+    def test_gemini_breaker_has_a_plain_message(self):
+        from ai import extractor
+        self.assertIn("try again in a minute", extractor.explain_error(breaker.BreakerOpen("gemini")))
+
+
+class LaneTest(unittest.TestCase):
+    def test_ai_routes_use_the_slow_lane(self):
+        L = concurrency.lane
+        self.assertEqual(L("POST", "/api/agent/chat"), "ai")
+        self.assertEqual(L("POST", "/api/documents"), "ai")
+        self.assertEqual(L("POST", "/api/consultations/abc123/audio"), "ai")
+        self.assertEqual(L("GET", "/api/patients/me/health-check"), "ai")
+        self.assertEqual(L("GET", "/api/patients/me/timeline"), "fast")
+        self.assertEqual(L("GET", "/api/agent/tasks/abc"), "fast")
+        self.assertEqual(L("POST", "/api/auth/login"), "fast")
+
+
+def _app(delay):
+    async def app(scope, receive, send):
+        await asyncio.sleep(delay)
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+    return app
+
+
+async def _hit(mw, path, method="GET"):
+    out = {}
+
+    async def send(m):
+        if m["type"] == "http.response.start":
+            out["status"] = m["status"]
+
+    async def receive():
+        return {"type": "http.request", "body": b""}
+
+    await mw({"type": "http", "path": path, "method": method, "headers": []}, receive, send)
+    return out["status"]
+
+
+class SheddingTest(unittest.TestCase):
+    def test_too_many_waiting_get_a_fast_503(self):
+        old = concurrency.MAX_WAITING
+        concurrency.MAX_WAITING = 3
+        try:
+            mw = concurrency.InflightLimit(_app(0.2), fast=2, ai=1)
+
+            async def go():
+                return await asyncio.gather(*[_hit(mw, "/api/patients/me/timeline") for _ in range(10)])
+            codes = asyncio.run(go())
+        finally:
+            concurrency.MAX_WAITING = old
+        self.assertIn(503, codes)
+        self.assertGreaterEqual(codes.count(200), 5)  # 2 running + 3 waiting get served
+
+    def test_waiting_too_long_gets_a_503(self):
+        old = concurrency.QUEUE_TIMEOUT
+        concurrency.QUEUE_TIMEOUT = 0.1
+        try:
+            mw = concurrency.InflightLimit(_app(0.5), fast=1, ai=1)
+
+            async def go():
+                return await asyncio.gather(_hit(mw, "/api/x"), _hit(mw, "/api/x"))
+            codes = sorted(asyncio.run(go()))
+        finally:
+            concurrency.QUEUE_TIMEOUT = old
+        self.assertEqual(codes, [200, 503])
+
+    def test_ai_lane_full_does_not_block_reads(self):
+        mw = concurrency.InflightLimit(_app(0.3), fast=5, ai=1)
+
+        async def go():
+            slow = [asyncio.create_task(_hit(mw, "/api/agent/chat", "POST")) for _ in range(3)]
+            await asyncio.sleep(0.05)
+            t0 = asyncio.get_running_loop().time()
+            code = await _hit(mw, "/api/patients/me/medicines")
+            took = asyncio.get_running_loop().time() - t0
+            await asyncio.gather(*slow)
+            return code, took
+        code, took = asyncio.run(go())
+        self.assertEqual(code, 200)
+        self.assertLess(took, 0.5)  # did not queue behind the 3 slow AI calls (0.9 s)
+
+    def test_streams_and_health_are_never_limited(self):
+        mw = concurrency.InflightLimit(_app(0.2), fast=1, ai=1)
+
+        async def go():
+            return await asyncio.gather(*[_hit(mw, "/api/jobs/abc/events") for _ in range(5)])
+        self.assertEqual(asyncio.run(go()), [200] * 5)
+
+
+if __name__ == "__main__":
+    unittest.main()
