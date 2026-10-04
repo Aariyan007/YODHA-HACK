@@ -16,7 +16,7 @@ Team FullSleeve: S. Aariyan, Jithin P R, Mathew Maijo. Built for the YODHA hacka
 6. [Safety and privacy](#safety-and-privacy)
 7. [Repository layout](#repository-layout)
 8. [Start it](#start-it) (run locally, accounts, Docker stack)
-9. [Deploying](#deploying)
+9. [Scaling: AWS in a box](#scaling-aws-in-a-box), [Deploying](#deploying)
 10. [Environment variables](#environment-variables)
 11. [Demo mode](#demo-mode), [tests](#tests-and-checks), [known limits](#known-limits)
 
@@ -49,7 +49,7 @@ flowchart LR
   subgraph Edge
     N[nginx<br/>TLS, static files, rate limits, CSP<br/>local Docker stack only]
   end
-  subgraph Backend[FastAPI backend - one worker]
+  subgraph Backend[FastAPI backend - 3 copies + workers + scheduler]
     R[Routers]
     A[Agent engine]
     PIPE[Upload pipeline]
@@ -97,7 +97,7 @@ flowchart LR
 | --- | --- | --- |
 | Entry | nginx on 8080 (http) and 8443 (https) | one web service |
 | Frontend | built into the nginx image | built into the API image, served by `app/static_site.py` |
-| Backend | `backend` container, one uvicorn worker, read-only filesystem | same code in one container (`deploy/render/Dockerfile`) |
+| Backend | 3 `backend` copies (API only), 2 `worker` containers (upload queue), 2 `scheduler` containers (one leader), read-only filesystems | same code in one process: API, uploads in a thread, scheduler inside (`deploy/render/Dockerfile`) |
 | Redis | `redis:7-alpine` with AOF volume | none: state falls back to memory |
 | Database | Supabase Postgres (transaction pooler, port 6543) | Supabase Postgres |
 | Files | Docker volume `vault` | container disk (wiped on redeploy) |
@@ -393,7 +393,7 @@ cd Frontend && VITE_API_URL= npm run dev -- --host      # friend opens http://<y
 
 Use two different browsers or origins (for example `localhost` and `127.0.0.1`) if you test both roles on one computer, because the session lives in localStorage. Traffic is plain HTTP on the LAN: fine for a two-person test, not for the public internet. The microphone only works on `localhost` or HTTPS.
 
-Run exactly one backend process per database. Each one starts a reminder scheduler, and two can send the same dose.
+Run exactly one backend process per database when you run it by hand: a plain `uvicorn` starts its own reminder scheduler, and two can send the same dose. (The Docker stack sets `SCHEDULER=off` on the API copies and elects one scheduler leader, so it is safe there.)
 
 ## Run it as a stack (nginx + Redis + backend)
 
@@ -406,9 +406,10 @@ open https://localhost:8443                 # self-signed certificate: accept th
 
 What you get: nginx serves the built React app and proxies `/api` to the backend (gzip, one-year cache for hashed assets,
 security headers and a Content-Security-Policy, rate limits on sign-in and uploads, 11 MB upload cap, SSE progress
-streams unbuffered, JSON access logs with share tokens and job ids redacted). The backend runs one worker (it owns the
-reminder scheduler) as a non-root user on a read-only filesystem, with Redis for login throttling, "taken" flags and dose
-de-duplication. Redis and the backend have no published ports: only nginx is reachable from outside.
+streams unbuffered, JSON access logs with share tokens and job ids redacted) and load balances over 3 API copies. Upload
+workers and a leader-elected reminder scheduler run as their own containers (see [Scaling: AWS in a box](#scaling-aws-in-a-box)).
+Everything runs as a non-root user on a read-only filesystem, with Redis for login throttling, limits, caches, the upload
+queue and dose de-duplication. Redis and the app containers have no published ports: only nginx is reachable from outside.
 
 - Readiness: `curl http://localhost:8080/api/health/ready` shows database, Redis, scheduler, DDInter and Laya status.
 - Demo mode: `DEMO_MODE=true docker compose up -d backend`. LAN friend: `CERT_SANS="DNS:localhost,IP:127.0.0.1,IP:<your-LAN-IP>" docker compose up -d --build --wait` (HTTPS also makes the microphone work).
@@ -420,6 +421,45 @@ de-duplication. Redis and the backend have no published ports: only nginx is rea
 - **Interactions**: `BackEnd/ai/safety.py` (formerly `jev_client.py`, there was never a Jev service) looks pairs up in the DDInter dataset (about 160k pairs, Major / Moderate; build it with `cd BackEnd && ./venv/bin/python scripts/build_ddi.py`) after the hand-written patient messages. Unknown pairs give no alert.
 - **Laya** (https://huggingface.co/convaiinnovations/laya): a small classifier that helps with symptom triage and with spotting emergencies in what a patient types or a doctor says, in English, Malayalam and Manglish. Rules always run first; the model can only raise urgency, never lower it, and it is used only after it passes its own evaluation gate. Setup, training and the honest numbers are in [`ml/README.md`](ml/README.md). Run it with `docker compose -f docker-compose.yml -f docker-compose.ai.yml up -d --build --wait`.
 - Data sources and licences: [`ml/DATA_LICENSES.md`](ml/DATA_LICENSES.md). DDInter and one training source are non-commercial.
+
+## Scaling: AWS in a box
+
+The Docker stack runs the same building blocks a big cloud app uses, on one laptop, with no cloud account:
+
+| Cloud idea | Here | File |
+| --- | --- | --- |
+| Load balancer (ALB) | nginx spreads requests over every API copy (least connections), re-reads Docker DNS every 5 s, skips a dead copy and retries on another | `deploy/nginx/nginx.conf` |
+| Stateless app servers | `API_REPLICAS` copies (default 3). Sessions are signed tokens, data in Postgres, limits / caches / job progress in Redis, files on shared volumes | `docker-compose.yml` |
+| Queue (SQS) | uploads go on a Redis list; a job is handed over atomically and put back if its worker dies (visibility timeout) | `app/jobqueue.py` |
+| Serverless workers (Lambda) | `WORKERS` worker containers run the upload pipeline; progress goes into a Redis stream so any API copy can stream it to the browser | `app/worker_main.py` |
+| Leader election | two scheduler containers, one leader through a Redis lease; if it dies the other takes over within 90 s, and each dose is still sent once | `app/reminder_service.py`, `app/scheduler_main.py` |
+| Circuit breakers | after 3 failures in a row a service (each Groq model, Gemini, Whisper, ElevenLabs) is skipped for 30 s and the fallback answers at once; state shared in Redis | `app/breaker.py` |
+| Bulkheads + load shedding | separate fast and AI request lanes per copy; too many waiting, or waiting too long, gets a fast 503 with Retry-After | `app/concurrency.py` |
+| Auto Scaling group | reads live load from Redis and scales API copies (2 to 6) and workers (1 to 4) with docker compose; up at once, down after 60 s, one at a time | `BackEnd/scripts/autoscale.py` |
+| CloudWatch | every copy adds its numbers to 5 s buckets in Redis; `/admin` shows a live panel (requests/s, latency, errors, copies, workers, schedulers, queue, breakers) | `app/metrics.py`, `pages/Admin.jsx` |
+| Chaos testing | kill a copy in the middle of a load test | `BackEnd/scripts/scale_demo.sh` |
+
+**Measured** (100 people at once, 30 s, through the load balancer, against Supabase over the internet):
+
+| | 1 API copy | 3 API copies | 3 copies, one killed halfway |
+| --- | --- | --- | --- |
+| Requests | about 1,775 (57/s) | about 3,090 (100/s) | 3,127 (101/s) |
+| Typical page (p50) | about 1,150 ms | about 345 ms | about 345 ms |
+| Slow pages (p95) | about 1,390 ms | about 560 ms | about 530 ms |
+| Errors | 0 | 0 | **0** |
+
+Under 150 people the autoscaler went from 2 to 6 copies in about 15 s with 0 errors in 4,644 requests, then scaled back down when the load stopped. Past about 3 copies the throughput stays near 100 requests/s: the remote database becomes the limit, so the next step would be a read replica or a database in the same region.
+
+Run it yourself:
+
+```bash
+docker compose up -d --build --wait            # 3 API copies, 2 workers, 2 schedulers, nginx, Redis
+bash BackEnd/scripts/scale_demo.sh             # 1 copy vs 3 copies vs 3 with one killed
+python3 BackEnd/scripts/autoscale.py           # autoscaler (Ctrl+C to stop); open /admin to watch it live
+API_REPLICAS=5 WORKERS=3 docker compose up -d  # or set the sizes by hand
+```
+
+The hosted Render copy is a single process (free tier): the in-process paths are kept for it (uploads run in a thread, the scheduler runs inside the API), so the same code works in both places.
 
 ## Deploying
 

@@ -23,7 +23,25 @@ Each request holds one database connection from its login check to its end. The 
 - **Daily limits per person:** uploads 30, doctor search 60, AI review 40, assistant 80. They protect the shared free AI quota.
 - **Slow-request log:** anything over 1 second is logged as a warning.
 
-## Still true
-One backend process (it owns the scheduler), one Redis, free AI quotas. See [[Roadmap]] for the next steps and [[Token optimisation]] for AI cost.
+## AWS in a box (no cloud account)
+| Cloud idea | Here |
+| --- | --- |
+| Load balancer | nginx over 3 API copies, least connections, skips a dead copy and retries on another |
+| Queue + serverless workers | uploads go on a Redis queue, worker containers run them; a dead worker's job is put back |
+| Leader election | 2 scheduler containers, one leader via a Redis lease, each dose sent once |
+| Circuit breakers | a failing AI service is skipped for 30 s and the fallback answers at once |
+| Bulkheads + load shedding | separate fast and AI lanes; overload gets a fast "busy" (503 + Retry-After) |
+| Auto Scaling | `scripts/autoscale.py` scales API copies 2 to 6 and workers 1 to 4 from live load |
+| CloudWatch | live panel on `/admin`: requests/s, latency, errors, copies, workers, schedulers, queue, breakers |
+
+| | 1 API copy | 3 API copies | 3 copies, one killed halfway |
+| --- | --- | --- | --- |
+| Requests per second | about 57 | about 100 | about 101 |
+| Typical page (p50) | about 1,150 ms | about 345 ms | about 345 ms |
+| Errors | 0 | 0 | 0 |
+
+The autoscaler went from 2 to 6 copies in about 15 s under 150 people, 0 errors in 4,644 requests. Past 3 copies throughput stays near 100 req/s: the remote database is the limit now.
+
+Demo: `bash BackEnd/scripts/scale_demo.sh`. Next steps: [[Roadmap]]. AI cost: [[Token optimisation]].
 
 Related: [[Testing]], [[Deployment]].

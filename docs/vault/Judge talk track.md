@@ -27,4 +27,4 @@ Encrypted files, hashed passwords, strict role separation, handwriting "unclear"
 We tested 100 people at once. First: timeouts and many errors. We found why and fixed it. Now: 0 errors, about 60 requests per second, pages in about a second. Plus daily limits per person and caching to protect the free AI quota. See [[Scalability]].
 
 ## 5. Be honest
-One backend process today; free AI quotas; Laya off for Malayalam; sample doctor data; the free host sleeps. See [[Known limits]].
+The remote database caps us near 100 requests per second; free AI quotas; Laya off for Malayalam; sample doctor data; the free host sleeps. See [[Known limits]].

@@ -9,7 +9,7 @@ Back to [[Home]].
 flowchart LR
   P[Patient browser] --> N[nginx]
   D[Doctor browser] --> N
-  N -->|/api| API[FastAPI backend<br/>one worker]
+  N -->|/api| API[FastAPI backend<br/>3 copies + workers + scheduler]
   API --> PG[(Supabase Postgres)]
   API --> RD[(Redis)]
   API --> V[Encrypted vault]

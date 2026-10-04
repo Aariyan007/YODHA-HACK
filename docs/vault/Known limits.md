@@ -5,7 +5,7 @@ tags: [limits]
 
 Back to [[Home]]. Say these first; judges respect honesty.
 
-- One backend process (it owns the reminder scheduler). About 60 requests per second measured. See [[Scalability]].
+- Throughput tops out near 100 requests per second because the database is remote (Supabase over the internet); more API copies past 3 do not help. See [[Scalability]].
 - Free AI quotas (Groq, Gemini) run out long before the servers do. See [[Token optimisation]].
 - Laya triage failed its own gate on Malayalam, so it is off and rules run. See [[AI services]].
 - Doctor directory is fictional sample data.
