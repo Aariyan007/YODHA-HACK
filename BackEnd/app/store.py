@@ -123,3 +123,32 @@ def keys_with_prefix(prefix: str) -> list[str]:
     if _redis is not None:
         return _redis_call(lambda: [k.decode() if isinstance(k, bytes) else k for k in _redis.scan_iter(match=f"{prefix}*", count=500)], mem)
     return mem()
+
+
+# ---- leases (leader election): only one process holds a named job at a time ----
+
+_LEASE_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  redis.call('expire', KEYS[1], ARGV[2]) return 1
+end
+if redis.call('set', KEYS[1], ARGV[1], 'NX', 'EX', ARGV[2]) then return 1 end
+return 0
+"""
+
+
+def hold_lease(key: str, owner: str, ttl: int) -> bool:
+    """Take or renew a lease. True if `owner` holds it now. Atomic in Redis, so two schedulers can't both win."""
+    def mem() -> bool:
+        cur = _mem_get(key)
+        if cur in (None, owner):
+            _mem_set(key, owner, ttl)
+            return True
+        return False
+
+    if _redis is not None:
+        return bool(_redis_call(lambda: _redis.eval(_LEASE_LUA, 1, key, owner, ttl), mem))
+    return mem()
+
+
+def lease_owner(key: str) -> str | None:
+    return get_value(key)

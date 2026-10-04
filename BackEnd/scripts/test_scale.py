@@ -86,6 +86,48 @@ class BreakerTest(unittest.TestCase):
         self.assertIn("try again in a minute", extractor.explain_error(breaker.BreakerOpen("gemini")))
 
 
+class LeaseTest(unittest.TestCase):
+    def setUp(self):
+        store._memory.clear()
+
+    def test_only_one_holder(self):
+        self.assertTrue(store.hold_lease("lease:x", "a", 60))
+        self.assertFalse(store.hold_lease("lease:x", "b", 60))
+        self.assertTrue(store.hold_lease("lease:x", "a", 60))  # the holder renews
+        self.assertEqual(store.lease_owner("lease:x"), "a")
+
+    def test_lease_passes_on_when_the_leader_stops_renewing(self):
+        store.hold_lease("lease:x", "a", 60)
+        store._memory["lease:x"] = ("a", 1.0)  # expired long ago: leader died
+        self.assertTrue(store.hold_lease("lease:x", "b", 60))
+
+    def test_standby_scheduler_does_not_send(self):
+        from app import reminder_service as rs
+        calls = []
+        old = rs.run_tick
+        rs.run_tick = lambda now, *a, **k: calls.append(now)
+        try:
+            store.hold_lease(rs.LEASE_KEY, "someone-else", 60)
+            rs._job()
+            self.assertEqual(calls, [])
+            self.assertEqual(rs._role["role"], "standby")
+            store._memory.pop(rs.LEASE_KEY)
+            rs._job()
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(rs._role["role"], "leader")
+        finally:
+            rs.run_tick = old
+
+    def test_scheduler_off_means_ready_without_one(self):
+        from app import reminder_service as rs
+        os.environ["SCHEDULER"] = "off"
+        try:
+            self.assertFalse(rs.enabled())
+            self.assertTrue(rs.status()["ok"])
+        finally:
+            os.environ.pop("SCHEDULER")
+
+
 class LaneTest(unittest.TestCase):
     def test_ai_routes_use_the_slow_lane(self):
         L = concurrency.lane

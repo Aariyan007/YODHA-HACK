@@ -381,16 +381,48 @@ def fire_missed_now(patient_id: str, now: datetime | None = None, send: Sender |
 _scheduler = None
 
 
+# Leader election: any number of scheduler processes can run (for failover), but only the one holding the lease
+# sends. The lease lasts 90 s and the leader renews it every tick, so if it dies another takes over within 90 s.
+# Sent doses are also claimed in the DB before sending, so even a split second overlap can't double send.
+LEASE_KEY = "lease:reminders"
+LEASE_TTL = 90
+INSTANCE = os.getenv("HOSTNAME") or new_id()
+_role = {"role": "starting", "ticks": 0, "last_tick": None}
+
+
+def enabled() -> bool:
+    """SCHEDULER=off on API copies when a separate scheduler service runs (the Docker stack does this)."""
+    return (os.getenv("SCHEDULER") or "on").strip().lower() not in ("off", "0", "false", "no")
+
+
 def _job() -> None:
+    import time
+    leader = store.hold_lease(LEASE_KEY, INSTANCE, LEASE_TTL)
+    _role["role"] = "leader" if leader else "standby"
+    store.set_value(f"hb:scheduler:{INSTANCE}", _role["role"], ttl=LEASE_TTL)
+    if not leader:
+        return
     try:
         run_tick(now_ist())
+        _role["ticks"] += 1
+        _role["last_tick"] = time.time()
     except Exception as e:  # never let the scheduler die
         print(f"[reminders] tick failed: {type(e).__name__}")
+
+
+def status() -> dict:
+    """For readiness and the admin page: is a scheduler running here, and who leads overall."""
+    here = bool(_scheduler is not None and _scheduler.running)
+    return {"ok": here or not enabled(), "here": here, "role": _role["role"] if here else "off",
+            "leader": store.lease_owner(LEASE_KEY), "instance": INSTANCE}
 
 
 def start() -> None:
     global _scheduler
     if _scheduler is not None:
+        return
+    if not enabled():
+        print("[reminders] SCHEDULER=off: this process doesn't send reminders (a separate scheduler service does).")
         return
     if not telegram.ready():
         print("[reminders] TELEGRAM_BOT_TOKEN missing: scheduler runs but sends nothing.")
@@ -399,7 +431,8 @@ def start() -> None:
     _scheduler.add_job(_job, "interval", seconds=TICK_SECONDS, id="reminder_tick",
                        max_instances=1, coalesce=True, misfire_grace_time=20)
     _scheduler.start()
-    print(f"[reminders] scheduler started (every {TICK_SECONDS}s, IST)")
+    _scheduler.add_job(_job, id="first_tick")  # claim the lease right away instead of after 30 s
+    print(f"[reminders] scheduler started (every {TICK_SECONDS}s, IST), instance {INSTANCE}")
 
 
 def stop() -> None:
