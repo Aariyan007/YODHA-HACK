@@ -6,7 +6,7 @@ reset each day. `spend` raises a plain 429, `try_spend` just says yes or no so a
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 
@@ -20,10 +20,13 @@ LIMITS = {
 _WORDS = {"upload": "uploads", "doctor_ai": "doctor searches", "review": "AI reviews"}
 
 
+def today_ist() -> str:
+    """The day limits reset on: India's calendar day, the same on every server whatever its clock zone."""
+    return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date().isoformat()
+
+
 def try_spend(actor: str, feature: str) -> bool:
-    key = f"budget:{feature}:{actor}:{date.today().isoformat()}"
-    n = int(store.get_value(key) or 0) + 1
-    store.set_value(key, str(n), ttl=90000)
+    n = store.incr(f"budget:{feature}:{actor}:{today_ist()}", ttl=90000)   # atomic across API copies
     return n <= LIMITS.get(feature, 50)
 
 

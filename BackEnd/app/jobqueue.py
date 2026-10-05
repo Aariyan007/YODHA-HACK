@@ -21,6 +21,7 @@ PROCESSING = "q:processing:"     # + worker id
 JOB = "job:"                     # + job id, the job's state as JSON
 EVENTS = "jobev:"                # + job id, a Redis stream of progress events
 HEARTBEAT = "hb:worker:"         # + worker id
+KNOWN = "q:known-workers"        # set of worker ids that may have a processing list
 TTL = 3600
 MAX_ATTEMPTS = 2
 
@@ -44,6 +45,19 @@ def _rb():
         import redis
         _blocking = redis.Redis.from_url(store.url, decode_responses=True, socket_connect_timeout=3, socket_timeout=30)
     return _blocking
+
+
+_ablocking = None
+
+
+def _arb():
+    """The same blocking read as _rb, but async: waiting for an event costs a socket, not a thread. With threads, the
+    default pool (about 32) capped how many uploads one API copy could stream at once."""
+    global _ablocking
+    if _ablocking is None:
+        import redis.asyncio as aioredis
+        _ablocking = aioredis.Redis.from_url(store.url, decode_responses=True, socket_connect_timeout=3, socket_timeout=30)
+    return _ablocking
 
 
 # ---- job state ----
@@ -85,6 +99,16 @@ def events(job_id: str, last: str = "0", block_ms: int = 15000) -> list[tuple[st
     return rows
 
 
+async def aevents(job_id: str, last: str = "0", block_ms: int = 15000) -> list[tuple[str, dict]]:
+    """Async twin of events(): same result, no worker thread held while waiting."""
+    out = await _arb().xread({EVENTS + job_id: last}, count=50, block=block_ms) or []
+    return [(eid, json.loads(fields["d"])) for _stream, items in out for eid, fields in items]
+
+
+async def aexists(job_id: str) -> bool:
+    return bool(await _arb().exists(JOB + job_id))
+
+
 class RedisBus:
     """Same interface as pipeline.Bus, but the events go to the shared stream."""
     def __init__(self, job_id: str):
@@ -110,18 +134,34 @@ def finish(worker: str, job_id: str) -> None:
 
 
 def beat(worker: str, info: dict | None = None) -> None:
-    _r().set(HEARTBEAT + worker, json.dumps({"t": time.time(), **(info or {})}), ex=20)
+    r, now = _r(), time.time()
+    p = r.pipeline()
+    p.set(HEARTBEAT + worker, json.dumps({"t": now, **(info or {})}), ex=20)
+    p.zadd("hbz:worker", {worker: now})              # index of live workers: counting needs no KEYS or SCAN
+    p.sadd(KNOWN, worker)                            # every worker that may hold jobs, for the janitor
+    p.zremrangebyscore("hbz:worker", 0, now - 60)
+    p.execute()
 
 
 def workers() -> list[dict]:
+    """Live workers with their last heartbeat. Reads the index (hbz:worker) and one MGET, no keyspace scan."""
+    r = _r()
+    ids = r.zrangebyscore("hbz:worker", time.time() - 25, "+inf")
+    raws = r.mget([HEARTBEAT + i for i in ids]) if ids else []
     out = []
-    for k in store.keys_with_prefix(HEARTBEAT):
-        raw = store.get_value(k)
+    for wid, raw in zip(ids, raws):
+        if raw is None:      # heartbeat expired a moment ago
+            continue
         try:
-            out.append({"id": k[len(HEARTBEAT):], **json.loads(raw or "{}")})
+            out.append({"id": wid, **json.loads(raw)})
         except ValueError:
             pass
     return out
+
+
+def any_worker() -> bool:
+    """Cheap check used on every upload: is at least one worker alive?"""
+    return _r().zcount("hbz:worker", time.time() - 25, "+inf") > 0
 
 
 def depth() -> int:
@@ -132,10 +172,10 @@ def requeue_orphans() -> int:
     """Jobs held by workers whose heartbeat stopped go back on the queue. Returns how many moved."""
     r = _r()
     moved = 0
-    for key in store.keys_with_prefix(PROCESSING):
-        worker = key[len(PROCESSING):]
+    for worker in r.smembers(KNOWN):
         if r.exists(HEARTBEAT + worker):
             continue
+        key = PROCESSING + worker
         while (job_id := r.rpop(key)) is not None:
             job = get(job_id) or {}
             attempts = int(job.get("attempts", 0)) + 1
@@ -145,4 +185,6 @@ def requeue_orphans() -> int:
             update(job_id, attempts=attempts, status="pending")
             r.lpush(QUEUE, job_id)
             moved += 1
+        if not r.llen(key):
+            r.srem(KNOWN, worker)    # a dead worker with nothing left to put back is forgotten
     return moved

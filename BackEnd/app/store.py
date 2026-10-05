@@ -1,6 +1,7 @@
 """Tiny key-value store. Uses Redis if it can be reached, else an in-memory dict."""
 import logging
 import os
+import threading
 import time
 
 from . import database  # noqa: F401  (loads .env)
@@ -93,6 +94,31 @@ def get_value(key: str) -> str | None:
     return _mem_get(key)
 
 
+_INCR_LUA = """
+local n = redis.call('incrby', KEYS[1], ARGV[3])
+if ARGV[2] == '1' or redis.call('ttl', KEYS[1]) < 0 then redis.call('expire', KEYS[1], ARGV[1]) end
+return n
+"""
+_incr_lock = threading.Lock()
+
+
+def incr(key: str, ttl: int, refresh: bool = False, by: int = 1) -> int:
+    """Adds `by` to a counter and returns the new value, in ONE step. A read-then-write (get, +1, set) loses counts when
+    several API copies update the same key at once, which let daily limits and the login lock be overshot.
+    The expiry is set when the counter is created, or on every call with refresh=True (a sliding window)."""
+    def mem() -> int:
+        with _incr_lock:
+            old = _memory.get(key)
+            n = int(_mem_get(key) or 0) + by
+            expires = time.time() + ttl if (refresh or old is None or old[1] is None) else old[1]
+            _memory[key] = (str(n), expires)
+            return n
+
+    if _redis is not None:
+        return int(_redis_call(lambda: _redis.eval(_INCR_LUA, 1, key, ttl, 1 if refresh else 0, by), mem))
+    return mem()
+
+
 def delete(key: str) -> None:
     if _redis is not None:
         _redis_call(lambda: _redis.delete(key), lambda: _memory.pop(key, None))
@@ -148,6 +174,24 @@ def hold_lease(key: str, owner: str, ttl: int) -> bool:
     if _redis is not None:
         return bool(_redis_call(lambda: _redis.eval(_LEASE_LUA, 1, key, owner, ttl), mem))
     return mem()
+
+
+_RELEASE_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end
+return 0
+"""
+
+
+def release_lease(key: str, owner: str) -> None:
+    """Gives a lease back early, only if `owner` still holds it (it may have expired and been taken by someone else)."""
+    def mem() -> None:
+        if _mem_get(key) == owner:
+            _memory.pop(key, None)
+
+    if _redis is not None:
+        _redis_call(lambda: _redis.eval(_RELEASE_LUA, 1, key, owner), mem)
+    else:
+        mem()
 
 
 def lease_owner(key: str) -> str | None:

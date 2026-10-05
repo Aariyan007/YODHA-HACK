@@ -103,6 +103,23 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(unknown.json()["detail"], "Email or password is incorrect.")  # same text as a wrong password
         self.assertEqual(self.c.post("/api/auth/login", json={"email": email, "password": PW}).status_code, 429)
 
+    def test_parallel_guesses_are_capped_at_the_limit(self):
+        """A burst of simultaneous wrong passwords must not get more than MAX_FAILS tries (the count is taken up front)."""
+        import threading
+        from app.routers import auth as auth_router
+        email, _, _ = self.register("patient")
+        codes, lock = [], threading.Lock()
+
+        def guess():
+            code = self.c.post("/api/auth/login", json={"email": email, "password": "nope nope"}).status_code
+            with lock:
+                codes.append(code)
+        ts = [threading.Thread(target=guess) for _ in range(20)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        self.assertEqual(codes.count(401), auth_router.MAX_FAILS)
+        self.assertEqual(codes.count(429), 20 - auth_router.MAX_FAILS)
+
     def test_success_resets_the_counter(self):
         email, _, _ = self.register("patient")
         for _ in range(3):

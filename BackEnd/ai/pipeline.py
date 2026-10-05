@@ -15,6 +15,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+import threading
 from threading import Thread
 
 from sqlalchemy import select
@@ -376,6 +377,25 @@ def _run_sync(patient_id: str, data: bytes, filename: str, sha: str, bus: Bus, d
 
 # ---------- entry point used by the HTTP layer ----------
 
+JOB_KEEP_SECONDS = 3600
+# Uploads that run inside the API process (no worker alive, or no Redis) share a few slots, so a burst of uploads can't
+# start hundreds of threads that each hold an image and a database connection. The rest wait their turn.
+_LOCAL_SLOTS = threading.BoundedSemaphore(int(os.getenv("LOCAL_UPLOAD_SLOTS", "4")))
+
+
+def _run_local(job: dict, bus) -> None:
+    with _LOCAL_SLOTS:
+        process_job(job, bus)
+
+
+def _evict_old_jobs() -> None:
+    """In-process mode keeps every job (with its result) in a dict. Forget finished ones after an hour so a server that
+    runs for weeks doesn't grow forever; a job still pending or running is never dropped."""
+    cutoff = time.time() - JOB_KEEP_SECONDS
+    for jid in [j for j, v in list(JOBS.items()) if v.get("started", 0) < cutoff and v.get("status") in ("done", "error")]:
+        JOBS.pop(jid, None)
+
+
 def start_job(patient_id: str, data: bytes, filename: str) -> tuple[str, bool]:
     """Returns (job_id, from_cache). In queue mode the job goes on the shared queue for a worker container,
     otherwise it waits here and a thread starts when the browser connects (run_async)."""
@@ -396,13 +416,14 @@ def start_job(patient_id: str, data: bytes, filename: str) -> tuple[str, bool]:
         if dup_error:
             jobqueue.emit(job_id, {"error": dup_error})
             return job_id, True
-        if jobqueue.workers():
+        if jobqueue.any_worker():
             jobqueue.enqueue(job_id)
         else:  # no worker alive: run it here so the upload never hangs, still streaming through Redis
             job = jobqueue.get(job_id)
-            Thread(target=process_job, args=(job, jobqueue.RedisBus(job_id)), daemon=True).start()
+            Thread(target=_run_local, args=(job, jobqueue.RedisBus(job_id)), daemon=True).start()
         return job_id, cached
 
+    _evict_old_jobs()
     if dup_error:
         JOBS[job_id] = {"status": "done", "patient_id": patient_id, "sha": sha, "error": dup_error, "started": time.time()}
         return job_id, True
@@ -460,7 +481,7 @@ async def run_async(job_id: str) -> asyncio.Queue:
 
     if job["status"] == "pending":
         job["status"] = "running"
-        Thread(target=process_job, args=(job, bus), daemon=True).start()
+        Thread(target=_run_local, args=(job, bus), daemon=True).start()
     elif job["status"] == "done" and "result" in job:
         # Replay for a reconnecting listener.
         for s in STAGES_ORDER:

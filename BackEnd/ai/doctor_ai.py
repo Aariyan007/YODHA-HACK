@@ -14,12 +14,13 @@ import os
 import re
 
 from groq import Groq
+from app.lru import LRU
 
 from app.doctors import LANGUAGES, SPECIALTIES, cities
 
 MODEL = "openai/gpt-oss-120b"
 TIMEOUT_S = 20.0
-_CACHE: dict[str, object] = {}
+_CACHE = LRU(max_items=500, ttl=1800)   # bounded: some keys contain what people typed
 
 BANNED = re.compile(r"\b(diagnos|you have|cure|guarantee|best doctor in|prescribe|treat(?:s|ment) for your)\b", re.I)
 
@@ -51,8 +52,9 @@ def parse(q: str) -> dict:
     if not q:
         return {}
     ck = "parse:" + q.lower()
-    if ck in _CACHE:
-        return dict(_CACHE[ck])  # type: ignore[arg-type]
+    hit = _CACHE.get(ck)
+    if hit is not None:
+        return dict(hit)
     towns = [c["city"] for c in cities()]
     system = (
         "You turn a patient's request for a doctor in India into search filters. Return ONLY JSON with any of these keys:\n"
@@ -84,7 +86,7 @@ def parse(q: str) -> dict:
                 out[k] = v
         except (KeyError, TypeError, ValueError):
             pass
-    _CACHE[ck] = dict(out)
+    _CACHE.put(ck, dict(out))
     return out
 
 
@@ -117,8 +119,9 @@ def explain(picks: list[dict], context: dict) -> list[dict]:
                                    "reviewSnippets", "feeInr", "languages", "openNow", "closesAt", "emergency24x7",
                                    "teleconsult", "waitMinutes", "experienceYears")} for d in picks]
     ck = "explain:" + json.dumps([slim, context], sort_keys=True, default=str)
-    if ck in _CACHE:
-        return list(_CACHE[ck])  # type: ignore[arg-type]
+    hit = _CACHE.get(ck)
+    if hit is not None:
+        return list(hit)
     system = (
         "You help an elderly patient in Kerala choose between doctors that a ranking system has ALREADY picked. "
         "For each doctor, write one short reason (max 30 words) that uses only the facts given: distance, rating and number of "
@@ -146,5 +149,5 @@ def explain(picks: list[dict], context: dict) -> list[dict]:
                         "source": "ai"}
     out = [got.get(d["id"]) or fallback[d["id"]] for d in picks]
     if got:
-        _CACHE[ck] = out
+        _CACHE.put(ck, out)
     return out

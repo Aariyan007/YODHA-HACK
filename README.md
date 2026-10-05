@@ -473,7 +473,7 @@ The Docker stack runs the same building blocks a big cloud app uses, on one lapt
 | Load balancer (ALB) | nginx spreads requests over every API copy (least connections), re-reads Docker DNS every 5 s, skips a dead copy and retries on another | `deploy/nginx/nginx.conf` |
 | Stateless app servers | `API_REPLICAS` copies (default 3). Sessions are signed tokens, data in Postgres, limits / caches / job progress in Redis, files on shared volumes | `docker-compose.yml` |
 | Queue (SQS) | uploads go on a Redis list; a job is handed over atomically and put back if its worker dies (visibility timeout) | `app/jobqueue.py` |
-| Serverless workers (Lambda) | `WORKERS` worker containers run the upload pipeline; progress goes into a Redis stream so any API copy can stream it to the browser | `app/worker_main.py` |
+| Serverless workers (Lambda) | `WORKERS` worker containers, each running `WORKER_CONCURRENCY` jobs at once, run the upload pipeline; progress goes into a Redis stream so any API copy can stream it to the browser | `app/worker_main.py` |
 | Leader election | two scheduler containers, one leader through a Redis lease; if it dies the other takes over within 90 s, and each dose is still sent once | `app/reminder_service.py`, `app/scheduler_main.py` |
 | Circuit breakers | after 3 failures in a row a service (each Groq model, Gemini, Whisper, ElevenLabs) is skipped for 30 s and the fallback answers at once; state shared in Redis | `app/breaker.py` |
 | Bulkheads + load shedding | separate fast and AI request lanes per copy; too many waiting, or waiting too long, gets a fast 503 with Retry-After | `app/concurrency.py` |
@@ -499,6 +499,7 @@ docker compose up -d --build --wait            # 3 API copies, 2 workers, 2 sche
 bash BackEnd/scripts/scale_demo.sh             # 1 copy vs 3 copies vs 3 with one killed
 python3 BackEnd/scripts/autoscale.py           # autoscaler (Ctrl+C to stop); open /admin to watch it live
 API_REPLICAS=5 WORKERS=3 docker compose up -d  # or set the sizes by hand
+WORKER_CONCURRENCY=5 docker compose up -d      # uploads each worker runs at once (default 3; they mostly wait on Gemini / Groq)
 ```
 
 The hosted Render copy is a single process (free tier): the in-process paths are kept for it (uploads run in a thread, the scheduler runs inside the API), so the same code works in both places.
@@ -592,7 +593,8 @@ cd BackEnd
 ./venv/bin/python -W ignore scripts/test_agent_writes.py -v  # every write: preview, confirm, verify, audit, secrets
 ./venv/bin/python -W ignore scripts/test_doctor_agent.py -v  # doctor agent: care-link checks, brief, conflicts, draft + approve
 ./venv/bin/python -W ignore scripts/test_classify.py -v      # visit classification grounding, rate-limit fallbacks
-./venv/bin/python -W ignore scripts/test_scale.py -v         # circuit breakers, leader election, request lanes, load shedding
+./venv/bin/python -W ignore scripts/test_scale.py -v         # circuit breakers, leader election, request lanes, load shedding, atomic counters, bounded caches
+QUEUE_TEST_REDIS_URL=redis://localhost:6379/9 ./venv/bin/python scripts/test_queue_live.py   # worker slots, janitor, async event stream (REAL Redis; flushes that db number)
 ./venv/bin/python scripts/smoke.py                           # needs a running server with DEMO_MODE=true
 ./venv/bin/python scripts/security_sweep.py                  # needs a running server
 ```

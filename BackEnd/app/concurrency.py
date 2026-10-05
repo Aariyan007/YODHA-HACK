@@ -69,21 +69,28 @@ class InflightLimit:
         ln = self.lanes[lane(scope.get("method", "GET"), path)]
         if ln.sem is None:
             ln.sem = asyncio.Semaphore(ln.size)
-        if ln.sem.locked() and ln.waiting >= MAX_WAITING:
+        # Count waiting + running together and decide before any await. Checking sem.locked() let a burst that
+        # arrives in one event-loop tick through (nobody has taken a slot yet), so nothing was ever shed.
+        if ln.active + ln.waiting >= ln.size + MAX_WAITING:
             return await self._busy(send, "full")
         ln.waiting += 1
+        got = False
         try:
-            await asyncio.wait_for(ln.sem.acquire(), timeout=QUEUE_TIMEOUT)
-        except asyncio.TimeoutError:
-            ln.waiting -= 1
-            return await self._busy(send, "timeout")
-        ln.waiting -= 1
-        ln.active += 1
-        try:
-            await self.app(scope, receive, send)
+            try:
+                await asyncio.wait_for(ln.sem.acquire(), timeout=QUEUE_TIMEOUT)
+                got = True
+            except asyncio.TimeoutError:
+                return await self._busy(send, "timeout")
+            finally:
+                ln.waiting -= 1   # also runs if the waiter is cancelled, so the counter cannot leak
+            ln.active += 1
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                ln.active -= 1
         finally:
-            ln.active -= 1
-            ln.sem.release()
+            if got:
+                ln.sem.release()
 
     def snapshot(self) -> dict:
         return {k: {"active": v.active, "waiting": v.waiting, "size": v.size} for k, v in self.lanes.items()}

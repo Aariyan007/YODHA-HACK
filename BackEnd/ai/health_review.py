@@ -19,12 +19,13 @@ import re
 from datetime import date
 
 from groq import Groq
+from app.lru import LRU
 
 from app.trends import HIGHER_IS_WORSE
 
 MODEL = "openai/gpt-oss-120b"
 TIMEOUT_S = 25.0
-_CACHE: dict[str, dict] = {}  # input hash -> review (the same record gives the same answer)
+_CACHE = LRU(max_items=300, ttl=3600)  # input hash -> review (the same record gives the same answer); bounded
 
 BANNED = re.compile(
     r"\b(you have|you are suffering|diagnos|is caused by|due to your|because of your|"
@@ -167,8 +168,9 @@ def review(profile: dict, series: list[dict], medicines: list[dict], alerts: lis
         return fallback
     facts = _facts(profile, series, medicines, alerts, risks, today)
     key = hashlib.sha256(json.dumps(facts, sort_keys=True).encode()).hexdigest()
-    if key in _CACHE:
-        return _CACHE[key]
+    cached = _CACHE.get(key)
+    if cached is not None:
+        return cached
     raw = _call(facts)
     if not isinstance(raw, dict):
         return fallback
@@ -201,5 +203,5 @@ def review(profile: dict, series: list[dict], medicines: list[dict], alerts: lis
         return fallback
     out = {"headline": headline.strip(), "headlineMl": headline_ml, "points": points[:5],
            "askDoctor": ask[:4] or fallback["askDoctor"], "source": "ai"}
-    _CACHE[key] = out
+    _CACHE.put(key, out)
     return out

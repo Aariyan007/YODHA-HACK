@@ -74,8 +74,10 @@ services:
     env_file: .env
     environment:
       <<: *api_env
-      DB_POOL_SIZE: "3"
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-3}   # jobs at once per worker (they mostly wait on Gemini / Groq)
+      DB_POOL_SIZE: "4"
       DB_MAX_OVERFLOW: "2"
+    stop_grace_period: 60s   # lets running jobs finish on a scale-down or restart
     command: ["python", "-m", "app.worker_main"]
     volumes: *app_volumes
     depends_on:

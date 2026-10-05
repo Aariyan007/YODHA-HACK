@@ -16,23 +16,26 @@ def record(feature: str, model: str, usage) -> None:
         c = int(getattr(usage, "completion_tokens", 0) or 0)
         det = getattr(usage, "prompt_tokens_details", None)
         cached = int(getattr(det, "cached_tokens", 0) or 0) if det is not None else 0
-        key = f"tok:{date.today().isoformat()}:{feature}:{model}"
-        cur = json.loads(store.get_value(key) or "{}")
-        cur = {"calls": cur.get("calls", 0) + 1, "prompt": cur.get("prompt", 0) + p, "completion": cur.get("completion", 0) + c,
-               "cached": cur.get("cached", 0) + cached}
-        store.set_value(key, json.dumps(cur), ttl=8 * 86400)
+        base = f"tok:{date.today().isoformat()}:{feature}:{model}"
+        for field, n in (("calls", 1), ("prompt", p), ("completion", c), ("cached", cached)):
+            if n:
+                store.incr(f"{base}:{field}", ttl=8 * 86400, by=n)   # one atomic add each: no lost updates across copies
     except Exception:
         pass
 
 
 def today() -> list[dict]:
     """Today's totals per feature and model (for the admin page)."""
-    out = []
+    rows: dict[tuple[str, str], dict] = {}
     try:
         pre = f"tok:{date.today().isoformat()}:"
-        for k in store.keys_with_prefix(pre) if hasattr(store, "keys_with_prefix") else []:
-            _, _, feature, model = k.split(":", 3)
-            out.append({"feature": feature, **json.loads(store.get_value(k) or "{}"), "model": model})
+        for k in store.keys_with_prefix(pre):
+            parts = k[len(pre):].split(":")
+            if len(parts) != 3:
+                continue   # a key from the older one-JSON-per-model layout
+            feature, model, field = parts
+            row = rows.setdefault((feature, model), {"feature": feature, "model": model, "calls": 0, "prompt": 0, "completion": 0, "cached": 0})
+            row[field] = int(store.get_value(k) or 0)
     except Exception:
         pass
-    return sorted(out, key=lambda r: -r.get("prompt", 0))
+    return sorted(rows.values(), key=lambda r: -r.get("prompt", 0))

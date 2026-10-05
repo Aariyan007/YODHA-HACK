@@ -56,8 +56,7 @@ def patient_ctx(patient: Patient, db: Session, conv: str | None = None) -> Agent
 
 def _limit(actor: str) -> None:
     key = f"agent:rate:{actor}:{int(time.time() // 60)}"  # one counter per minute
-    n = int(store.get_value(key) or 0) + 1
-    store.set_value(key, str(n), ttl=90)
+    n = store.incr(key, ttl=90)
     if n > RATE_PER_MIN:
         raise HTTPException(429, "You are asking quickly. Please wait a moment.")
 
@@ -67,10 +66,8 @@ DAILY_LIMIT = int(os.getenv("AGENT_DAILY_LIMIT", "80"))
 
 def _daily_budget(actor: str) -> None:
     """One person can't use up the shared free AI quota: N questions a day, then a plain message."""
-    from datetime import date
-    key = f"agent:day:{actor}:{date.today().isoformat()}"
-    n = int(store.get_value(key) or 0) + 1
-    store.set_value(key, str(n), ttl=90000)
+    from .. import budget
+    n = store.incr(f"agent:day:{actor}:{budget.today_ist()}", ttl=90000)
     if n > DAILY_LIMIT:
         raise HTTPException(429, "You have reached today's limit for the assistant. It resets tomorrow.")
 

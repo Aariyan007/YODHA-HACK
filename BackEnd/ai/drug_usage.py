@@ -10,16 +10,17 @@ If it's not found (Indian-only brands, odd names) we return None and say so.
 from __future__ import annotations
 
 import re
-import time
 
 import httpx
+from app.lru import LRU
 
 URL = "https://api.fda.gov/drug/label.json"
 FIELDS = ("dosage_and_administration", "directions", "information_for_patients", "patient_medication_information",
           "spl_patient_package_insert", "instructions_for_use")
 SOURCE = "US FDA drug label (openFDA)"
 TTL = 7 * 86400
-_cache: dict[str, tuple[float, dict | None]] = {}
+_MISS = object()   # 'not cached' (a cached 'not found' is None)
+_cache = LRU(max_items=1000, ttl=TTL)   # bounded; a miss is cached as None, so the sentinel below tells it apart
 
 # (pattern, hint). Order matters, more specific and stronger statements go first.
 RULES = [
@@ -85,9 +86,9 @@ def usage(name: str) -> dict | None:
     key = clean_name(name).lower()
     if not key:
         return None
-    hit = _cache.get(key)
-    if hit and time.time() - hit[0] < TTL:
-        return hit[1]
+    hit = _cache.get(key, _MISS)
+    if hit is not _MISS:
+        return hit
     found = None
     try:
         for g in candidates(name)[:3]:
@@ -97,14 +98,14 @@ def usage(name: str) -> dict | None:
                 break
     except Exception:
         return None  # a network blip is not cached as "not found"
-    _cache[key] = (time.time(), found)
+    _cache.put(key, found)
     return found
 
 
 # ---- side effects (from the same public label)
 
 PATIENT_FIELDS = ("information_for_patients", "patient_medication_information", "spl_patient_package_insert")
-_side_cache: dict[str, tuple[float, dict | None]] = {}
+_side_cache = LRU(max_items=1000, ttl=TTL)   # bounded; a miss is cached as None, so the sentinel below tells it apart
 EXTRACT_SYSTEM = """You read the SOURCE text of a drug label and pull out side effects for a patient. Use ONLY the SOURCE.
 List up to 8 side effects a patient may notice (common) and up to 4 serious ones where the SOURCE says to get medical help or call a doctor.
 For every item copy a SHORT exact quote (under 110 characters) from the SOURCE that mentions it. Never add anything that is not in the SOURCE.
@@ -151,9 +152,9 @@ def side_effects(name: str, extractor=None) -> dict | None:
     key = clean_name(name).lower()
     if not key:
         return None
-    hit = _side_cache.get(key)
-    if hit and time.time() - hit[0] < TTL:
-        return hit[1]
+    hit = _side_cache.get(key, _MISS)
+    if hit is not _MISS:
+        return hit
     found = None
     try:
         for g in candidates(name)[:3]:
@@ -176,5 +177,5 @@ def side_effects(name: str, extractor=None) -> dict | None:
     except Exception:
         return None
     if found and (found["summarised"] or not found["hasText"]):  # do not cache a result that only lacked the model
-        _side_cache[key] = (time.time(), found)
+        _side_cache.put(key, found)
     return found

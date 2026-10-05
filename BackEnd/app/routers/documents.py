@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -18,6 +19,7 @@ from ..models import Patient
 router = APIRouter(prefix="/api", tags=["documents"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_STREAM_SECONDS = 10 * 60          # a progress stream never stays open longer than this
 
 # Allowed types, checked from the file's first bytes (the filename and Content-Type are only claims).
 def detect_type(data: bytes) -> str | None:
@@ -39,7 +41,6 @@ async def upload_document(
     file: UploadFile = File(...),
     patient: Patient = Depends(current_patient),
 ):
-    budget.spend(patient.id, "upload")
     data = await file.read(MAX_UPLOAD_BYTES + 1)  # never buffer more than the limit plus one byte
     if not data:
         raise HTTPException(400, "File is empty.")
@@ -48,6 +49,7 @@ async def upload_document(
     kind = detect_type(data)
     if kind is None:
         raise HTTPException(415, "This file type is not supported. Please upload a JPG, PNG, WEBP or PDF.")
+    budget.spend(patient.id, "upload")   # after the checks: a rejected file does not use up today's uploads
     # Name the file by what it really is, so a renamed file can't pick its own extension.
     job_id, from_cache = pipeline.start_job(patient.id, data, f"upload.{kind}")
     return {"jobId": job_id, "cached": from_cache}
@@ -84,9 +86,20 @@ async def job_events(job_id: str):
 
         async def from_redis():
             last = "0"  # replay from the start, so a reconnecting browser sees every stage again
+            started = time.monotonic()
             while True:
-                rows = await asyncio.to_thread(jobqueue.events, job_id, last, 15000)
+                if time.monotonic() - started > MAX_STREAM_SECONDS:
+                    yield _sse({"error": "This is taking longer than expected. Please open your Timeline in a minute."})
+                    return
+                try:
+                    rows = await jobqueue.aevents(job_id, last, 15000)
+                except Exception:  # Redis blip: tell the browser to retry instead of leaving a half-open stream
+                    yield _sse({"error": "Lost the connection to the server. Please check your Timeline in a minute."})
+                    return
                 if not rows:
+                    if not await jobqueue.aexists(job_id):   # the job expired while we waited: nothing more will come
+                        yield _sse({"error": "This upload is no longer available. Please upload it again."})
+                        return
                     yield ": keepalive\n\n"
                     continue
                 for last, event in rows:
