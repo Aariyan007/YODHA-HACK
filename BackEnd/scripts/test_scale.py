@@ -213,5 +213,74 @@ class SheddingTest(unittest.TestCase):
         self.assertEqual(asyncio.run(go()), [200] * 5)
 
 
+class CountersTest(unittest.TestCase):
+    def setUp(self):
+        store._memory.clear()
+
+    def test_incr_does_not_lose_counts_under_contention(self):
+        import threading
+
+        def hammer():
+            for _ in range(300):
+                store.incr("budget:x", ttl=60)
+        ts = [threading.Thread(target=hammer) for _ in range(8)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        self.assertEqual(int(store.get_value("budget:x")), 2400)
+
+    def test_incr_expiry_is_set_once_unless_refreshed(self):
+        store.incr("k", ttl=100)
+        first = store._memory["k"][1]
+        store.incr("k", ttl=100)
+        self.assertEqual(store._memory["k"][1], first)           # fixed window: later calls do not push it out
+        import time
+        time.sleep(0.01)
+        store.incr("k", ttl=100, refresh=True)
+        self.assertGreater(store._memory["k"][1], first)         # sliding window (login lock): pushed out
+
+    def test_budget_counts_atomically_and_stops_at_the_limit(self):
+        from app import budget
+        budget.LIMITS["upload"] = 3
+        got = [budget.try_spend("p1", "upload") for _ in range(5)]
+        self.assertEqual(got, [True, True, True, False, False])
+        self.assertTrue(budget.try_spend("p2", "upload"))        # another person has their own count
+
+    def test_lease_can_be_released_only_by_its_owner(self):
+        self.assertTrue(store.hold_lease("lock:t", "a", 30))
+        store.release_lease("lock:t", "b")
+        self.assertFalse(store.hold_lease("lock:t", "b", 30))
+        store.release_lease("lock:t", "a")
+        self.assertTrue(store.hold_lease("lock:t", "b", 30))
+
+
+class LruTest(unittest.TestCase):
+    def test_it_forgets_the_oldest_past_its_size(self):
+        from app.lru import LRU
+        c = LRU(max_items=3, ttl=60)
+        for i in range(5):
+            c.put(str(i), i)
+        self.assertEqual(len(c), 3)
+        self.assertIsNone(c.get("0"))
+        self.assertEqual(c.get("4"), 4)
+
+    def test_reading_keeps_an_entry_alive_and_none_is_cacheable(self):
+        from app.lru import LRU
+        c = LRU(max_items=2, ttl=60)
+        c.put("a", None)
+        c.put("b", 1)
+        self.assertIsNone(c.get("a", "missing"))                 # a stored None is a hit, not a miss
+        c.put("c", 2)                                            # drops "b" (the least recently used), not "a"
+        self.assertEqual(c.get("b", "missing"), "missing")
+        self.assertIsNone(c.get("a", "missing"))
+
+    def test_entries_expire(self):
+        from app.lru import LRU
+        c = LRU(max_items=5, ttl=0.05)
+        c.put("a", 1)
+        import time
+        time.sleep(0.1)
+        self.assertEqual(c.get("a", "gone"), "gone")
+
+
 if __name__ == "__main__":
     unittest.main()

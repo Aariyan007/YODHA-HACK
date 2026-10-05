@@ -49,7 +49,16 @@ def _flush() -> None:
         concurrency.stats["shed"] = concurrency.stats["timeouts"] = 0
     r = store._redis
     lanes = concurrency.INSTANCE.snapshot() if concurrency.INSTANCE else {}
-    store.set_value(f"hb:api:{ME}", json.dumps({"t": time.time(), "lanes": lanes, "req": acc.get("req", 0)}), ttl=10)
+    now = time.time()
+    store.set_value(f"hb:api:{ME}", json.dumps({"t": now, "lanes": lanes, "req": acc.get("req", 0)}), ttl=10)
+    if r is not None:
+        try:   # index of live API copies for the autoscaler (a sorted set, so it never has to KEYS the whole database)
+            p = r.pipeline()
+            p.zadd("hbz:api", {ME: now})
+            p.zremrangebyscore("hbz:api", 0, now - 60)
+            p.execute()
+        except Exception:
+            pass
     if not acc or r is None:
         return
     key = f"m:{int(time.time()) // BUCKET * BUCKET}"

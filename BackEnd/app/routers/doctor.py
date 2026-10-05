@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from .. import store
@@ -48,17 +48,23 @@ def _log(db: Session, doctor: User, patient: Patient, action: str) -> None:
 @router.post("/link")
 def link_patient(body: LinkBody, doctor: User = Depends(current_doctor), db: Session = Depends(get_db)):
     key = f"badcode:{doctor.id}"
-    if int(store.get_value(key) or 0) >= MAX_BAD_CODES:
+    # Reserve this try first (see login): counting only misses lets parallel guesses all pass the check.
+    if store.incr(key, ttl=BAD_CODE_WINDOW, refresh=True) > MAX_BAD_CODES:
         raise HTTPException(429, "Too many wrong codes. Please wait 15 minutes and try again.")
     code = "".join(ch for ch in body.code.upper() if ch.isalnum())
     invite = db.get(InviteCode, code)
     now = datetime.now(timezone.utc)
     if invite is not None:
         exp = invite.expires_at if invite.expires_at.tzinfo else invite.expires_at.replace(tzinfo=timezone.utc)
-    if invite is None or invite.used_by is not None or exp < now:
-        store.set_value(key, str(int(store.get_value(key) or 0) + 1), ttl=BAD_CODE_WINDOW)
+    # Claim the code in one UPDATE ... WHERE used_by IS NULL: two doctors typing the same code at the same moment
+    # (or one doctor on two API copies) can't both win, because only one UPDATE changes a row.
+    claimed = 0
+    if invite is not None and invite.used_by is None and exp >= now:
+        claimed = db.execute(update(InviteCode).where(InviteCode.code == code, InviteCode.used_by.is_(None))
+                             .values(used_by=doctor.id)).rowcount
+    if not claimed:
         raise HTTPException(400, "That code is not valid. Ask the patient for a new one (codes work once and expire after 24 hours).")
-    invite.used_by = doctor.id
+    store.delete(key)   # a right code clears the wrong-guess count
     link = db.scalar(select(CareLink).where(CareLink.patient_id == invite.patient_id, CareLink.doctor_user_id == doctor.id))
     if link is None:
         link = CareLink(patient_id=invite.patient_id, doctor_user_id=doctor.id)

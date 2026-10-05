@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -10,23 +11,46 @@ from sqlalchemy import text
 
 from .database import DB_KIND, Base, SessionLocal, add_missing_columns, add_missing_indexes, engine
 from .routers import admin, agent, auth, doctor_agent, care, consultations, demo, doctor, doctors, documents, imports, patients, reminders, shares
+from .models import new_id
 from .seed import ensure_demo_reminder_settings, seed_if_empty
+
+
+def _prepare_database() -> None:
+    """Tables, new columns, indexes and the demo seed. Idempotent, but every API copy starts at the same moment in the
+    Docker stack and two of them running ALTER TABLE or the seed at once can fail or insert twice. So one at a time,
+    through a Redis lock: the others wait here (up to 90 s), then find everything already done."""
+    import time
+
+    owner = os.getenv("HOSTNAME") or new_id()
+    key = "lock:startup-migrate"
+    deadline = time.time() + 90
+    waited = False
+    while not store.hold_lease(key, owner, 120):
+        waited = True
+        if time.time() > deadline:
+            print("[db] startup lock still held after 90 s; going on (every step is safe to repeat)")
+            break
+        time.sleep(1)
+    try:
+        if os.getenv("RESET_DB") == "1" and not waited:   # a copy that had to wait is a peer of one that already did this
+            print("[db] RESET_DB=1: dropping all tables before create_all")
+            Base.metadata.drop_all(engine)
+        Base.metadata.create_all(engine)
+        added = add_missing_columns()
+        add_missing_indexes()
+        if added:
+            print(f"[db] Added missing columns: {', '.join(added)}")
+        with SessionLocal() as db:
+            if seed_if_empty(db):
+                print("[seed] Loaded demo patient Ammini Varghese")
+            ensure_demo_reminder_settings(db)
+    finally:
+        store.release_lease(key, owner)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if os.getenv("RESET_DB") == "1":
-        print("[db] RESET_DB=1: dropping all tables before create_all")
-        Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    added = add_missing_columns()
-    add_missing_indexes()
-    if added:
-        print(f"[db] Added missing columns: {', '.join(added)}")
-    with SessionLocal() as db:
-        if seed_if_empty(db):
-            print("[seed] Loaded demo patient Ammini Varghese")
-        ensure_demo_reminder_settings(db)
+    await asyncio.to_thread(_prepare_database)
     try:
         from .agent import tasks as agent_tasks
         agent_tasks.purge_old()

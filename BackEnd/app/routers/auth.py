@@ -36,14 +36,6 @@ def _fail_key(email: str, request: Request) -> str:
     return f"loginfail:{email}:{ip}"
 
 
-def _too_many(key: str) -> bool:
-    return int(store.get_value(key) or 0) >= MAX_FAILS
-
-
-def _count_fail(key: str) -> None:
-    store.set_value(key, str(int(store.get_value(key) or 0) + 1), ttl=FAIL_WINDOW)
-
-
 def session_for(db: Session, user: User) -> dict:
     if user.role == "doctor":
         return {"token": create_doctor_token(user.id), "profile": user_out(user)}
@@ -97,12 +89,13 @@ def register(body: RegisterBody, db: Session = Depends(get_db)):
 def login(body: LoginBody, request: Request, db: Session = Depends(get_db)):
     email = (body.email or "").strip().lower()
     key = _fail_key(email, request)
-    if _too_many(key):
+    # Count this attempt BEFORE checking the password (and clear the count on success). Counting only after a failure
+    # let a burst of parallel guesses all pass the "too many?" check before the first one was counted.
+    if store.incr(key, ttl=FAIL_WINDOW, refresh=True) > MAX_FAILS:
         raise HTTPException(429, "Too many wrong attempts. Please wait 15 minutes and try again.")
     user = db.scalar(select(User).where(User.email == email))
     ok = verify_password(body.password, user.password_hash if user else None)
     if not (user and ok):
-        _count_fail(key)
         raise HTTPException(401, "Email or password is incorrect.")
     store.delete(key)
     return session_for(db, user)
